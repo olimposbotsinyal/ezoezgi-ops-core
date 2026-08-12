@@ -13,9 +13,12 @@ iç işleyişte (planlama, tool-call, ajan-arası mesajlaşma) İngilizce çalı
 
 ## Durum
 
-**Faz 0 — Bootstrap: çekirdek zincir kapandı** (bkz. PLAN.md, T5–T14 + T17).
-Finans işlem yürütme (T18–T20) bilinçli olarak Faz 2'ye ertelendi — detay
-[docs/releases/PHASE0_CLOSURE.md](docs/releases/PHASE0_CLOSURE.md)'de.
+**Faz 0 kapandı** (bkz. PLAN.md, T5–T14 + T17), **Faz 1 sürüyor** — mock TR
+sınıflandırıcının yanına gerçek bir Ollama NLU adaptörü eklendi (B031,
+`NLU_PROVIDER=ollama` ile etkinleştirilir, varsayılan hâlâ `mock`). Finans
+işlem yürütme (T18–T20) bilinçli olarak Faz 2'ye ertelendi — detay
+[docs/releases/PHASE0_CLOSURE.md](docs/releases/PHASE0_CLOSURE.md) ve
+[docs/RUNBOOK.md](docs/RUNBOOK.md) → "Faz 1 — Ollama NLU Entegrasyonu"'da.
 
 ## Çalıştırma (Hızlı Başlangıç)
 

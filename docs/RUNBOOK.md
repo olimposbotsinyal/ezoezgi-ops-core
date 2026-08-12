@@ -165,6 +165,58 @@ Her iki senaryo da `data/audit/audit.log.jsonl`'a yeni bir JSONL satırı ekler
   ile otomatik düzeltmeye çalışır; sorun devam ederse `chcp 65001` veya
   `$env:PYTHONIOENCODING="utf-8"` deneyin.
 
+## Faz 1 — Ollama NLU Entegrasyonu (B031)
+
+> Migration notu: Bu bölüm, `bridge.py`'nin mock (anahtar kelime tabanlı)
+> sınıflandırıcının yanına gerçek bir Ollama tabanlı NLU adaptörü
+> (`services/tr-en-bridge/src/ollama_nlu.py`) eklendiğinde yazıldı
+> (Faz 1, BACKLOG.md B031). Mevcut `translate_and_extract()` arayüzü
+> (`detected_alias`/`task_en`/`original_tr`/`confidence`) **değişmedi** —
+> orchestrator, audit logger ve `scripts/e2e_demo.py` hiçbir değişiklik
+> gerektirmedi.
+
+### Nasıl etkinleştirilir
+
+Varsayılan davranış **değişmedi** — hiçbir env değişkeni ayarlanmazsa mock
+sınıflandırıcı (agsız, anlık) kullanılmaya devam eder. Ollama'yı etkinleştirmek
+için:
+
+```
+$env:NLU_PROVIDER = "ollama"
+.\.venv\Scripts\python.exe scripts\e2e_demo.py "Ezo, echo ile merhaba yaz"
+```
+
+### Gerekli/opsiyonel env değişkenleri
+
+| Değişken | Varsayılan | Açıklama |
+|---|---|---|
+| `NLU_PROVIDER` | `mock` | `mock` veya `ollama`. Tanımsız/geçersiz bir değer (örn. yazım hatası) sessizce `mock`'a düşer — asla bilinmeyen bir sağlayıcıya yönlendirmez. |
+| `OLLAMA_BASE_URL` | `http://localhost:11434` | T8'de tanımlı, `model_client.py` tarafından okunur. |
+| `OLLAMA_MODEL` | `llama3` | T8'de tanımlı, `model_client.py` tarafından okunur. |
+
+### Hata/fallback davranışı
+
+`ollama` sağlayıcısı seçiliyken aşağıdaki durumların **hiçbiri** bridge'i
+çökertmez veya exception fırlatmaz — hepsi sessizce mock sınıflandırmaya
+düşer:
+
+- Ollama servisi ayakta değil / erişilemiyor (health check başarısız).
+- Zorunlu timeout aşıldı (`OllamaModelClient` varsayılan 2.0s).
+- Model geçerli JSON dönmedi veya beklenen alanları içermiyor (`intent`,
+  `confidence`) — bir kez daha denenir (`max_attempts`, varsayılan 2), yine
+  başarısız olursa `UNKNOWN` intent'e düşülür.
+- Model, whitelist dışı (bilinmeyen) bir `intent` döndürdü.
+
+Bu davranış, `data/audit/audit.log.jsonl`'a düşen kayıtları etkilemez —
+audit logger, hangi sağlayıcının kullanıldığından habersizdir, yalnızca
+nihai `task_en`/`risk_level`/`status`'u görür.
+
+**Güvenlik notu:** Bu entegrasyon finans execution'ı **etkilemez** —
+T18–T20 hâlâ Paused (ADR-011). NLU sağlayıcısı ne olursa olsun, risk/onay
+akışı (T13) değişmeden çalışmaya devam eder (`RUN_DELETE_FILE` gibi
+`irreversible` task'lar, hangi sağlayıcı tespit ederse etsin `WAITING_APPROVAL`'a
+düşer).
+
 ## Onay Gerektiren Aksiyonlar (Faz 4+ ile aktif olacak)
 
 - Risk seviyesi `high` veya `irreversible` olan her aksiyon, kullanıcı onayı
