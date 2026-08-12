@@ -6,7 +6,7 @@ Gerçek bir Ollama servisi gerektirmez -- `OllamaModelClient` yerine sahte
 
 from __future__ import annotations
 
-from ollama_nlu import UNKNOWN_INTENT, classify
+from ollama_nlu import ENTITY_SCHEMA_HINTS, UNKNOWN_INTENT, _build_prompt, classify
 
 KNOWN = ["RUN_ECHO", "SHOW_DAILY_SPENDING", "RUN_DELETE_FILE"]
 
@@ -140,3 +140,44 @@ def test_empty_response_text_returns_null_intent():
     result = classify("test", KNOWN, client=fake, max_attempts=1)
 
     assert result["intent"] == UNKNOWN_INTENT
+
+
+# --- Entity şema ipuçları (B031 quality gate hazırlığı) --------------------
+
+
+def test_build_prompt_includes_entity_schema_hint_for_known_intent_with_schema():
+    prompt = _build_prompt("Ezo, echo ile merhaba yaz", KNOWN)
+
+    assert "RUN_ECHO" in prompt
+    assert "value" in prompt  # ENTITY_SCHEMA_HINTS["RUN_ECHO"]'daki alan adı
+
+
+def test_build_prompt_omits_schema_block_when_no_known_intent_has_a_schema():
+    # SHOW_DAILY_SPENDING ve RUN_DELETE_FILE icin ENTITY_SCHEMA_HINTS'te
+    # tanim yok; bu durumda sema blogu prompt'a hic eklenmemeli.
+    for intent in ("SHOW_DAILY_SPENDING", "RUN_DELETE_FILE"):
+        assert intent not in ENTITY_SCHEMA_HINTS  # varsayim gecerli mi
+
+    prompt = _build_prompt("test", ["SHOW_DAILY_SPENDING", "RUN_DELETE_FILE"])
+
+    assert "Niyete özel beklenen entity alanları" not in prompt
+
+
+def test_build_prompt_schema_hint_absent_when_intent_not_in_known_list():
+    # RUN_ECHO icin sema tanimli ama bu cagride known_intents'te yok --
+    # sema ipucu prompt'a hic girmemeli.
+    prompt = _build_prompt("test", ["SHOW_DAILY_SPENDING"])
+
+    assert "RUN_ECHO" not in prompt
+
+
+def test_classify_contract_unchanged_by_schema_hints():
+    # Prompt icerigi degisti ama classify()'in donus semasi (intent/entities/
+    # confidence/raw) tamamen ayni kalmali -- geriye donuk uyumluluk.
+    fake = _FakeClient('{"intent": "RUN_ECHO", "entities": {"value": "merhaba"}, "confidence": 0.9}')
+
+    result = classify("Ezo, echo ile merhaba yaz", KNOWN, client=fake)
+
+    assert set(result.keys()) == {"intent", "entities", "confidence", "raw"}
+    assert result["intent"] == "RUN_ECHO"
+    assert result["entities"] == {"value": "merhaba"}

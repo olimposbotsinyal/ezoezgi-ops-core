@@ -316,7 +316,7 @@ gösterir (`reports/nlu_eval_<YYYYMMDD>.md`).
 |---|---|---|
 | `ollama` sütunu hep N/A | Ollama kurulu/çalışır değil | `ollama serve` çalıştırın, `curl http://localhost:11434/api/tags` ile test edin |
 | Tüm örnekler `parse_error` | Model JSON formatını takip etmiyor | `ollama_nlu.py::_build_prompt` içindeki formatı modelin desteklediği bir formata uyarlayın |
-| `entity_match_rate` düşük ama `intent_accuracy` yüksek | Model intent'i doğru buluyor ama entity şemasını bilmiyor | Prompt'a entity alan adlarını (`value` vb.) açıkça ekleyin |
+| `entity_match_rate` düşük ama `intent_accuracy` yüksek | Model intent'i doğru buluyor ama entity şemasını bilmiyor | Prompt zaten `ollama_nlu.py::ENTITY_SCHEMA_HINTS`'teki alan adlarını modele bildiriyor (`RUN_ECHO` → `value`); hâlâ düşükse ilgili `task_en` için sözlüğe yeni bir satır ekleyin veya örnek/açıklamayı zenginleştirin |
 | Rapor `reports/`'a yazılmıyor | Dizin izin sorunu | `reports/` klasörünün var/yazılabilir olduğunu kontrol edin (`.gitkeep` yoksa oluşturun) |
 
 ## Onay Gerektiren Aksiyonlar (Faz 4+ ile aktif olacak)
