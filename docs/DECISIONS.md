@@ -184,6 +184,31 @@
   doğrulaması bu ortamda yapılamadı (Ollama kurulu değil) — BACKLOG.md B031
   "kısmen tamamlandı" olarak işaretlendi, kalan iş orada.
 
+## ADR-014
+- **Tarih:** 2026-08-13
+- **Karar:** Bir NLU/AI bileşeninin "tamamlandı" sayılabilmesi için, öznel
+  değerlendirme yerine **golden set + nicel eşik (quality gate)** metodolojisi
+  kullanılır. B031 için: `tests/fixtures/nlu_golden_tr.jsonl` (50 Türkçe
+  örnek, dengeli kategoriler) + `tools/eval_nlu.py` (intent accuracy ≥%90,
+  entity match ≥%85, parse error ≤%2, fallback ≤%5, p95 latency ≤2.5s).
+  Gerçek sağlayıcı (`ollama`) bir ortamda kullanılamıyorsa araç sonucu
+  **uydurmaz** — `NOT_EVALUATED` olarak işaretler ve sebebini raporlar;
+  bu asla `PASS` ile karıştırılamaz.
+- **Gerekçe:** "Mock çalışıyor, o zaman gerçek model de çalışır" varsayımı
+  yanıltıcıdır — özellikle Türkçe, düşük kaynaklı bir dilde model kalitesi
+  büyük farklılık gösterebilir. Nicel bir eşik olmadan "B031 tamamlandı"
+  demek, doğrulanamamış bir iddiadır. Bu ortamda Ollama kurulu olmadığı
+  için canlı ölçüm yapılamadı (bkz. `reports/nlu_eval_20260812.md`) — bu,
+  metodolojinin tam olarak öngördüğü, dürüst bir "henüz doğrulanamadı"
+  durumudur.
+- **Alternatif:** Sınırlı sayıda manuel/anekdotsal test ile "yeterince iyi"
+  denip B031'i kapatmak (reddedildi — ölçülemez, tekrarlanamaz, gelecekteki
+  model/prompt değişikliklerinde regresyon tespit edilemez).
+- **Sonuç:** Kabul edildi. Bu golden-set + eşik deseni, gelecekteki diğer
+  AI/model tabanlı bileşenler (ör. sentiment analizi, strateji motoru) için
+  de şablon olarak kullanılabilir. Test: `tests/test_eval_nlu.py` (30 test,
+  loader/parser, metrik hesaplama, fallback/parse-error ayrımı dahil).
+
 ---
 
-*Yeni ADR eklerken yukarıdaki formatı koru ve numarayı sırayla artır (ADR-014, ...).*
+*Yeni ADR eklerken yukarıdaki formatı koru ve numarayı sırayla artır (ADR-015, ...).*

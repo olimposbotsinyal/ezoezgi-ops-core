@@ -217,6 +217,108 @@ akışı (T13) değişmeden çalışmaya devam eder (`RUN_DELETE_FILE` gibi
 `irreversible` task'lar, hangi sağlayıcı tespit ederse etsin `WAITING_APPROVAL`'a
 düşer).
 
+### Quality Gate (B031 tamamlanma kriteri)
+
+B031'in "tamamlandı" sayılabilmesi için `mock` yerine `ollama`'nın **canlı ve
+ölçülmüş** bir kalitede çalıştığının kanıtlanması gerekir. Bunun için:
+
+- **Golden veri seti:** `tests/fixtures/nlu_golden_tr.jsonl` — 50 Türkçe
+  örnek (JSONL, satır başına bir örnek: `text`, `expected_intent`,
+  `expected_entities`, opsiyonel `notes`/`risk_level`). Dengeli kategoriler:
+  net komutlar, belirsiz cümleler, yazım hatası/konuşma dili varyantları,
+  whitelist dışı niyetler, `irreversible` (onay bekleyen) aksiyonlar.
+- **Değerlendirme aracı:** `tools/eval_nlu.py` — aynı golden set üzerinde
+  `mock` ve `ollama`'yı karşılaştırır, markdown rapor üretir
+  (`reports/nlu_eval_<YYYYMMDD>.md`).
+
+**Çalıştırma:**
+```
+.\.venv\Scripts\python.exe tools\eval_nlu.py
+```
+Yalnızca tek bir sağlayıcıyı çalıştırmak için: `--providers mock` veya
+`--providers ollama`. Özel golden set/çıktı yolu için: `--golden <path>`,
+`--out <path>`.
+
+**Ollama kurulu değilse/erişilemiyorsa:** araç çökmez veya sayı uydurmaz —
+`ollama` sütununu `N/A` olarak işaretler, sebebini yazar (health check
+hatası) ve kurulum adımlarını (Ollama indir, `ollama serve`, `ollama pull
+<model>`) rapora ekler. Bu durumda `mock` sonuçları yine üretilir ama
+**yalnızca referans amaçlıdır** — quality gate kriterleri özellikle canlı
+Ollama içindir, mock'a karşı asla "PASS" sayılmaz.
+
+> **Önemli:** Mock provider entity extraction üretmez; entity metriği
+> yalnızca Ollama canlı değerlendirmesinde gate kriteridir. Bu yüzden
+> `entity_match_rate` mock için her zaman `%0`/`FAIL`'dir — bu beklenen ve
+> zararsızdır, B031'in tamamlanma kararını **etkilemez** (karar yalnızca
+> `ollama` sütununa bakar).
+
+### Canlı Ollama Kapanış Prosedürü (B031 Completed kararı)
+
+Ollama kurulu bir makinede (bu geliştirme ortamı **değil**), B031'i
+kapatmak için sırayla:
+
+**1) Servisi başlat:**
+```
+ollama serve
+```
+(Bazı kurulumlarda arka planda otomatik başlar; `ollama list` komutu hata
+vermeden çalışıyorsa servis zaten ayaktadır.)
+
+**2) Modeli indir** (varsayılan `OLLAMA_MODEL=llama3`; farklı bir model
+kullanılacaksa önce `$env:OLLAMA_MODEL` ile ayarlanmalı):
+```
+ollama pull llama3
+```
+
+**3) Değerlendirmeyi çalıştır:**
+```
+cd D:\Projects\ezoezgi-ops
+.\.venv\Scripts\python.exe tools\eval_nlu.py
+```
+Beklenen: rapor artık `ollama` sütununda `N/A` değil, gerçek sayılar
+gösterir (`reports/nlu_eval_<YYYYMMDD>.md`).
+
+**4) Eşikleri yorumla:** Rapordaki "### ollama" tablosunda 5 satırın
+`Sonuç` kolonuna bak (bkz. "Metrikler ve eşikler" tablosu yukarıda).
+
+**5) Karar ver:**
+- **5 kriterin tamamı `PASS`** → `docs/BACKLOG.md`'de B031'i **Tamamlandı**
+  olarak işaretle, rapor dosyasını (`reports/nlu_eval_<tarih>.md`) referans
+  ver, gerekiyorsa `docs/DECISIONS.md`'ye kapanış ADR'ı ekle.
+- **En az bir kriter `FAIL`** → B031 **Kısmen tamamlandı** kalır; BACKLOG
+  satırına hangi metrik(ler)in eşiği karşılamadığını ve sayısal değerini
+  ekle. Muhtemel iyileştirme: `ollama_nlu.py::_build_prompt`'u modelin
+  gerçekte döndürdüğü formata göre ayarlamak veya farklı bir model denemek.
+- **Sonuç uydurma yok:** Çıktı ne olursa olsun rapor dosyası olduğu gibi
+  saklanır/commit edilir; PASS görünmesi için eşik veya golden set
+  değiştirilmez.
+
+**Metrikler ve eşikler** (`tools/eval_nlu.py::ACCEPTANCE_CRITERIA`):
+
+| Metrik | Eşik | Anlamı |
+|---|---|---|
+| Intent accuracy | ≥ %90 | Doğru sınıflandırılan örnek oranı |
+| Entity match rate | ≥ %85 | Kritik entity alanlarının tam eşleştiği örnek oranı (yalnızca `expected_entities` dolu örnekler üzerinden) |
+| Parse error rate | ≤ %2 | Modelin geçerli/ayrıştırılabilir JSON döndürmediği örnek oranı |
+| Fallback rate | ≤ %5 | Servise hiç ulaşılamadığı için mock'a düşülen örnek oranı |
+| Latency p95 | ≤ 2.5s | 50 örneklik koşunun 95. yüzdelik gecikmesi |
+
+**Yorumlama:** Rapordaki "Sonuç" bölümü üç durumdan birini yazar:
+- **PASS** — tüm kriterler karşılandı, B031 tamamlanmaya hazır.
+- **FAIL** — en az bir kriter karşılanmadı; hangi metrik(ler) eşiğin altında/üstünde
+  kaldıysa tablo bunu gösterir. Sonraki adım genelde prompt iyileştirme
+  (`ollama_nlu.py::_build_prompt`) veya farklı bir model denemek.
+- **NOT_EVALUATED** — Ollama bu ortamda kullanılamadı, kriterler hiç test
+  edilemedi. Bu bir başarısızlık değil, ortam kısıtıdır.
+
+**Sorun giderme:**
+| Belirti | Olası neden | Bakılacak yer |
+|---|---|---|
+| `ollama` sütunu hep N/A | Ollama kurulu/çalışır değil | `ollama serve` çalıştırın, `curl http://localhost:11434/api/tags` ile test edin |
+| Tüm örnekler `parse_error` | Model JSON formatını takip etmiyor | `ollama_nlu.py::_build_prompt` içindeki formatı modelin desteklediği bir formata uyarlayın |
+| `entity_match_rate` düşük ama `intent_accuracy` yüksek | Model intent'i doğru buluyor ama entity şemasını bilmiyor | Prompt'a entity alan adlarını (`value` vb.) açıkça ekleyin |
+| Rapor `reports/`'a yazılmıyor | Dizin izin sorunu | `reports/` klasörünün var/yazılabilir olduğunu kontrol edin (`.gitkeep` yoksa oluşturun) |
+
 ## Onay Gerektiren Aksiyonlar (Faz 4+ ile aktif olacak)
 
 - Risk seviyesi `high` veya `irreversible` olan her aksiyon, kullanıcı onayı

@@ -6,4 +6,5 @@ pythonpath = [
     "services/tr-en-bridge/src",
     "tools/cli-runner/src",
     "scripts",
+    "tools",
 ]
