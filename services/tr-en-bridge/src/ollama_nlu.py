@@ -40,15 +40,38 @@ DEFAULT_MAX_ATTEMPTS = 2
 
 _JSON_BLOCK_RE = re.compile(r"\{.*\}", re.DOTALL)
 
+# Intent basina beklenen kritik entity alanlari -- modelin dogru alan adiyla
+# entity doldurmasini tesvik etmek icin prompt'a gomulur (B031 quality gate
+# entity_match_rate >= %85 esigi icin, bkz. docs/RUNBOOK.md "Canli Ollama
+# Kapanis Proseduru"). Yeni bir task_en icin critical entity eklenecekse
+# buraya bir satir eklemek yeterli -- classify()'in imzasi/sozlesmesi
+# degismez.
+ENTITY_SCHEMA_HINTS: dict[str, dict[str, str]] = {
+    "RUN_ECHO": {"value": "echo edilecek TR metin"},
+}
+
 
 def _build_prompt(input_tr: str, known_intents: list[str]) -> str:
     intents_list = ", ".join(known_intents)
+
+    schema_lines = [
+        f'  - "{intent}" için entities: {json.dumps(ENTITY_SCHEMA_HINTS[intent], ensure_ascii=False)}'
+        for intent in known_intents
+        if intent in ENTITY_SCHEMA_HINTS
+    ]
+    schema_block = ""
+    if schema_lines:
+        schema_block = "\nNiyete özel beklenen entity alanları (varsa doldur, yoksa {} bırak):\n" + "\n".join(
+            schema_lines
+        )
+
     return (
         "Sen bir Türkçe niyet (intent) sınıflandırma asistanısın. "
         "Kullanıcının cümlesini aşağıdaki niyetlerden BİRİNE ata: "
         f"{intents_list}. Hiçbiri uymuyorsa \"{UNKNOWN_INTENT}\" kullan. "
         "Yalnızca geçerli JSON ile cevap ver, başka hiçbir açıklama ekleme. "
-        'Format: {"intent": "<NİYET>", "entities": {}, "confidence": <0-1 arası sayı>}\n\n'
+        'Format: {"intent": "<NİYET>", "entities": {}, "confidence": <0-1 arası sayı>}'
+        f"{schema_block}\n\n"
         f"Kullanıcı cümlesi: {input_tr}"
     )
 
