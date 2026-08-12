@@ -319,6 +319,12 @@ gösterir (`reports/nlu_eval_<YYYYMMDD>.md`).
 | `entity_match_rate` düşük ama `intent_accuracy` yüksek | Model intent'i doğru buluyor ama entity şemasını bilmiyor | Prompt zaten `ollama_nlu.py::ENTITY_SCHEMA_HINTS`'teki alan adlarını modele bildiriyor (`RUN_ECHO` → `value`); hâlâ düşükse ilgili `task_en` için sözlüğe yeni bir satır ekleyin veya örnek/açıklamayı zenginleştirin |
 | Rapor `reports/`'a yazılmıyor | Dizin izin sorunu | `reports/` klasörünün var/yazılabilir olduğunu kontrol edin (`.gitkeep` yoksa oluşturun) |
 
+**Değerlendirme koşu kayıtları:**
+
+| Tarih (UTC) | Ortam | Intent acc. | Entity match | Parse error | Fallback | p95 latency | Karar |
+|---|---|---|---|---|---|---|---|
+| 2026-08-12T23:45:38Z | local Ollama (`http://localhost:11434`) | N/A | N/A | N/A | N/A | N/A | **Partial / NOT_EVALUATED** — Ollama servisine ulaşılamadı (`urlopen error timed out`); mock referans: intent acc. %92.0, entity match %0.0 (bkz. `reports/nlu_eval_20260812.md`) |
+
 ## Onay Gerektiren Aksiyonlar (Faz 4+ ile aktif olacak)
 
 - Risk seviyesi `high` veya `irreversible` olan her aksiyon, kullanıcı onayı

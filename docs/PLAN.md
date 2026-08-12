@@ -280,6 +280,8 @@
 
 ## Daily Log
 
+Entity-schema prep PR opened for B031 (prompt-level schema hints); no reproducible CLI regression on clean main, validated by full green test run.
+
 ### 2026-08-12
 - **Yapılanlar:** Proje bootstrap edildi — klasör iskeleti, `assistant.identity.json`,
   MASTER_ROADMAP.md, PLAN.md, BACKLOG.md, DECISIONS.md oluşturuldu; git deposu başlatıldı.
@@ -357,3 +359,7 @@ tutarlılık taraması yapıldı — çelişki bulunmadı, patch gerekmedi. B031
 **Kısmen tamamlandı**: quality-gate altyapısı hazır ve test edilmiş, ancak
 canlı Ollama ölçümü bu ortamda hâlâ yapılamadı (`NOT_EVALUATED`) — bu
 iddia edilmiyor, dürüstçe korunuyor.
+
+**Ek (aynı gün, kapanış notu):** Feature/phase1-b031-entity-schema-prompt
+merged to main via fast-forward; branch cleanup completed; next gate is
+live Ollama eval for B031 acceptance metrics.
