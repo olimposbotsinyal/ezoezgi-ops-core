@@ -152,6 +152,38 @@
   kuralı programatik olarak doğruluyor. Gelecekteki tüm tool-runner'lar
   (browser-runner, file-runner vb.) aynı üç kurala tabi olmalı.
 
+## ADR-013
+- **Tarih:** 2026-08-13
+- **Karar:** Gerçek NLU entegrasyonu (Faz 1, B031), `bridge.py`'nin mevcut
+  `translate_and_extract()` arayüzünü değiştirmeden, `NLU_PROVIDER`
+  ortam değişkeniyle seçilen bir **feature flag + adaptör** deseniyle
+  eklenir. Yeni adaptör (`services/tr-en-bridge/src/ollama_nlu.py`) kendi
+  canonical şemasını (`intent`/`entities`/`confidence`/`raw`) üretir;
+  `bridge.py` bunu mevcut `task_en`/`confidence` sözleşmesine eşler. Varsayılan
+  sağlayıcı **her zaman `mock`** kalır; `ollama` sağlayıcısı herhangi bir
+  nedenle (servis kapalı, timeout, bozuk çıktı, tanımsız intent) başarısız
+  olursa **sessizce mock'a düşer** — hiçbir zaman exception fırlatmaz veya
+  orchestrator/risk/audit zincirini etkilemez.
+- **Gerekçe:** Faz 0'da kurulan orchestrator, risk motoru (T13) ve audit
+  logger (T17), `translate_and_extract()`'in çıktı şekline göre yazıldı;
+  büyük bir refactor riske değmezdi ("keep changes minimal, modular,
+  auditable"). Feature flag + safe-fallback deseni, gerçek modelin henüz
+  bu ortamda kurulu/test edilmiş olmamasına rağmen kodun mainline'a
+  güvenle girmesini sağlıyor — varsayılan davranış (mock) hiç değişmiyor,
+  yalnızca bilinçli olarak `NLU_PROVIDER=ollama` ayarlanırsa yeni yol
+  devreye giriyor.
+- **Alternatif:** `translate_and_extract()`'i doğrudan Ollama'ya bağlayıp
+  mock'u tamamen kaldırmak (reddedildi — geri dönüşü yok, gerçek model bu
+  ortamda doğrulanamadığından riskli); orchestrator'ı NLU sağlayıcısından
+  haberdar hale getirmek (reddedildi — gereksiz coupling, bridge/orchestrator
+  servis ayrımını bozar, bkz. MASTER_ROADMAP.md §3).
+- **Sonuç:** Kabul edildi. Test: `tests/test_ollama_nlu.py` (adaptör, 10
+  test) + `tests/test_nlu_provider_flag.py` (bayrak + orchestrator smoke,
+  12 test) — hepsi ağsız/deterministik (gerçek client `monkeypatch` ile
+  değiştiriliyor). Gerçek bir Ollama modeliyle uçtan uca kalite/prompt
+  doğrulaması bu ortamda yapılamadı (Ollama kurulu değil) — BACKLOG.md B031
+  "kısmen tamamlandı" olarak işaretlendi, kalan iş orada.
+
 ---
 
-*Yeni ADR eklerken yukarıdaki formatı koru ve numarayı sırayla artır (ADR-013, ...).*
+*Yeni ADR eklerken yukarıdaki formatı koru ve numarayı sırayla artır (ADR-014, ...).*
