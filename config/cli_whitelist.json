@@ -1,0 +1,15 @@
+{
+  "default_timeout_seconds": 5,
+  "commands": {
+    "echo": {
+      "executable": "echo",
+      "description": "Metni stdout'a yazdirir (salt-okunur, yan etkisi yok).",
+      "risk_level": "low"
+    },
+    "pwd": {
+      "executable": "pwd",
+      "description": "Calisma dizinini yazdirir (Windows'ta 'cd' cikisiyla esdeger, salt-okunur).",
+      "risk_level": "low"
+    }
+  }
+}

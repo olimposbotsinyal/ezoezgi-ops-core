@@ -1,0 +1,105 @@
+{
+  "roles": {
+    "SUPER_ADMIN": [
+      "access_admin_menu",
+      "assign_users_to_channels",
+      "delete_any_api",
+      "delete_any_user",
+      "manage_admins",
+      "manage_alarm_permissions",
+      "manage_exchanges",
+      "manage_channels",
+      "manage_chart_settings",
+      "manage_tuner_settings",
+      "manage_role_permissions",
+      "manage_user_subscriptions",
+      "setup_alarms",
+      "train_ai_models_menu",
+      "view_all_apis",
+      "view_all_users"
+    ],
+    "MANAGER": [
+      "access_admin_menu",
+      "assign_users_to_channels",
+      "delete_any_api",
+      "delete_any_user",
+      "manage_channels",
+      "manage_chart_settings",
+      "manage_exchanges",
+      "manage_role_permissions",
+      "manage_tuner_settings",
+      "manage_user_subscriptions",
+      "setup_alarms",
+      "train_ai_models_menu",
+      "view_all_apis",
+      "view_all_users"
+    ],
+    "ADMIN": [
+      "access_admin_menu",
+      "manage_chart_settings",
+      "manage_user_subscriptions",
+      "setup_alarms",
+      "train_ai_models_menu",
+      "view_all_apis"
+    ],
+    "USER": []
+  },
+  "button_meta": {
+    "train_ai_models_menu": {
+      "label": "AI Modellerini Eğit",
+      "emoji": "🎓"
+    },
+    "manage_admins": {
+      "label": "Admin Yönetimi",
+      "emoji": "👑"
+    },
+    "view_all_users": {
+      "label": "Tüm Kullanıcıları Görüntüle",
+      "emoji": "👥"
+    },
+    "delete_any_user": {
+      "label": "Kullanıcı Sil",
+      "emoji": "🗑️"
+    },
+    "assign_users_to_channels": {
+      "label": "Kullanıcıyı Kanala Ata",
+      "emoji": "🔗"
+    },
+    "manage_user_subscriptions": {
+      "label": "Kullanıcı Süre Ayarları",
+      "emoji": "⏳"
+    },
+    "view_all_apis": {
+      "label": "Tüm API'leri Görüntüle",
+      "emoji": "🔑"
+    },
+    "delete_any_api": {
+      "label": "Herhangi Bir API'yi Sil",
+      "emoji": "🔥"
+    },
+    "manage_channels": {
+      "label": "Bot Kanallarını Yönet",
+      "emoji": "📢"
+    },
+    "setup_alarms": {
+      "label": "Alarm Kurulum Menüsü",
+      "emoji": "🚨"
+    },
+    "manage_role_permissions": {
+      "label": "Rol Yetkilerini Düzenle",
+      "emoji": "🛠️"
+    },
+    "manage_chart_settings": {
+      "label": "Grafik Ayarlarını Yönet",
+      "emoji": "📈"
+    },
+    "manage_tuner_settings": {
+      "label": "Tuner Ayarlarını Yönet",
+      "emoji": "🔧"
+    },
+    "manage_exchanges": {
+      "label": "Borsaları Yönet",
+      "emoji": "🏦"
+    }
+  }
+}

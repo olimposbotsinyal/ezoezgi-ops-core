@@ -22,6 +22,21 @@
 | B015 | Prometheus/Grafana dashboard seti | Düşük | Açık | Faz 6 | — | infra/monitoring iskeleti boş |
 | B016 | OSV taramasının CI'ya bağlanması | Orta | Açık | Faz 4 | — | CI henüz kurulu değil |
 | B017 | Audit log şeması (append-only) | Yüksek | Açık | Faz 4 | Orchestrator | data/audit formatı netleşmeli |
-| B018 | Risk seviyesi taksonomisi detaylandırma | Yüksek | Açık | Faz 4 | Orchestrator | low/medium/high/irreversible kriterleri |
+| B018 | Risk seviyesi taksonomisi detaylandırma | Yüksek | Açık | Faz 4 | Orchestrator | low/medium/high/irreversible kriterleri; T13'te ilk çalışan sürüm (`risk_engine.py` + `tool_risk_policy.yaml`) teslim edildi, Faz 4'te daha ayrıntılı kriterler/hardening bekliyor |
 | B019 | Çok dilli genişleme (TR/EN dışı) | Düşük | Açık | Backlog | Bridge Agent | Şimdilik kapsam dışı, ADR gerektirir |
 | B020 | Native mobil uygulama ihtiyacı değerlendirmesi | Düşük | Açık | Backlog | — | PWA yeterli mi — ayrı ADR |
+| B021 | Exchange connector abstraction (Binance/Bybit/BtcTurk vb.) | Yüksek | Açık | Faz 2 | Finance Agent | Ortak arayüz, borsa-özel adaptörler; gerçek bağlantı bu maddede yok |
+| B022 | Order sizing policy | Yüksek | Açık | Faz 2 | Finance Agent | L2/L3 eşiklerini belirleyen pozisyon büyüklüğü kuralları; policies/risk/finance.yaml ile ilişkili |
+| B023 | Stop-loss / take-profit policy | Yüksek | Açık | Faz 2 | Finance Agent | Otomatik risk sınırlama kuralları; execution mock (PLAN.md T19) sonrası netleşecek |
+| B024 | Circuit breaker (max günlük zarar) | Yüksek | Açık | Faz 2 | Finance Agent | Eşik aşılınca tüm L2/L3 işlemleri otomatik durdurma; RUNBOOK kill switch ile ilişkili |
+| B025 | API permission validator (withdraw=false kontrolü) | Yüksek | Açık | Faz 2 | Finance Agent | Bağlantı kurulmadan önce API key izinlerini doğrular; MASTER_ROADMAP.md §5 zorunlu ön koşul |
+| B026 | Gelisen_Bot parity checklist | Yüksek | Açık | Faz 2 | Finance Agent | `docs/imports/GELISEN_BOT_PARITY_CHECKLIST.md`; T19'un yeniden açılması için ön koşul (ADR-011) |
+| B027 | Telegram command adapter tasarımı | Orta | Açık | Faz 2 | Bridge Agent | Gelisen_Bot'un ikili Telegram kütüphanesi (python-telegram-bot + telebot) karmaşasından kaçınacak tek-kütüphane adapter; `GELISEN_BOT_ANALIZ_RAPORU.md` §3 referans |
+| B028 | Strategy abstraction katmanı | Orta | Açık | Faz 2 | Finance Agent | Gelisen_Bot `strategies/base_strategy.py`/`strategy_v1.py` deseninden ilham; EzoEzgi Finance Agent'a uyarlanacak |
+| B029 | Dry-run replay test altyapısı | Orta | Açık | Faz 2 | Finance Agent | Geçmiş piyasa verisiyle strateji/risk motorunu gerçek para olmadan (L1) tekrar oynatma; Gelisen_Bot'ta karşılığı yok, yeni yetenek |
+| B030 | Kullanıcı borsa credential encryption | Yüksek | Açık | Faz 2 | Finance Agent | Gelisen_Bot'ta plaintext DB saklama tespit edildi (`GELISEN_BOT_SECURITY_NOTES.md` P1); EzoEzgi'de envelope encryption zorunlu, B021 öncesi ön koşul |
+| B031 | Gerçek TR-EN çeviri/NLU entegrasyonu | Yüksek | Açık | Faz 1 | Bridge Agent | `bridge.py::_mock_classify` şu an "harcama"/"echo" anahtar kelime eşleşmesi kullanıyor; T8'de kurulan `model_client.py` (Ollama) ile değiştirilecek |
+| B032 | Python bağımlılık dosyası (dev dependencies) | Orta | Açık | Faz 0/1 | — | `pytest` + `pyyaml` şu an yalnızca `.venv`'e ad-hoc kuruldu; reproducibility için `pyproject.toml` `[project.dependencies]` veya `requirements-dev.txt` eklenmeli |
+| B033 | Alias matcher'da Türkçe ek toleransı | Düşük | Açık | Backlog | Bridge Agent | `alias_matcher.py` yalnızca tam kelime eşleşmesi yapıyor; "ezgi'ye" gibi ek almış formlar kapsam dışı bırakıldı (bkz. `tests/test_alias_matcher.py` "EZGİYE söyle" negatif vakası) |
+| B034 | `cli-runner` genel whitelist mekanizması (T12) | Yüksek | **Kapalı** | Faz 0 (Gün 10-11) | — | 2026-08-13'te T12 ile tamamlandı: `tools/cli-runner/src/runner.py` + `config/cli_whitelist.json` (bkz. ADR-012); `echo_runner.py` artık bunu kullanıyor |
+| B035 | Risk taksonomisi uyumlulaştırma (genel vs finans) | Orta | Açık | Faz 2 | Orchestrator | T13'ün genel `low/medium/high/irreversible` şeması (`tool_risk_policy.yaml`) ile finansın `L0-L3` şeması (T18, MASTER_ROADMAP.md §5) şu an paralel/ayrı; Faz 2'de finans task'ları genel registry'ye eklenirken iki şemanın nasıl ilişkileneceği netleşmeli |

@@ -75,8 +75,25 @@ Orchestrator, Hermes/Crew-tarzı bir yaklaşımla ajanları görev bazlı çağ�
 
 ## 5. Finans ve Sosyal Medya Motoru
 
-- **Finance Engine:** Harcama/gelir kayıtları, bütçe uyarıları, basit rapor üretimi.
-  Gerçek para transferi/ödeme **kapsam dışı** — salt takip ve öneri.
+- **Finance Engine:** Harcama/gelir kayıtları, bütçe uyarıları, rapor üretimi **ve**
+  kullanıcının izin verdiği borsa API'lerinde gerçek işlem açma/kapatma. Gerçek işlem
+  **kapsam dışı değildir** — ancak sıkı bir risk/onay katmanına bağlıdır:
+  - **Withdraw yetkisi kapalı API key zorunlu.** Finance Engine hiçbir zaman para/kripto
+    çekme (withdraw) yetkisi olan bir API key ile çalışmaz; bağlantı kurulmadan önce
+    anahtarın withdraw izni doğrulanır (bkz. BACKLOG "API permission validator").
+  - **Risk motoru + onay mekanizması zorunludur.** Her işlem, yürütülmeden önce risk
+    motorundan geçer ve işlem seviyesine göre onay ister (aşağıya bkz.).
+  - **İşlem seviyeleri (execution levels):**
+    | Seviye | Tanım | Onay |
+    |---|---|---|
+    | **L0** | Sadece bilgi (fiyat/portföy/rapor sorgusu) | Onay gerekmez |
+    | **L1** | Simülasyon (mock emir, borsaya gönderilmez) | Onay gerekmez, sonuç loglanır |
+    | **L2** | Küçük işlem (kullanıcı tanımlı eşik altı) | Tek onay |
+    | **L3** | Büyük işlem (eşik üstü) | Çift onay + zorunlu bekleme süresi (cooling-off) |
+  - **Tüm işlemler** (L0 hariç, L1–L3) `data/audit` altında append-only audit log'a
+    (bkz. ADR-009) yazılır: talep, risk skoru, onay/red kararı, sonuç.
+  - Detaylı güvenlik prosedürleri için bkz. `docs/RUNBOOK.md` → "Finans Güvenlik
+    Operasyonları".
 - **Social Engine:** İçerik taslağı üretimi, zamanlama önerisi. Otomatik yayınlama
   (auto-post) **onay mekanizması olmadan devrede olmayacak** (bkz. §8).
 

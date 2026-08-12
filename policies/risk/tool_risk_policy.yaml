@@ -1,0 +1,15 @@
+# Tool-call risk politikasi (PLAN.md T13, MASTER_ROADMAP.md §8).
+#
+# Seviyeler: low | medium | high | irreversible
+#   low, medium        -> otomatik izin (AUTO_ALLOWED)
+#   high, irreversible  -> onay bekler (WAITING_APPROVAL), approval_stub.py
+
+tasks:
+  RUN_ECHO: low
+  SHOW_DAILY_SPENDING: low
+  RUN_SHELL_SAFE: medium
+  RUN_DELETE_FILE: irreversible
+
+# tasks altinda tanimsiz bir task_en gelirse bu seviye kullanilir.
+# Bilerek "low" degil -- taniniyor olmak, guvenli olmak anlamina gelmez.
+default_risk_level: medium

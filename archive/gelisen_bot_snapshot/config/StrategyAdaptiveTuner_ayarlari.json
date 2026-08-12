@@ -1,0 +1,284 @@
+{
+  "version": 2,
+  "comment": "Bu dosya sadece StrategyAdaptiveTuner tarafindan optimize edilen dinamik ayarlari icerir.",
+  "scans": {
+    "timeframes": [
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "tf_profiles": {
+      "15m": {
+        "ai_scan": {
+          "enabled": true,
+          "min_conf": {
+            "value": 0.62,
+            "bounds": [
+              0.5,
+              0.85
+            ]
+          },
+          "min_potential_pct": {
+            "value": 0.35,
+            "bounds": [
+              0.1,
+              2.0
+            ]
+          },
+          "min_volume_ratio": {
+            "value": 0.55,
+            "bounds": [
+              0.2,
+              1.0
+            ]
+          },
+          "min_volume_usd": {
+            "value": 600000,
+            "bounds": [
+              500000,
+              50000000
+            ]
+          },
+          "alt_accept_rule": {
+            "enabled": true,
+            "extra_conf": 0.03,
+            "min_volume_multiplier": 1.08,
+            "min_vr_floor": 0.6
+          },
+          "diversify_by_sector": true
+        },
+        "strategy_scan": {
+          "enabled": true,
+          "v1": {
+            "min_score": {
+              "value": 76.0,
+              "bounds": [
+                40,
+                90
+              ]
+            },
+            "min_volume_usd": {
+              "value": 882000.0,
+              "bounds": [
+                500000,
+                50000000
+              ]
+            },
+            "weights": {
+              "technical": 0.6,
+              "momentum": 0.2,
+              "compression": 0.2
+            }
+          },
+          "v2": {
+            "min_score": {
+              "value": 62.0,
+              "bounds": [
+                40,
+                90
+              ]
+            },
+            "min_volume_usd": {
+              "value": 800000,
+              "bounds": [
+                500000,
+                50000000
+              ]
+            },
+            "weights": {
+              "technical": 0.5,
+              "momentum": 0.3,
+              "compression": 0.2
+            }
+          }
+        }
+      },
+      "1h": {
+        "ai_scan": {
+          "enabled": true,
+          "min_conf": {
+            "value": 0.7,
+            "bounds": [
+              0.5,
+              0.95
+            ]
+          },
+          "min_potential_pct": {
+            "value": 1.0,
+            "bounds": [
+              0.3,
+              4.0
+            ]
+          },
+          "min_volume_ratio": {
+            "value": 0.8,
+            "bounds": [
+              0.4,
+              1.5
+            ]
+          },
+          "min_volume_usd": {
+            "value": 1500000,
+            "bounds": [
+              1000000,
+              100000000
+            ]
+          },
+          "alt_accept_rule": {
+            "enabled": true,
+            "extra_conf": 0.02,
+            "min_volume_multiplier": 1.05,
+            "min_vr_floor": 0.7
+          },
+          "diversify_by_sector": true
+        },
+        "strategy_scan": {
+          "enabled": true,
+          "v1": {
+            "min_score": {
+              "value": 65,
+              "bounds": [
+                45,
+                90
+              ]
+            },
+            "min_volume_usd": {
+              "value": 2000000,
+              "bounds": [
+                1000000,
+                100000000
+              ]
+            },
+            "weights": {
+              "technical": 0.55,
+              "momentum": 0.25,
+              "compression": 0.2
+            }
+          },
+          "v2": {
+            "min_score": {
+              "value": 65,
+              "bounds": [
+                45,
+                90
+              ]
+            },
+            "min_volume_usd": {
+              "value": 2000000,
+              "bounds": [
+                1000000,
+                100000000
+              ]
+            },
+            "weights": {
+              "technical": 0.5,
+              "momentum": 0.3,
+              "compression": 0.2
+            }
+          }
+        }
+      },
+      "4h": {
+        "ai_scan": {
+          "enabled": true,
+          "min_conf": {
+            "value": 0.72,
+            "bounds": [
+              0.5,
+              0.98
+            ]
+          },
+          "min_potential_pct": {
+            "value": 1.5,
+            "bounds": [
+              0.5,
+              6.0
+            ]
+          },
+          "min_volume_ratio": {
+            "value": 0.85,
+            "bounds": [
+              0.4,
+              1.5
+            ]
+          },
+          "min_volume_usd": {
+            "value": 2500000,
+            "bounds": [
+              2000000,
+              200000000
+            ]
+          },
+          "alt_accept_rule": {
+            "enabled": false,
+            "extra_conf": 0.03,
+            "min_volume_multiplier": 1.1,
+            "min_vr_floor": 0.7
+          },
+          "diversify_by_sector": true
+        },
+        "strategy_scan": {
+          "enabled": true,
+          "v1": {
+            "min_score": {
+              "value": 70,
+              "bounds": [
+                50,
+                95
+              ]
+            },
+            "min_volume_usd": {
+              "value": 3000000,
+              "bounds": [
+                2000000,
+                200000000
+              ]
+            },
+            "weights": {
+              "technical": 0.5,
+              "momentum": 0.3,
+              "compression": 0.2
+            }
+          },
+          "v2": {
+            "min_score": {
+              "value": 70,
+              "bounds": [
+                50,
+                95
+              ]
+            },
+            "min_volume_usd": {
+              "value": 3000000,
+              "bounds": [
+                2000000,
+                200000000
+              ]
+            },
+            "weights": {
+              "technical": 0.45,
+              "momentum": 0.35,
+              "compression": 0.2
+            }
+          }
+        }
+      }
+    }
+  },
+  "strategy": {
+    "common": {
+      "ai_confidence_threshold": 0.65,
+      "momentum_threshold": 0.1
+    },
+    "ai": {
+      "min_confidence": 0.6
+    },
+    "momentum_threshold": 0.1,
+    "basis_len": 10,
+    "delay_offset": 5,
+    "v2": {
+      "basis_len": 8.0,
+      "delay_offset": 5.0
+    }
+  }
+}

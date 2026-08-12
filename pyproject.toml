@@ -1,0 +1,9 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--basetemp=.pytest_tmp"
+pythonpath = [
+    "apps/orchestrator/src",
+    "services/tr-en-bridge/src",
+    "tools/cli-runner/src",
+    "scripts",
+]

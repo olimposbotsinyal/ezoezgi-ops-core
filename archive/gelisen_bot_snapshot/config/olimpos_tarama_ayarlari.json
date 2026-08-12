@@ -1,0 +1,1177 @@
+{
+  "version": 2,
+  "risk": {
+    "daily_dd_limit_pct": 30.0,
+    "kill_switch_enabled": false,
+    "rr_gate_mode": "REBUILD_TARGETS",
+    "min_rr_first_target": 0.6,
+    "min_rr_first_target_by_strategy": {
+      "v1": 0.6,
+      "v2": 0.5
+    }
+  },
+  "control_mode": {
+    "active": "manual",
+    "options": [
+      "manual",
+      "auto"
+    ],
+    "help": "manual: kullanıcı ayarları geçerli. auto: Tuner optimize eder."
+  },
+  "fees_model": {
+    "fee_rate_bps": 8,
+    "slippage_bps": 5,
+    "exchanges": {
+      "mexc": {
+        "fee_rate_bps": 8,
+        "slippage_bps": 8
+      },
+      "binance": {
+        "fee_rate_bps": 4,
+        "slippage_bps": 3
+      },
+      "bybit": {
+        "fee_rate_bps": 6,
+        "slippage_bps": 4
+      },
+      "okx": {
+        "fee_rate_bps": 6,
+        "slippage_bps": 4
+      },
+      "bitget": {
+        "fee_rate_bps": 6,
+        "slippage_bps": 5
+      },
+      "bitmart": {
+        "fee_rate_bps": 10,
+        "slippage_bps": 10
+      }
+    }
+  },
+  "exchange_profiles": {
+    "binance": {
+      "futures_filters": {
+        "symbols_exclude": [
+          "BULL/USDT",
+          "BEAR/USDT",
+          "USDC/USDT",
+          "TUSD/USDT"
+        ],
+        "leverage_lookup": "db"
+      },
+      "symbol_aliases": {
+        "SILVERUSDT": "XAGUSDT"
+      }
+    },
+    "mexc": {
+      "futures_filters": {
+        "symbols_exclude": [],
+        "leverage_lookup": "db"
+      },
+      "symbol_aliases": {}
+    }
+  },
+  "guard": {
+    "ttl_sec": 21600,
+    "max_items": 20000,
+    "gc_every": 500
+  },
+  "ohlcv_cache": {
+    "max_items": 2000,
+    "gc_every": 200,
+    "max_entry_age_sec": 3600
+  },
+  "trend_cache": {
+    "max_items": 5000,
+    "ttl_sec": 120,
+    "gc_every": 200
+  },
+  "strategy": {
+    "orderbook_confirm": {
+      "enabled": true,
+      "require_pass": true,
+      "soft_pass_on_errors": false,
+      "soft_pass_error_types": [
+        "no_orderbook",
+        "bad_orderbook_data",
+        "exception"
+      ],
+      "book_depth": 20,
+      "cache_ttl_sec": 3,
+      "timeout_sec": 4,
+      "max_parallel": 3,
+      "min_raw_score": 0,
+      "scoring": {
+        "imbalance_weight": 25,
+        "spread_penalty": 15,
+        "liquidity_weight": 10
+      },
+      "profiles": {
+        "default": {
+          "thresholds": {
+            "min_imbalance_long": 0.58,
+            "max_imbalance_short": 0.42,
+            "max_spread_bps": 14,
+            "min_top_liquidity_usd": 8000
+          }
+        },
+        "exchanges": {
+          "binance": {
+            "thresholds": {
+              "max_spread_bps": 10,
+              "min_top_liquidity_usd": 12000
+            }
+          },
+          "bybit": {
+            "thresholds": {
+              "max_spread_bps": 14,
+              "min_top_liquidity_usd": 10000
+            }
+          },
+          "okx": {
+            "thresholds": {
+              "max_spread_bps": 14,
+              "min_top_liquidity_usd": 10000
+            }
+          },
+          "bitget": {
+            "thresholds": {
+              "max_spread_bps": 16,
+              "min_top_liquidity_usd": 9000
+            }
+          },
+          "mexc": {
+            "thresholds": {
+              "max_spread_bps": 20,
+              "min_top_liquidity_usd": 6000
+            }
+          },
+          "bingx": {
+            "thresholds": {
+              "max_spread_bps": 22,
+              "min_top_liquidity_usd": 5000
+            }
+          },
+          "weex": {
+            "thresholds": {
+              "max_spread_bps": 22,
+              "min_top_liquidity_usd": 5000
+            }
+          },
+          "coinex": {
+            "thresholds": {
+              "max_spread_bps": 20,
+              "min_top_liquidity_usd": 6000
+            }
+          }
+        },
+        "timeframes": {
+          "5m": {
+            "thresholds": {
+              "max_spread_bps": 16
+            }
+          },
+          "15m": {
+            "thresholds": {
+              "max_spread_bps": 14
+            }
+          },
+          "30m": {
+            "thresholds": {
+              "max_spread_bps": 15
+            }
+          },
+          "1h": {
+            "thresholds": {
+              "max_spread_bps": 16
+            }
+          },
+          "4h": {
+            "thresholds": {
+              "max_spread_bps": 18
+            }
+          },
+          "1d": {
+            "thresholds": {
+              "max_spread_bps": 22
+            }
+          }
+        },
+        "matrix": {
+          "mexc": {
+            "5m": {
+              "thresholds": {
+                "max_spread_bps": 24,
+                "min_top_liquidity_usd": 5000
+              }
+            },
+            "15m": {
+              "thresholds": {
+                "max_spread_bps": 22,
+                "min_top_liquidity_usd": 6000
+              }
+            }
+          },
+          "binance": {
+            "5m": {
+              "thresholds": {
+                "max_spread_bps": 12,
+                "min_top_liquidity_usd": 14000
+              }
+            }
+          }
+        }
+      }
+    },
+    "help": "Varsayılan strateji ayarları. Auto modunda Tuner buradaki bazı değerleri ezer.",
+    "common": {
+      "trade_type": "BOTH",
+      "stop_loss_pct": 3.0,
+      "use_atr_targets": true,
+      "ai_confidence_threshold": 0.65,
+      "momentum_threshold": 0.1
+    },
+    "v1": {
+      "description": "Klasik İndikatör Stratejisi",
+      "rsi_period": 14,
+      "rsi_overbought": 70,
+      "rsi_oversold": 30,
+      "bb_period": 20,
+      "bb_std_dev": 2.0,
+      "macd_fast": 12,
+      "macd_slow": 26,
+      "macd_signal": 9,
+      "stoch_k": 14,
+      "stoch_d": 3,
+      "stoch_overbought": 80,
+      "stoch_oversold": 20,
+      "volume_ma_period": 20,
+      "atr_period": 14,
+      "atr_multiplier": 1.5,
+      "use_heikin_ashi": false
+    },
+    "v2": {
+      "hybrid_enabled": true,
+      "hybrid_flip_min_gap": 10.0,
+      "hybrid_log": true,
+      "hybrid_require_trigger_for_flip": false,
+      "allow_countertrend": true,
+      "countertrend_score_mult": 0.7,
+      "debug_score_on_no_trigger": true,
+      "trigger_lookback_bars": 3,
+      "signal_min_score": 60,
+      "description": "SMMA Trend Takip Stratejisi",
+      "basis_len": 2,
+      "use_alt_resolution": true,
+      "alt_resolution_factor": 8,
+      "delay_offset": 0,
+      "atr_period": 14,
+      "atr_multiplier": 1.2
+    },
+    "ai": {
+      "enabled": true,
+      "min_confidence": 0.6,
+      "min_volume_ratio": 0.9,
+      "boost_add": 1,
+      "require_trend_alignment": true
+    },
+    "targets": {
+      "use_atr_based": true,
+      "atr_lookback": 14,
+      "atr_multipliers_long": [
+        0.6,
+        1.0,
+        1.6,
+        2.3,
+        3.2
+      ],
+      "atr_multipliers_short": [
+        0.6,
+        1.0,
+        1.6,
+        2.3,
+        3.2
+      ],
+      "min_percent_step": 0.35,
+      "fallback": "fibonacci"
+    },
+    "risk_management": {
+      "dynamic_position_sizing": {
+        "enabled": true,
+        "base_size_pct": 1,
+        "min_size_pct": 0.4,
+        "max_size_pct": 1.6
+      },
+      "max_daily_loss_pct": 5,
+      "max_consecutive_losses": 5
+    },
+    "chart": {
+      "show_confidence_banner": true,
+      "banner_height_px": 60,
+      "font_size": 20
+    }
+  },
+  "charts": {
+    "dimensions": {
+      "default_width": 1200,
+      "default_height": 900,
+      "event_chart_height": 600,
+      "icon_size": [
+        36,
+        36
+      ]
+    },
+    "text_settings": {
+      "main_font_size": 26,
+      "overlay_font_size": 48,
+      "template_font_size": 28,
+      "font_path_regular": "assets/fonts/Roboto-Regular.ttf",
+      "font_path_bold": "assets/fonts/Roboto-Bold.ttf"
+    },
+    "rendering": {
+      "jpeg_quality": 90,
+      "theme": "dark",
+      "background_color": [
+        14,
+        18,
+        30
+      ]
+    },
+    "images": {
+      "logo": "logo_dark1111.png",
+      "entry_arrow": "assets/entry_arrow.png",
+      "target_hit_icon": "assets/okey1.png",
+      "target_pending_icon": "assets/beklenen_hedef1.png",
+      "stop_icon": "assets/stop3.png",
+      "long_stop_loss": "assets/long_stop_loss1.png",
+      "short_stop_loss": "assets/short_stop_loss1.png",
+      "final_long_tier1": "assets/final_long_tier1.png",
+      "final_long_tier2": "assets/final_long_tier2.png",
+      "final_long_tier3": "assets/final_long_tier3.png",
+      "final_short_tier1": "assets/final_short_tier1.png",
+      "final_short_tier2": "assets/final_short_tier2.png",
+      "final_short_tier3": "assets/final_short_tier3.png",
+      "signal_background_long": "assets/long1.png",
+      "signal_background_short": "assets/short1.png"
+    },
+    "pnl_tiers": [
+      {
+        "min_pct": 0,
+        "max_pct": 50,
+        "long_image_key": "final_long_tier1",
+        "short_image_key": "final_short_tier1"
+      },
+      {
+        "min_pct": 50,
+        "max_pct": 100,
+        "long_image_key": "final_long_tier1",
+        "short_image_key": "final_short_tier1"
+      },
+      {
+        "min_pct": 100,
+        "max_pct": 150,
+        "long_image_key": "final_long_tier2",
+        "short_image_key": "final_short_tier2"
+      },
+      {
+        "min_pct": 150,
+        "max_pct": null,
+        "long_image_key": "final_long_tier3",
+        "short_image_key": "final_short_tier3"
+      }
+    ]
+  },
+  "CANDIDATE_SELECTION": {
+    "enabled": true,
+    "debug": false,
+    "timeframe_candidate": "15m",
+    "tickers_ttl_sec": 10,
+    "ohlcv_ttl_sec": 20,
+    "ohlcv_cache_max_items": 800,
+    "ohlcv_cache_purge_every": 200,
+    "top_k_candidates": 30,
+    "min_penalty_factor": 0.0,
+    "diversify_corr_threshold": 0.92,
+    "diversify_lookback_bars": 120,
+    "diversify_store": "returns"
+  },
+  "scans": {
+    "stale_alarm_minutes": 120,
+    "timeframes": [
+      "5m",
+      "15m",
+      "30m",
+      "1h",
+      "4h",
+      "1d"
+    ],
+    "tf_profiles": {
+      "5m": {
+        "max_active_alarms": 10,
+        "risk": {
+          "max_active_signals": 8
+        },
+        "entry_gates": {
+          "enabled": true,
+          "min_local_adx": 18.0,
+          "block_when_local_trend_neutral": true,
+          "require_regime_alignment": true,
+          "global_down_blocks_long": true,
+          "global_up_blocks_short": true,
+          "min_sl_pct": 0.25,
+          "log_blocked": true
+        },
+        "common_filters": {
+          "bb_edge_filter": {
+            "enabled": false,
+            "bb_width_max": 0.06,
+            "long_percent_b_max": 0.95,
+            "short_percent_b_min": 0.05,
+            "override": {
+              "adx_min": 28.0,
+              "vr_min": 1.2,
+              "require_trend_hint": true
+            }
+          }
+        },
+        "ai_scan": {
+          "enabled": true,
+          "limits": {
+            "v1": 2,
+            "v2": 2
+          },
+          "min_conf": {
+            "value": 0.48,
+            "bounds": [
+              0.45,
+              0.95
+            ]
+          },
+          "min_potential_pct": {
+            "value": 0.5,
+            "bounds": [
+              0.2,
+              2.5
+            ]
+          },
+          "min_volume_ratio": {
+            "value": 0.75,
+            "bounds": [
+              0.4,
+              1.5
+            ]
+          },
+          "min_volume_usd": {
+            "value": 1500000,
+            "bounds": [
+              300000,
+              30000000
+            ]
+          },
+          "alt_accept_rule": {
+            "enabled": true,
+            "extra_conf": 0.03,
+            "min_volume_multiplier": 1.1,
+            "min_vr_floor": 0.55
+          },
+          "diversify_by_sector": true
+        },
+        "strategy_scan": {
+          "enabled": true,
+          "v1": {
+            "limit": 2,
+            "min_score": {
+              "value": 58.0,
+              "bounds": [
+                40,
+                90
+              ]
+            },
+            "min_volume_usd": {
+              "value": 1500000,
+              "bounds": [
+                300000,
+                30000000
+              ]
+            },
+            "weights": {
+              "technical": 0.6,
+              "momentum": 0.25,
+              "compression": 0.15
+            }
+          },
+          "v2": {
+            "limit": 2,
+            "min_score": {
+              "value": 62.0,
+              "bounds": [
+                40,
+                90
+              ]
+            },
+            "min_volume_usd": {
+              "value": 1500000,
+              "bounds": [
+                300000,
+                30000000
+              ]
+            },
+            "weights": {
+              "technical": 0.55,
+              "momentum": 0.3,
+              "compression": 0.15
+            }
+          }
+        }
+      },
+      "15m": {
+        "max_active_alarms": 12,
+        "risk": {
+          "max_active_signals": 10
+        },
+        "entry_gates": {
+          "enabled": true,
+          "min_local_adx": 15.0,
+          "block_when_local_trend_neutral": true,
+          "require_regime_alignment": true,
+          "global_down_blocks_long": true,
+          "global_up_blocks_short": true,
+          "min_sl_pct": 0.20,
+          "log_blocked": true
+        },
+        "common_filters": {
+          "bb_edge_filter": {
+            "enabled": true,
+            "bb_width_max": 0.055,
+            "long_percent_b_max": 0.95,
+            "short_percent_b_min": 0.05,
+            "override": {
+              "adx_min": 28.0,
+              "vr_min": 1.2,
+              "require_trend_hint": true
+            }
+          }
+        },
+        "ai_scan": {
+          "enabled": true,
+          "limits": {
+            "v1": 3,
+            "v2": 3
+          },
+          "min_conf": {
+            "value": 0.5,
+            "bounds": [
+              0.5,
+              0.95
+            ]
+          },
+          "min_potential_pct": {
+            "value": 0.7,
+            "bounds": [
+              0.2,
+              3.0
+            ]
+          },
+          "min_volume_ratio": {
+            "value": 0.8,
+            "bounds": [
+              0.4,
+              1.5
+            ]
+          },
+          "min_volume_usd": {
+            "value": 2000000,
+            "bounds": [
+              500000,
+              50000000
+            ]
+          },
+          "alt_accept_rule": {
+            "enabled": true,
+            "extra_conf": 0.03,
+            "min_volume_multiplier": 1.1,
+            "min_vr_floor": 0.6
+          },
+          "diversify_by_sector": true
+        },
+        "strategy_scan": {
+          "enabled": true,
+          "v1": {
+            "limit": 3,
+            "min_score": {
+              "value": 70.0,
+              "bounds": [
+                40,
+                90
+              ]
+            },
+            "min_volume_usd": {
+              "value": 2000000,
+              "bounds": [
+                500000,
+                50000000
+              ]
+            },
+            "weights": {
+              "technical": 0.6,
+              "momentum": 0.2,
+              "compression": 0.2
+            }
+          },
+          "v2": {
+            "limit": 3,
+            "min_score": {
+              "value": 65.0,
+              "bounds": [
+                40,
+                90
+              ]
+            },
+            "min_volume_usd": {
+              "value": 2000000,
+              "bounds": [
+                500000,
+                50000000
+              ]
+            },
+            "weights": {
+              "technical": 0.5,
+              "momentum": 0.3,
+              "compression": 0.2
+            }
+          }
+        }
+      },
+      "30m": {
+        "max_active_alarms": 16,
+        "risk": {
+          "max_active_signals": 14
+        },
+        "entry_gates": {
+          "enabled": true,
+          "min_local_adx": 14.0,
+          "block_when_local_trend_neutral": false,
+          "require_regime_alignment": true,
+          "global_down_blocks_long": true,
+          "global_up_blocks_short": true,
+          "min_sl_pct": 0.18,
+          "log_blocked": true
+        },
+        "common_filters": {
+          "bb_edge_filter": {
+            "enabled": false,
+            "bb_width_max": 0.06,
+            "long_percent_b_max": 0.95,
+            "short_percent_b_min": 0.05,
+            "override": {
+              "adx_min": 28.0,
+              "vr_min": 1.2,
+              "require_trend_hint": true
+            }
+          }
+        },
+        "ai_scan": {
+          "enabled": true,
+          "limits": {
+            "v1": 4,
+            "v2": 4
+          },
+          "min_conf": {
+            "value": 0.6,
+            "bounds": [
+              0.5,
+              0.97
+            ]
+          },
+          "min_potential_pct": {
+            "value": 0.95,
+            "bounds": [
+              0.25,
+              3.5
+            ]
+          },
+          "min_volume_ratio": {
+            "value": 0.82,
+            "bounds": [
+              0.4,
+              1.5
+            ]
+          },
+          "min_volume_usd": {
+            "value": 2500000,
+            "bounds": [
+              700000,
+              70000000
+            ]
+          },
+          "alt_accept_rule": {
+            "enabled": true,
+            "extra_conf": 0.02,
+            "min_volume_multiplier": 1.08,
+            "min_vr_floor": 0.65
+          },
+          "diversify_by_sector": true
+        },
+        "strategy_scan": {
+          "enabled": true,
+          "v1": {
+            "limit": 4,
+            "min_score": {
+              "value": 63.0,
+              "bounds": [
+                45,
+                90
+              ]
+            },
+            "min_volume_usd": {
+              "value": 2500000,
+              "bounds": [
+                700000,
+                70000000
+              ]
+            },
+            "weights": {
+              "technical": 0.58,
+              "momentum": 0.25,
+              "compression": 0.17
+            }
+          },
+          "v2": {
+            "limit": 4,
+            "min_score": {
+              "value": 66.0,
+              "bounds": [
+                45,
+                90
+              ]
+            },
+            "min_volume_usd": {
+              "value": 2500000,
+              "bounds": [
+                700000,
+                70000000
+              ]
+            },
+            "weights": {
+              "technical": 0.52,
+              "momentum": 0.3,
+              "compression": 0.18
+            }
+          }
+        }
+      },
+      "1h": {
+        "max_active_alarms": 20,
+        "risk": {
+          "max_active_signals": 18
+        },
+        "entry_gates": {
+          "enabled": true,
+          "min_local_adx": 13.0,
+          "block_when_local_trend_neutral": false,
+          "require_regime_alignment": true,
+          "global_down_blocks_long": true,
+          "global_up_blocks_short": true,
+          "min_sl_pct": 0.15,
+          "log_blocked": true
+        },
+        "common_filters": {
+          "bb_edge_filter": {
+            "enabled": false,
+            "bb_width_max": 0.055,
+            "long_percent_b_max": 0.95,
+            "short_percent_b_min": 0.05,
+            "override": {
+              "adx_min": 28.0,
+              "vr_min": 1.2,
+              "require_trend_hint": true
+            }
+          }
+        },
+        "ai_scan": {
+          "enabled": true,
+          "limits": {
+            "v1": 5,
+            "v2": 5
+          },
+          "min_conf": {
+            "value": 0.68,
+            "bounds": [
+              0.5,
+              0.95
+            ]
+          },
+          "min_potential_pct": {
+            "value": 1.2,
+            "bounds": [
+              0.3,
+              4.0
+            ]
+          },
+          "min_volume_ratio": {
+            "value": 0.85,
+            "bounds": [
+              0.4,
+              1.5
+            ]
+          },
+          "min_volume_usd": {
+            "value": 4000000,
+            "bounds": [
+              1000000,
+              100000000
+            ]
+          },
+          "alt_accept_rule": {
+            "enabled": true,
+            "extra_conf": 0.02,
+            "min_volume_multiplier": 1.05,
+            "min_vr_floor": 0.7
+          },
+          "diversify_by_sector": true
+        },
+        "strategy_scan": {
+          "enabled": true,
+          "v1": {
+            "limit": 5,
+            "min_score": {
+              "value": 65,
+              "bounds": [
+                45,
+                90
+              ]
+            },
+            "min_volume_usd": {
+              "value": 3000000,
+              "bounds": [
+                1000000,
+                100000000
+              ]
+            },
+            "weights": {
+              "technical": 0.55,
+              "momentum": 0.25,
+              "compression": 0.2
+            }
+          },
+          "v2": {
+            "limit": 5,
+            "min_score": {
+              "value": 65,
+              "bounds": [
+                45,
+                90
+              ]
+            },
+            "min_volume_usd": {
+              "value": 3000000,
+              "bounds": [
+                1000000,
+                100000000
+              ]
+            },
+            "weights": {
+              "technical": 0.5,
+              "momentum": 0.3,
+              "compression": 0.2
+            }
+          }
+        }
+      },
+      "4h": {
+        "max_active_alarms": 32,
+        "risk": {
+          "max_active_signals": 30
+        },
+        "entry_gates": {
+          "enabled": true,
+          "min_local_adx": 12.0,
+          "block_when_local_trend_neutral": false,
+          "require_regime_alignment": true,
+          "global_down_blocks_long": true,
+          "global_up_blocks_short": true,
+          "min_sl_pct": 0.12,
+          "log_blocked": true
+        },
+        "common_filters": {
+          "bb_edge_filter": {
+            "enabled": false,
+            "bb_width_max": 0.05,
+            "long_percent_b_max": 0.95,
+            "short_percent_b_min": 0.05,
+            "override": {
+              "adx_min": 28.0,
+              "vr_min": 1.2,
+              "require_trend_hint": true
+            }
+          }
+        },
+        "ai_scan": {
+          "enabled": true,
+          "limits": {
+            "v1": 8,
+            "v2": 8
+          },
+          "min_conf": {
+            "value": 0.7,
+            "bounds": [
+              0.5,
+              0.98
+            ]
+          },
+          "min_potential_pct": {
+            "value": 1.8,
+            "bounds": [
+              0.5,
+              6.0
+            ]
+          },
+          "min_volume_ratio": {
+            "value": 0.9,
+            "bounds": [
+              0.4,
+              1.5
+            ]
+          },
+          "min_volume_usd": {
+            "value": 5000000,
+            "bounds": [
+              2000000,
+              200000000
+            ]
+          },
+          "alt_accept_rule": {
+            "enabled": false,
+            "extra_conf": 0.03,
+            "min_volume_multiplier": 1.1,
+            "min_vr_floor": 0.7
+          },
+          "diversify_by_sector": true
+        },
+        "strategy_scan": {
+          "enabled": true,
+          "v1": {
+            "limit": 8,
+            "min_score": {
+              "value": 70,
+              "bounds": [
+                50,
+                95
+              ]
+            },
+            "min_volume_usd": {
+              "value": 4000000,
+              "bounds": [
+                2000000,
+                200000000
+              ]
+            },
+            "weights": {
+              "technical": 0.5,
+              "momentum": 0.3,
+              "compression": 0.2
+            }
+          },
+          "v2": {
+            "limit": 8,
+            "min_score": {
+              "value": 70,
+              "bounds": [
+                50,
+                95
+              ]
+            },
+            "min_volume_usd": {
+              "value": 4000000,
+              "bounds": [
+                2000000,
+                200000000
+              ]
+            },
+            "weights": {
+              "technical": 0.45,
+              "momentum": 0.35,
+              "compression": 0.2
+            }
+          }
+        }
+      },
+      "1d": {
+        "max_active_alarms": 10,
+        "risk": {
+          "max_active_signals": 8
+        },
+        "entry_gates": {
+          "enabled": true,
+          "min_local_adx": 10.0,
+          "block_when_local_trend_neutral": false,
+          "require_regime_alignment": true,
+          "global_down_blocks_long": true,
+          "global_up_blocks_short": true,
+          "min_sl_pct": 0.10,
+          "log_blocked": true
+        },
+        "common_filters": {
+          "bb_edge_filter": {
+            "enabled": false,
+            "bb_width_max": 0.045,
+            "long_percent_b_max": 0.95,
+            "short_percent_b_min": 0.05,
+            "override": {
+              "adx_min": 28.0,
+              "vr_min": 1.2,
+              "require_trend_hint": true
+            }
+          }
+        },
+        "ai_scan": {
+          "enabled": true,
+          "limits": {
+            "v1": 2,
+            "v2": 2
+          },
+          "min_conf": {
+            "value": 0.75,
+            "bounds": [
+              0.55,
+              0.99
+            ]
+          },
+          "min_potential_pct": {
+            "value": 3.0,
+            "bounds": [
+              0.8,
+              12.0
+            ]
+          },
+          "min_volume_ratio": {
+            "value": 0.92,
+            "bounds": [
+              0.5,
+              1.8
+            ]
+          },
+          "min_volume_usd": {
+            "value": 8000000,
+            "bounds": [
+              2000000,
+              300000000
+            ]
+          },
+          "alt_accept_rule": {
+            "enabled": false,
+            "extra_conf": 0.03,
+            "min_volume_multiplier": 1.1,
+            "min_vr_floor": 0.75
+          },
+          "diversify_by_sector": true
+        },
+        "strategy_scan": {
+          "enabled": true,
+          "v1": {
+            "limit": 2,
+            "min_score": {
+              "value": 75,
+              "bounds": [
+                55,
+                98
+              ]
+            },
+            "min_volume_usd": {
+              "value": 8000000,
+              "bounds": [
+                2000000,
+                300000000
+              ]
+            },
+            "weights": {
+              "technical": 0.55,
+              "momentum": 0.3,
+              "compression": 0.15
+            }
+          },
+          "v2": {
+            "limit": 2,
+            "min_score": {
+              "value": 78,
+              "bounds": [
+                55,
+                98
+              ]
+            },
+            "min_volume_usd": {
+              "value": 8000000,
+              "bounds": [
+                2000000,
+                300000000
+              ]
+            },
+            "weights": {
+              "technical": 0.5,
+              "momentum": 0.35,
+              "compression": 0.15
+            }
+          }
+        }
+      }
+    }
+  },
+  "notifications": {
+    "channels": [
+      -1002230830838,
+      -1002178433812,
+      -1002238531960
+    ],
+    "send_charts": true
+  },
+  "logging": {
+    "color_enabled": true,
+    "level": "INFO"
+  },
+  "reporting": {
+    "save_paths": {
+      "runtime": "analytics/strategy_runtime.json",
+      "signals_open": "analytics/active_signals_state.json",
+      "signals_closed": "analytics/closed_signals_state.json",
+      "performance_log": "analytics/signal_performance_logs.jsonl",
+      "strategy_history": "analytics/strategy_history.jsonl"
+    }
+  },
+  "profiles": {
+    "strict": {
+      "conf_shift": 0.03,
+      "pot_shift": 1.0
+    },
+    "balanced": {
+      "conf_shift": 0.0,
+      "pot_shift": 0.0
+    },
+    "aggressive": {
+      "conf_shift": -0.03,
+      "pot_shift": -1.0
+    }
+  },
+  "diversification": {
+    "enable": true,
+    "max_per_sector": 2,
+    "correlation_cutoff": 0.85
+  },
+  "regime_adaptation": {
+    "enable": true,
+    "win_rate_lookback": 24,
+    "tighten_if_stop_rate_gt": 0.5,
+    "loosen_if_win_rate_gt": 0.6,
+    "tighten": {
+      "conf": 0.03,
+      "potential": 1.0
+    },
+    "loosen": {
+      "conf": -0.02,
+      "potential": -0.5
+    }
+  },
+  "messaging": {
+    "show_ai_confidence_on_strategy_scan": false,
+    "note_text": "Bu bir izleme alarmıdır; sinyal şartları oluşursa otomatik paylaşılacaktır."
+  }
+}
