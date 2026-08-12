@@ -15,10 +15,13 @@ iç işleyişte (planlama, tool-call, ajan-arası mesajlaşma) İngilizce çalı
 
 **Faz 0 kapandı** (bkz. PLAN.md, T5–T14 + T17), **Faz 1 sürüyor** — mock TR
 sınıflandırıcının yanına gerçek bir Ollama NLU adaptörü eklendi (B031,
-`NLU_PROVIDER=ollama` ile etkinleştirilir, varsayılan hâlâ `mock`). Finans
-işlem yürütme (T18–T20) bilinçli olarak Faz 2'ye ertelendi — detay
-[docs/releases/PHASE0_CLOSURE.md](docs/releases/PHASE0_CLOSURE.md) ve
-[docs/RUNBOOK.md](docs/RUNBOOK.md) → "Faz 1 — Ollama NLU Entegrasyonu"'da.
+`NLU_PROVIDER=ollama` ile etkinleştirilir, varsayılan hâlâ `mock`). B031'in
+tamamlanabilmesi için bir **quality gate** (50 örneklik Türkçe golden set +
+`tools/eval_nlu.py`, `python tools/eval_nlu.py` ile çalıştırılır) eklendi;
+bu ortamda canlı Ollama kurulu olmadığından kriterler henüz `NOT_EVALUATED`
+— bkz. [docs/RUNBOOK.md](docs/RUNBOOK.md) → "Quality Gate (B031 tamamlanma
+kriteri)". Finans işlem yürütme (T18–T20) bilinçli olarak Faz 2'ye ertelendi
+— detay [docs/releases/PHASE0_CLOSURE.md](docs/releases/PHASE0_CLOSURE.md).
 
 ## Çalıştırma (Hızlı Başlangıç)
 

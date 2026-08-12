@@ -1,0 +1,50 @@
+{"text": "Ezo, echo ile merhaba yaz", "expected_intent": "RUN_ECHO", "expected_entities": {"value": "merhaba"}, "risk_level": "low", "notes": "acik/net RUN_ECHO ornegi"}
+{"text": "Ezgi, echo ile günaydın yaz", "expected_intent": "RUN_ECHO", "expected_entities": {"value": "günaydın"}, "risk_level": "low", "notes": ""}
+{"text": "echo ile 'test mesajı' yaz", "expected_intent": "RUN_ECHO", "expected_entities": {"value": "test mesajı"}, "risk_level": "low", "notes": "alias yok, tirnakli deger"}
+{"text": "Ezo, echo ile iyi akşamlar yaz", "expected_intent": "RUN_ECHO", "expected_entities": {"value": "iyi akşamlar"}, "risk_level": "low", "notes": ""}
+{"text": "Selam Ezo, echo ile merhaba dünya yaz", "expected_intent": "RUN_ECHO", "expected_entities": {"value": "merhaba dünya"}, "risk_level": "low", "notes": "onunde selamlama var"}
+{"text": "Ezgi, echo ile 123 yaz", "expected_intent": "RUN_ECHO", "expected_entities": {"value": "123"}, "risk_level": "low", "notes": "sayisal deger"}
+{"text": "Ezo lütfen echo ile hoşgeldin yaz", "expected_intent": "RUN_ECHO", "expected_entities": {"value": "hoşgeldin"}, "risk_level": "low", "notes": ""}
+{"text": "echo ile merhaba", "expected_intent": "RUN_ECHO", "expected_entities": {}, "risk_level": "low", "notes": "'yaz' yok, deger cikarimi basarisiz olabilir ama intent yine de RUN_ECHO olmali"}
+{"text": "Ezo echo ile 'iyi geceler' yaz", "expected_intent": "RUN_ECHO", "expected_entities": {"value": "iyi geceler"}, "risk_level": "low", "notes": ""}
+{"text": "Ezo echo ile 'dikkat: bu bir testtir' yaz", "expected_intent": "RUN_ECHO", "expected_entities": {"value": "dikkat: bu bir testtir"}, "risk_level": "low", "notes": "noktalama icerir"}
+{"text": "Ezo, bugünkü harcamaları göster", "expected_intent": "SHOW_DAILY_SPENDING", "expected_entities": {}, "risk_level": "low", "notes": "acik/net SHOW_DAILY_SPENDING ornegi"}
+{"text": "Ezgi, harcama durumumu göster", "expected_intent": "SHOW_DAILY_SPENDING", "expected_entities": {}, "risk_level": "low", "notes": ""}
+{"text": "Bugün ne kadar harcama yaptım?", "expected_intent": "SHOW_DAILY_SPENDING", "expected_entities": {}, "risk_level": "low", "notes": "soru formu"}
+{"text": "Ezo, günlük harcama raporunu göster", "expected_intent": "SHOW_DAILY_SPENDING", "expected_entities": {}, "risk_level": "low", "notes": ""}
+{"text": "Harcamalarımı özetler misin Ezgi", "expected_intent": "SHOW_DAILY_SPENDING", "expected_entities": {}, "risk_level": "low", "notes": "alias sonda"}
+{"text": "Ezgi, dünkü harcamaları da göster", "expected_intent": "SHOW_DAILY_SPENDING", "expected_entities": {}, "risk_level": "low", "notes": ""}
+{"text": "Ezgi geçen haftaki harcama toplamını göster", "expected_intent": "SHOW_DAILY_SPENDING", "expected_entities": {}, "risk_level": "low", "notes": ""}
+{"text": "Ezo bu ayki harcama listemi göster", "expected_intent": "SHOW_DAILY_SPENDING", "expected_entities": {}, "risk_level": "low", "notes": ""}
+{"text": "Ezgi, kart harcamalarımı göster", "expected_intent": "SHOW_DAILY_SPENDING", "expected_entities": {}, "risk_level": "low", "notes": ""}
+{"text": "Ezo harcama geçmişimi görmek istiyorum", "expected_intent": "SHOW_DAILY_SPENDING", "expected_entities": {}, "risk_level": "low", "notes": ""}
+{"text": "Ezo, tüm dosyaları sil", "expected_intent": "RUN_DELETE_FILE", "expected_entities": {}, "risk_level": "irreversible", "notes": "onay bekliyor senaryosu (WAITING_APPROVAL)"}
+{"text": "Ezgi, geçmiş kayıtları sil", "expected_intent": "RUN_DELETE_FILE", "expected_entities": {}, "risk_level": "irreversible", "notes": ""}
+{"text": "Bu dosyayı sil", "expected_intent": "RUN_DELETE_FILE", "expected_entities": {}, "risk_level": "irreversible", "notes": "alias yok"}
+{"text": "Ezo, günlük logları sil", "expected_intent": "RUN_DELETE_FILE", "expected_entities": {}, "risk_level": "irreversible", "notes": ""}
+{"text": "Ezo hesabımdaki tüm işlemleri sil", "expected_intent": "RUN_DELETE_FILE", "expected_entities": {}, "risk_level": "irreversible", "notes": ""}
+{"text": "Ezgi bu klasördeki dosyaları kalıcı olarak sil", "expected_intent": "RUN_DELETE_FILE", "expected_entities": {}, "risk_level": "irreversible", "notes": ""}
+{"text": "Ezgi acil durum var, hemen sil şunu", "expected_intent": "RUN_DELETE_FILE", "expected_entities": {}, "risk_level": "irreversible", "notes": "aciliyet vurgusu"}
+{"text": "Ezo tüm geçmişi temizle", "expected_intent": "RUN_DELETE_FILE", "expected_entities": {}, "risk_level": "irreversible", "notes": "esanlamli fiil 'temizle' -- 'sil' kelimesi yok, mock keyword eslestirmesi kaçirir"}
+{"text": "Ezo, hava durumunu söyle", "expected_intent": "UNKNOWN", "expected_entities": {}, "risk_level": "medium", "notes": "whitelist disi niyet"}
+{"text": "Ezgi, müzik çal", "expected_intent": "UNKNOWN", "expected_entities": {}, "risk_level": "medium", "notes": "whitelist disi niyet"}
+{"text": "Ezo, bana bir fıkra anlat", "expected_intent": "UNKNOWN", "expected_entities": {}, "risk_level": "medium", "notes": "whitelist disi niyet"}
+{"text": "Ezgi, alarm kur", "expected_intent": "UNKNOWN", "expected_entities": {}, "risk_level": "medium", "notes": "whitelist disi niyet"}
+{"text": "Ezo, e-postalarımı kontrol et", "expected_intent": "UNKNOWN", "expected_entities": {}, "risk_level": "medium", "notes": "whitelist disi niyet"}
+{"text": "Ezgi, takvimimi göster", "expected_intent": "UNKNOWN", "expected_entities": {}, "risk_level": "medium", "notes": "whitelist disi niyet"}
+{"text": "Ezo neredesin", "expected_intent": "UNKNOWN", "expected_entities": {}, "risk_level": "medium", "notes": "komut degil, soru"}
+{"text": "Ezgi merhaba nasılsın", "expected_intent": "UNKNOWN", "expected_entities": {}, "risk_level": "medium", "notes": "sohbet, komut yok"}
+{"text": "Ezo yarın hava nasıl olacak", "expected_intent": "UNKNOWN", "expected_entities": {}, "risk_level": "medium", "notes": "whitelist disi niyet"}
+{"text": "Selam", "expected_intent": "UNKNOWN", "expected_entities": {}, "risk_level": "medium", "notes": "alias yok, komut yok"}
+{"text": "Ezo, bir şeyler yap", "expected_intent": "UNKNOWN", "expected_entities": {}, "risk_level": "medium", "notes": "belirsiz/genel eylem"}
+{"text": "Ezgi, şunu hallet", "expected_intent": "UNKNOWN", "expected_entities": {}, "risk_level": "medium", "notes": "belirsiz eylem"}
+{"text": "Ezo, işlemi tamamla", "expected_intent": "UNKNOWN", "expected_entities": {}, "risk_level": "medium", "notes": "belirsiz eylem"}
+{"text": "Ezgi, gerekeni yap lütfen", "expected_intent": "UNKNOWN", "expected_entities": {}, "risk_level": "medium", "notes": "belirsiz eylem"}
+{"text": "Ezo, o işi bitir", "expected_intent": "UNKNOWN", "expected_entities": {}, "risk_level": "medium", "notes": "belirsiz eylem"}
+{"text": "Ezo, echo ama harcama da göster", "expected_intent": "SHOW_DAILY_SPENDING", "expected_entities": {}, "risk_level": "low", "notes": "iki niyet ayni cumlede -- mock 'harcama'ya oncelik verir (KEYWORD_TASK_MAP sirasi), tartismali/ideal davranis ayrica degerlendirilmeli"}
+{"text": "ezo eko ile mrhaba yaz", "expected_intent": "RUN_ECHO", "expected_entities": {"value": "mrhaba"}, "risk_level": "low", "notes": "yazim hatasi: 'eko' (echo degil) -- mock alt-dize eslesmesini kacirir"}
+{"text": "ezgi harcamalarimi görsem iyi olur", "expected_intent": "SHOW_DAILY_SPENDING", "expected_entities": {}, "risk_level": "low", "notes": "konusma dili, 'harcama' alt dizesi hala mevcut"}
+{"text": "Ezo bidaha echo ile selam yaz", "expected_intent": "RUN_ECHO", "expected_entities": {"value": "selam"}, "risk_level": "low", "notes": "konusma dili 'bidaha'"}
+{"text": "ezgi bu dosyaları silsene", "expected_intent": "RUN_DELETE_FILE", "expected_entities": {}, "risk_level": "irreversible", "notes": "konusma dili 'silsene', 'sil' alt dizesi hala mevcut"}
+{"text": "Ezgi harcma raporunu göster", "expected_intent": "SHOW_DAILY_SPENDING", "expected_entities": {}, "risk_level": "low", "notes": "yazim hatasi: 'harcma' (harcama degil) -- mock alt-dize eslesmesini kacirir"}
+{"text": "Ezo ehco ile naber yaz", "expected_intent": "RUN_ECHO", "expected_entities": {"value": "naber"}, "risk_level": "low", "notes": "yazim hatasi: 'ehco' (harf yer degistirme) -- mock alt-dize eslesmesini kacirir"}
