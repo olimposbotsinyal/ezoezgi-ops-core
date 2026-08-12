@@ -1,0 +1,15 @@
+{
+  "assistant_id": "ezoezgi-core",
+  "display_name": "EzoEzgi",
+  "wake_aliases": ["ezo", "ezgi"],
+  "language_mode": {
+    "user_input": "tr",
+    "internal_reasoning_task_language": "en",
+    "user_output": "tr"
+  },
+  "alias_update_policy": {
+    "editable": true,
+    "source_of_truth": "config/assistant.identity.json",
+    "requires_restart": false
+  }
+}

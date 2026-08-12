@@ -1,0 +1,126 @@
+# MASTER ROADMAP — EzoEzgi Ops
+
+> Durum: Taslak v0.1 — Bootstrap aşaması
+> Son güncelleme: 2026-08-12
+
+## 1. Vizyon ve Kapsam
+
+EzoEzgi, kullanıcıyla **Türkçe konuşan** ama iç işleyişte (planlama, tool-call, ajan-arası
+mesajlaşma, loglama) **İngilizce çalışan** local-first, çok ajanlı bir operasyon asistanıdır.
+
+Kapsam:
+- Kullanıcının günlük operasyonel yükünü (finans takibi, sosyal medya, araştırma, doküman
+  işleme, cihaz/GSM etkileşimi) tek bir konuşma arayüzünden yönetebilmesi.
+- Bulut bağımlılığı olmadan (local runtime — Ollama) çalışabilmesi; bulut modelleri opsiyonel
+  bir yükseltme katmanı olarak kalması.
+- Riskli/geri döndürülemez aksiyonlarda insan onayı zorunlu kılan bir güvenlik katmanı.
+
+Kapsam dışı (şimdilik):
+- Çoklu kullanıcı / çoklu tenant SaaS modeli.
+- Üçüncü taraflara açık genel API servisi.
+- Mobil native uygulama (PWA ile başlanacak, native ihtiyaç ayrı ADR ile değerlendirilecek).
+
+## 2. TR→EN→TR Köprü Mimarisi
+
+```
+Kullanıcı (TR)
+   │
+   ▼
+[tr-en-bridge] ── girdi normalize + TR→EN çeviri/intent extraction
+   │
+   ▼
+[orchestrator] ── EN task graph, ajan seçimi, tool-call planlama
+   │
+   ▼
+[ajanlar / services] ── EN içi işlemler, tool çağrıları, sonuç üretimi
+   │
+   ▼
+[tr-en-bridge] ── EN→TR çeviri + ton/uslüp normalize
+   │
+   ▼
+Kullanıcı (TR)
+```
+
+Prensipler:
+- Köprü katmanı **stateless** olacak; konuşma hafızası orchestrator/memory katmanında tutulur.
+- Wake alias eşlemesi (`ezo`, `ezgi`) girdi normalize adımında, çeviriden önce yapılır.
+- Çeviri hatası/belirsizlik durumunda köprü, orijinal TR cümleyi de EN task'a context olarak
+  ekler (kayıp anlam riskini azaltmak için).
+
+## 3. Çok Ajanlı Rol Dağılımı
+
+| Ajan | Sorumluluk | Servis |
+|---|---|---|
+| Orchestrator | Task graph, ajan seçimi, sonuç birleştirme | apps/orchestrator |
+| Bridge Agent | TR↔EN çeviri, wake/alias yönetimi | services/tr-en-bridge |
+| Finance Agent | Bütçe, harcama, rapor üretimi | services/finance-engine |
+| Social Agent | Sosyal medya planlama/paylaşım taslağı | services/social-engine |
+| Research Agent | Web/doküman araştırma, özetleme | services/research-engine |
+| Doc Agent | Doküman ingestion, indeksleme | services/doc-ingestion |
+| Device Agent | GSM/Bluetooth/kamera köprüsü | services/gsm-gateway, services/gesture-vision |
+| Voice Agent | STT/TTS | services/stt-whisper, services/tts-service |
+| Tool Runners | CLI/tarayıcı/dosya işlemleri (sandboxed) | tools/* |
+
+Orchestrator, Hermes/Crew-tarzı bir yaklaşımla ajanları görev bazlı çağırır (bkz. DECISIONS.md).
+
+## 4. Mobil + GSM + Bluetooth + Kamera Etkileşimi
+
+- **Mobil (PWA):** İlk faz arayüzü; offline cache + service worker ile local-first.
+- **GSM Gateway:** SMS/arama tetikleyicili komutlar (ör. "Ezo, bakiyeyi SMS'le") — düşük
+  bant genişliğinde fallback kanal.
+- **Bluetooth:** Yakın-çevre cihaz sinyalleşmesi (ör. giyilebilir bildirim), ilk fazda
+  kapsam dışı, faz 3+ için ayrılmış.
+- **Kamera (gesture-vision):** Jest/QR/doküman tarama girişi; local model ile işlenir,
+  görüntü varsayılan olarak diske yazılmaz (privacy-by-default).
+
+## 5. Finans ve Sosyal Medya Motoru
+
+- **Finance Engine:** Harcama/gelir kayıtları, bütçe uyarıları, basit rapor üretimi.
+  Gerçek para transferi/ödeme **kapsam dışı** — salt takip ve öneri.
+- **Social Engine:** İçerik taslağı üretimi, zamanlama önerisi. Otomatik yayınlama
+  (auto-post) **onay mekanizması olmadan devrede olmayacak** (bkz. §8).
+
+## 6. Offline-First Çalışma
+
+- Local runtime: Ollama üzerinden model servisi (bkz. DECISIONS.md).
+- `data/memory` ve `data/knowledge` local disk üzerinde tutulur, bulut senkronu opsiyonel.
+- Ağ yokken: Bridge + Orchestrator + Tool Runners local modelle çalışmaya devam eder;
+  yalnızca bulut-bağımlı ajanlar (ör. güncel web araştırması) graceful degrade olur.
+
+## 7. 120 Günlük Faz Planı
+
+| Faz | Gün | Odak |
+|---|---|---|
+| Faz 0 — Bootstrap | 1–14 | İskelet, kimlik/config, TR-EN köprü PoC, orchestrator skeleton |
+| Faz 1 — Çekirdek Döngü | 15–35 | E2E: TR komut → EN task → tool call → TR yanıt, CLI runner |
+| Faz 2 — Ajan Genişleme | 36–60 | Finance + Research + Doc Ingestion ajanları, temel memory |
+| Faz 3 — Ses ve Cihaz | 61–80 | STT/TTS entegrasyonu, GSM gateway, mobil PWA ilk sürüm |
+| Faz 4 — Güvenlik Sertleştirme | 81–95 | Onay mekanizması, audit log, risk politikaları, OSV taraması |
+| Faz 5 — Sosyal + Gesture | 96–110 | Social engine, gesture-vision, admin panel |
+| Faz 6 — Stabilizasyon | 111–120 | Monitoring (Prometheus/Grafana), yük testi, DoD doğrulama |
+
+## 8. Güvenlik ve Onay Mekanizması
+
+- Her aksiyon **risk seviyesi** ile etiketlenir: `low / medium / high / irreversible`.
+- `high` ve `irreversible` seviyedeki aksiyonlar (ödeme, otomatik sosyal paylaşım, dosya
+  silme, dış API'ye veri gönderimi) **kullanıcı onayı olmadan yürütülmez**.
+- Tüm onay/red kararları `data/audit` altında değiştirilemez (append-only) log olarak tutulur.
+- Bağımlılık güvenlik taraması: OSV (bkz. DECISIONS.md).
+- Politika kaynağı: `policies/security`, `policies/risk`, `policies/compliance`.
+
+## 9. KPI'lar
+
+- TR→EN→TR köprü doğruluğu (intent-preserving çeviri) ≥ %90 (manuel örneklem ile).
+- Uçtan uca basit komut yanıt süresi (local) ≤ 5 sn (p95).
+- Onay gerektiren aksiyonlarda yanlış-otomasyon (onaysız yürütme) = 0 vaka.
+- Faz 1 sonunda çalışan E2E demo: 1 (evet/hayır).
+- Haftalık PLAN.md görev tamamlama oranı ≥ %80.
+
+## 10. Definition of Done
+
+Bir görev/faz "tamamlandı" sayılır ancak:
+- Kabul kriterleri PLAN.md/BACKLOG.md'de tanımlanmış ve karşılanmışsa,
+- İlgili ADR (varsa) DECISIONS.md'e yazılmışsa,
+- Güvenlik/onay etkisi olan değişiklikler `policies/` altında belgelenmişse,
+- Kod/servis iskeletleri için en az bir manuel veya otomatik doğrulama yapılmışsa,
+- Daily Log'a sonuç ve varsa açık sorunlar not düşülmüşse.
