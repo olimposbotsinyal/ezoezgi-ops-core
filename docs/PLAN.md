@@ -363,3 +363,8 @@ iddia edilmiyor, dürüstçe korunuyor.
 **Ek (aynı gün, kapanış notu):** Feature/phase1-b031-entity-schema-prompt
 merged to main via fast-forward; branch cleanup completed; next gate is
 live Ollama eval for B031 acceptance metrics.
+
+**Ek (aynı gün, B031 eval koşusu):** Preflight 4/4 PASS; `tools/eval_nlu.py`
+çalıştırıldı; Ollama erişilemedi (timeout); B031 hâlâ **NOT_EVALUATED**
+(bkz. `docs/RUNBOOK.md` "Değerlendirme koşu kayıtları",
+`reports/nlu_eval_20260812.md`).

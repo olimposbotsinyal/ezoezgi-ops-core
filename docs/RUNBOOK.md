@@ -321,9 +321,17 @@ gösterir (`reports/nlu_eval_<YYYYMMDD>.md`).
 
 **Değerlendirme koşu kayıtları:**
 
+"Canlı Ollama endpoint (localhost:11434) timeout nedeniyle B031 metrikleri
+ölçülemedi; sonuç Partial / NOT_EVALUATED. Mock sonuçlar karar-dışı referans
+olarak saklandı."
+
+- Preflight: 4/4 PASS
+- Eval artifact: `reports/nlu_eval_20260812.md`
+
 | Tarih (UTC) | Ortam | Intent acc. | Entity match | Parse error | Fallback | p95 latency | Karar |
 |---|---|---|---|---|---|---|---|
 | 2026-08-12T23:45:38Z | local Ollama (`http://localhost:11434`) | N/A | N/A | N/A | N/A | N/A | **Partial / NOT_EVALUATED** — Ollama servisine ulaşılamadı (`urlopen error timed out`); mock referans: intent acc. %92.0, entity match %0.0 (bkz. `reports/nlu_eval_20260812.md`) |
+| 2026-08-12T23:49:36Z | local Ollama (`http://localhost:11434`) | N/A | N/A | N/A | N/A | N/A | **Partial / NOT_EVALUATED** — preflight 4/4 PASS sonrası tekrar koşuldu, sonuç değişmedi: Ollama servisine ulaşılamadı (`urlopen error timed out`); mock referans: intent acc. %92.0, entity match %0.0 (bkz. `reports/nlu_eval_20260812.md`) |
 
 ## Onay Gerektiren Aksiyonlar (Faz 4+ ile aktif olacak)
 
