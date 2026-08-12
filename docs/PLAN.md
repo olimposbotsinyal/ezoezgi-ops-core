@@ -21,11 +21,17 @@
   - Kabul kriteri: `git log` en az 1 commit gösteriyor, `git status` temiz.
   - Bağımlılıklar: T1.
 
-- [ ] **T3. Kök README ve lisans/politika notu**
+- [x] **T3. Kök README ve lisans/politika notu**
   - Amaç: Depoya yeni katılan biri veya ajanın 1 dakikada bağlam kazanması.
   - Teknik çıktı: `README.md` (proje özeti + docs/ indeksine link).
   - Kabul kriteri: README, MASTER_ROADMAP.md ve PLAN.md'ye link veriyor.
   - Bağımlılıklar: T1.
+  - **Not (2026-08-13):** `README.md` güncellendi — proje özeti, tüm `docs/`
+    indeks linkleri (+ yeni `docs/releases/PHASE0_CLOSURE.md`), ve kısa bir
+    "Çalıştırma (Hızlı Başlangıç)" bölümü (`.venv` kurulumu + `pytest` +
+    `e2e_demo.py` komutu, detay için RUNBOOK.md'ye link). "Durum" bölümü de
+    Faz 0'ın gerçek durumunu (çekirdek zincir kapandı, finans ertelendi)
+    yansıtacak şekilde güncellendi.
 
 ## Gün 3–4 — Kimlik / Alias Config Altyapısı
 
@@ -331,3 +337,10 @@ sayısı 51 → 73 (73/73 yeşil). Faz 0'da hâlâ açık: T3 (README), T18/T19/
 olduğu için henüz başlatılmadı).
 - **Sorun:** Teknik notlarda yanlışlıkla "2026-08-14" tarihi yazılmış,
   gerçek tarih (2026-08-13) ile düzeltildi.
+
+**Ek (aynı gün, release prep):** T3 kapatıldı — `README.md` proje özeti +
+tüm docs indeks linkleri + kısa "Çalıştırma" bölümü ile güncellendi.
+`docs/releases/PHASE0_CLOSURE.md` eklendi (Faz 0 kapanış özeti: tamamlanan
+görevler, test özeti, güvenlik kazanımları, bilinçli ertelenenler, Faz 1
+giriş kriterleri). Git tag hazırlığı yapıldı (`v0.1.0-phase0-closed` önerisi)
+— henüz oluşturulmadı/push edilmedi, yalnızca komut önerisi verildi.

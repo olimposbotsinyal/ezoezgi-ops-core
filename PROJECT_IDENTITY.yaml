@@ -1,0 +1,35 @@
+# PROJECT_IDENTITY.yaml
+#
+# Bu repo'nun kimlik manifesti. `scripts/repo_guard.py` ve `scripts/preflight.py`
+# tarafından okunur; amacı bu çalışma alanının başka bir proje/checkout ile
+# yanlışlıkla karışmasını (örn. yanlış repo'da script çalıştırma, farklı bir
+# projenin dosyalarının bu repoya kopyalanması) önlemektir.
+#
+# Bu dosya elle silinmemeli/taşınmamalı — silinirse repo_guard/preflight
+# başarısız olur (bilinçli bir tasarım kararı).
+
+project_name: "EzoEzgi (ASAF Core)"
+repo_slug: ezoezgi-asaf-core
+phase: v0.1.0-phase0-closed
+
+canonical_paths:
+  - apps/
+  - services/
+  - tools/
+  - docs/
+  - config/
+  - policies/
+
+forbidden_external_paths:
+  - '../'
+  - '~/Desktop/'
+  - 'C:\Users\'
+  - '/Users/'
+
+owner: webcadisi@gmail.com
+created_at: 2026-08-13
+
+notes: >
+  Bu dosya repo izolasyon doğrulaması için kullanılır. scripts/repo_guard.py
+  bu dosyanın varlığını, repo_slug'ın beklenenle eşleştiğini ve
+  canonical_paths altındaki klasörlerin gerçekten var olduğunu kontrol eder.

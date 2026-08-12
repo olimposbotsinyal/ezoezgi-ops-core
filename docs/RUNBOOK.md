@@ -14,6 +14,42 @@
 4. Kapsam dışı yeni istekler `docs/BACKLOG.md`'ye eklenir, aktif sprint'e dahil edilmez.
 5. Mimari/teknoloji kararları `docs/DECISIONS.md`'ye ADR olarak yazılır.
 
+## Preflight Kontrol
+
+Repo üzerinde çalışmaya başlamadan önce (özellikle birden fazla proje/checkout
+arasında geçiş yapıldıysa) çalıştırılması önerilir:
+
+```
+.\.venv\Scripts\python.exe scripts\preflight.py
+```
+
+Bu komut önce `scripts/repo_guard.py`'yi çağırır — bu dizinin gerçekten
+EzoEzgi Ops olduğunu (`PROJECT_IDENTITY.yaml` manifestinin varlığı, `repo_slug`
+eşleşmesi, `canonical_paths` altındaki kritik klasörlerin varlığı ve scriptin
+kendi konumunun repo root ile tutarlılığı üzerinden) doğrular. Ardından kısa
+bir sağlık kontrolü yapar: Python sürümü, `config/cli_whitelist.json` ve
+`docs/PLAN.md` dosyalarının varlığı. Sonuç bir PASS/FAIL tablosu olarak
+yazdırılır; herhangi bir madde FAIL ise exit code `1` döner.
+
+Örnek çıktı:
+```
+Preflight Kontrol -- EzoEzgi Ops
+============================================
+[PASS] Repo Guard                 REPO_GUARD_OK
+[PASS] Python version             3.13.3 (>= 3.10 gerekli)
+[PASS] config/cli_whitelist.json  bulundu
+[PASS] docs/PLAN.md               bulundu
+--------------------------------------------
+Sonuç: 4/4 PASS
+```
+
+`PROJECT_IDENTITY.yaml` (repo köküne) elle silinmemeli/taşınmamalı —
+silinirse `repo_guard`/`preflight` bilinçli olarak FAIL verir. Yalnızca
+`repo_guard.py`'yi çalıştırmak isterseniz:
+```
+.\.venv\Scripts\python.exe scripts\repo_guard.py
+```
+
 ## Kimlik / Wake-Alias Değişikliği
 
 - Kaynak dosya: `config/assistant.identity.json`.
