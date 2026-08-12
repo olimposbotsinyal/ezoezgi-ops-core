@@ -344,3 +344,16 @@ tüm docs indeks linkleri + kısa "Çalıştırma" bölümü ile güncellendi.
 görevler, test özeti, güvenlik kazanımları, bilinçli ertelenenler, Faz 1
 giriş kriterleri). Git tag hazırlığı yapıldı (`v0.1.0-phase0-closed` önerisi)
 — henüz oluşturulmadı/push edilmedi, yalnızca komut önerisi verildi.
+
+**Ek (aynı gün, post-merge hijyen):** PR #1 (Ollama NLU adaptörü, B031
+temel entegrasyon) ve PR #2 (B031 quality-gate framework: golden set +
+`tools/eval_nlu.py` + eşikler) `main`'e merge edildi (`4b8d2f8`). Lokal
+hijyen yapıldı: `feature/core-bootstrap-week1` ve
+`feature/phase1-b031-quality-gate` branch'leri (ikisi de merge doğrulanarak,
+`-d` ile, force kullanılmadan) silindi; `git remote prune origin` ile stale
+remote-tracking referansları temizlendi. `main` üzerinde tam regresyon
+132/132 yeşil. Docs (`BACKLOG.md`/`RUNBOOK.md`/`README.md`/`DECISIONS.md`)
+tutarlılık taraması yapıldı — çelişki bulunmadı, patch gerekmedi. B031 hâlâ
+**Kısmen tamamlandı**: quality-gate altyapısı hazır ve test edilmiş, ancak
+canlı Ollama ölçümü bu ortamda hâlâ yapılamadı (`NOT_EVALUATED`) — bu
+iddia edilmiyor, dürüstçe korunuyor.
