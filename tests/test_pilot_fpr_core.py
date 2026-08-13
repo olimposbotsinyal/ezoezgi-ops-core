@@ -23,6 +23,7 @@ from pilot_fpr_core import (
     confidence_band_for_sample_size,
     parse_adjudications,
     render_fpr_summary_md,
+    validate_adjudication_traceability,
     validate_adjudications_file,
     write_fpr_summary,
 )
@@ -172,11 +173,90 @@ def test_parse_adjudications_skips_malformed_entries_silently():
 
 
 def test_real_repo_adjudications_file_is_valid():
+    """`pilot_fpr_adjudications.json` artik BOS DEGIL -- 'Final promotion
+    attempt preparation' gorevinde, docs/BACKLOG.md + pilot_summary.md'de
+    ZATEN yazili/belgelenmis 3 sonuc (CONFIRMED_TRUE_POSITIVE, her biri
+    icin) dogrudan alintilanarak eklendi (bkz. dosyanin $adjudications_source_note
+    alani + her girdinin `notes`u). Semasi hala GECERLI olmali."""
     from pathlib import Path
 
     payload = json.loads(Path("infra/monitoring/governance/pilot_fpr_adjudications.json").read_text(encoding="utf-8"))
     assert validate_adjudications_file(payload) == []
-    assert payload["adjudications"] == []  # baslangicta BOS olmali
+    assert len(payload["adjudications"]) == 3
+    for entry in payload["adjudications"]:
+        assert entry["verdict"] in (VERDICT_TRUE_POSITIVE, VERDICT_FALSE_POSITIVE)
+        assert entry["adjudicated_by"].strip() != ""
+
+
+def test_real_repo_adjudications_are_traceable_to_real_signals():
+    """Repo'daki GERCEK adjudikasyonlarin, `compute_pilot_false_positive_rate.py`'nin
+    GERCEK sinyal toplayicilarinin urettigi sinyallerle eslesip
+    eslesmedigini dogrular -- hayalet/izlenemeyen bir adjudikasyon
+    olmamali (gorev kisiti: "keep entries traceable to concrete evidence
+    ids/paths")."""
+    from pathlib import Path
+
+    import sys
+
+    sys.path.insert(0, "scripts/ops")
+    from compute_pilot_false_positive_rate import (
+        collect_auto_rollback_signals,
+        collect_chain_matching_signals,
+        collect_legitimacy_signals,
+    )
+
+    repo_root = Path(".")
+    all_signals = (
+        collect_chain_matching_signals(repo_root)
+        + collect_auto_rollback_signals(repo_root)
+        + collect_legitimacy_signals(repo_root)
+    )
+    payload = json.loads(Path("infra/monitoring/governance/pilot_fpr_adjudications.json").read_text(encoding="utf-8"))
+    adjudications = parse_adjudications(payload)
+    assert validate_adjudication_traceability(adjudications, all_signals) == []
+
+
+# --- validate_adjudication_traceability (deterministik/sentetik) -----------------
+
+
+def test_validate_adjudication_traceability_accepts_matching_signal():
+    signals = [Signal(feature="x", signal_id="a", evidence_path="p")]
+    adjudications = [_adjudication("a", VERDICT_TRUE_POSITIVE)]
+    assert validate_adjudication_traceability(adjudications, signals) == []
+
+
+def test_validate_adjudication_traceability_rejects_ghost_entry():
+    """Hicbir gercek sinyalle eslesmeyen bir adjudikasyon (ornegin
+    sinyal artik kanittan silindiyse veya signal_id yanlis yazildiysa)
+    izlenemeyen/hayalet bir girdi olarak REDDEDILMELIDIR."""
+    signals: list[Signal] = []
+    adjudications = [_adjudication("ghost-id", VERDICT_TRUE_POSITIVE)]
+    errors = validate_adjudication_traceability(adjudications, signals)
+    assert len(errors) == 1
+    assert "hayalet" in errors[0]
+
+
+def test_validate_adjudication_traceability_rejects_empty_adjudicated_by():
+    signals = [Signal(feature="x", signal_id="a", evidence_path="p")]
+    anonymous = Adjudication(
+        feature="x", signal_id="a", verdict=VERDICT_TRUE_POSITIVE, adjudicated_by="  ", adjudicated_at_utc="t"
+    )
+    errors = validate_adjudication_traceability([anonymous], signals)
+    assert any("anonim" in e for e in errors)
+
+
+def test_validate_adjudication_traceability_empty_lists_no_errors():
+    assert validate_adjudication_traceability([], []) == []
+
+
+def test_validate_adjudication_traceability_matches_by_feature_and_signal_id_together():
+    """Ayni signal_id, FARKLI bir feature altinda GECERLI bir sinyal
+    DEGILDIR -- eslestirme (feature, signal_id) CIFTI uzerinden
+    yapilmalidir, yalnizca signal_id uzerinden DEGIL."""
+    signals = [Signal(feature="feature_a", signal_id="shared-id", evidence_path="p")]
+    adjudications = [_adjudication("shared-id", VERDICT_TRUE_POSITIVE)]  # feature="x", signals'taki feature_a DEGIL
+    errors = validate_adjudication_traceability(adjudications, signals)
+    assert len(errors) == 1
 
 
 # --- Rapor uretimi ------------------------------------------------------------------

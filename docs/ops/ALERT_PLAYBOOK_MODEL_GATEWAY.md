@@ -351,6 +351,20 @@ DOKUNMAZ) eklendi. Tam detay: `docs/ops/MONITORING_STACK_RUNBOOK.md`
 "Legitimacy status semantics (PASS/FAIL/SKIPPED)", "Promotion evidence
 runpack usage", "Rehearsal mode interpretation".
 
+**GÜNCELLENDİ — final promotion attempt hazırlığı:** `scripts/ops/check_pilot_observation_window.py`
+(her özellik için gözlemlenen gün/çalıştırma sayısı + eksik gün/
+çalıştırma) ve `scripts/ops/package_promotion_drill.py` (bir VerifyReload
+FAIL + auto-rollback kanıtını doğrulayıp `reports/promotion_drill_<UTC>/`'a
+paketler — GERÇEK bir drill'i KENDİSİ tetiklemez) eklendi. FPR
+adjudikasyon defteri artık BOŞ DEĞİL — 3 sinyal için `docs/BACKLOG.md`'de
+ZATEN belgelenmiş sonuçlar doğrudan alıntılanarak kaydedildi (yeni bir
+yargı ÜRETİLMEDİ). Bu ortamda gerçek Jira kimlik bilgisi YOK — bu dürüstçe
+`not_collected` olarak raporlanır, fabrike edilmedi. Final karar: rehearsal
+ve normal mod karar sınıfları BİREBİR eşleşti (`EXTEND_PILOT`/`EXTEND_PILOT`/`REJECT`).
+Tam detay: `docs/ops/MONITORING_STACK_RUNBOOK.md` "Final promotion attempt
+checklist", "Controlled fail-path drill SOP", "Adjudication traceability
+rules".
+
 ## Bilinen sınırlamalar
 
 - Hiçbir alert şu an gerçekten **sayfalamıyor** — canlı bir

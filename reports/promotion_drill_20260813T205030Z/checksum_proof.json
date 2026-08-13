@@ -1,0 +1,6 @@
+{
+  "old_checksum": "1677b2657abc8cb8e67e47c300b7aa8c7fcdc7410b013cd39eb2bd04c0bd719c",
+  "new_checksum": "c8285bbc14822010dd9a982d4bd43a4313034068997a87df1046e8bc5bf4c2da",
+  "auto_rollback_restored_checksum": "1677b2657abc8cb8e67e47c300b7aa8c7fcdc7410b013cd39eb2bd04c0bd719c",
+  "checksum_matches_pre_apply_state": true
+}

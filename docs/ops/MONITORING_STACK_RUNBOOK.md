@@ -1139,6 +1139,131 @@ python scripts/ops/evaluate_pilot_promotion.py --rehearsal
 cat reports/pilot_promotion_<UTC>/rehearsal_report.md
 ```
 
+## Final promotion attempt checklist
+
+**Final promotion attempt preparation sprint** ile son üç kanıt boşluğu
+kapatılmaya çalışıldı — biri gerçek altyapı eksikliği nedeniyle
+kapatılamadı (dürüstçe raporlanır, fabrike edilmedi):
+
+| Adım | Araç | Durum (bu makinede, en son çalıştırma) |
+|---|---|---|
+| 1. Gerçek Jira kanıtı | `check_emergency_legitimacy.py --provider jira` | **not_collected** — bu ortamda `JIRA_BASE_URL`/`JIRA_EMAIL`/`JIRA_API_TOKEN` yapılandırılmamış, gerçek bir Jira instance'ı yok. Fabrike bir PASS/FAIL üretilmedi (bkz. "Jira legitimacy verification setup"). |
+| 2. Auto-rollback drill | `package_promotion_drill.py` | **KABUL EDİLDİ** — bu oturumda `promtool`/`amtool` kurulu olmadığından TAZE bir drill koşulamadı; bunun yerine AYNI GÜN daha erken (18:04:44Z) GERÇEK `amtool.exe` ile üretilmiş, tüm kabul kriterlerini karşılayan bir drill kanıtına ŞEFFAF referans verildi (bkz. "Controlled fail-path drill SOP"). |
+| 3. FPR adjudikasyon minimumu | `pilot_fpr_adjudications.json` | 3 sinyal (chain-matching/auto-rollback/legitimacy), her biri için 1'er adjudikasyon — `docs/BACKLOG.md`+`pilot_summary.md`'de ZATEN yazılı sonuçlardan DOĞRUDAN alıntılanarak dolduruldu (bkz. "Adjudication traceability rules"). 1 < `MIN_ADJUDICATED_FOR_RATE`(3) olduğu için hâlâ `INSUFFICIENT_DATA` — beklenen/dürüst sonuç. |
+| 4. Gözlem penceresi | `check_pilot_observation_window.py` | Çalıştı — `observed_days` her üç özellik için de `~0.1` gün (pilot kanıtı bugün üretildi; `observation_min_days` 14-28 gün gerektirir, bu bir SÜRE gerçeğidir, bir araç eksikliği DEĞİLDİR). |
+| 5. Final rehearsal + normal karar | `evaluate_pilot_promotion.py --rehearsal` + normal mod | Çalıştı — **karar sınıfları BİREBİR eşleşti** (`EXTEND_PILOT`/`EXTEND_PILOT`/`REJECT`, exit code 2/2). |
+
+**Genel sonuç: REJECT (exit code 2)** — `emergency_legitimacy_required`
+özelliği `provider_is_stub_only` blocker'ı nedeniyle KOŞULSUZ REJECT
+veriyor (gerçek bir `provider=jira`+`checked=true` kanıtı hâlâ YOK);
+diğer iki özellik `EXTEND_PILOT` (gözlem penceresi/çalıştırma sayısı
+henüz karşılanmadı — bu bir SÜRE meselesidir).
+
+**Bir sonraki gerçek promotion denemesi için GEREKENLER (net, sıralı):**
+
+1. Gerçek bir Jira instance'ı + API token edinilmeli, `check_emergency_legitimacy.py --provider jira`
+   ile en az 2 gerçek PASS + 1 gerçek FAIL örneği üretilmeli
+   (`provider_evidence.checked=true` olan).
+2. `emergency_chain_matching`/`auto_rollback_on_verify_fail` için
+   2-4 haftalık GERÇEK gözlem penceresi (flag açık, gerçek/gerçekçi
+   trafik) birikmeli — `check_pilot_observation_window.py` bunu izler.
+3. Her sinyal grubu için `MIN_ADJUDICATED_FOR_RATE`(3) eşiğine ulaşacak
+   kadar YENİ, GERÇEK insan adjudikasyonu (bu sprint'in 3 girdisinin
+   TERSİNE, mevcut değil YENİ sinyaller için) eklenmelidir.
+
+## Controlled fail-path drill SOP
+
+`scripts/ops/package_promotion_drill.py` — bir `apply_report.json`'daki
+VerifyReload FAIL + auto-rollback kanıtının gorev kabul kriterlerini
+(`verification_state=FAIL`, `auto_rollback.triggered=true`,
+`auto_rollback.restored=true`, checksum eşleşmesi) karşılayıp
+karşılamadığını dogrular, `data/audit/audit.log.jsonl`'deki eşleşen
+`auto_rollback_triggered` kaydını bulur, hepsini `reports/promotion_drill_<UTC>/`
+altına paketler (`drill_evidence.json`+`audit_snippet.json`+`checksum_proof.json`+`drill_summary.md`+`.json`).
+
+**Bu script GERÇEK bir drill TETİKLEMEZ** — yalnızca ÖNCEDEN üretilmiş
+bir `apply_report.json`'u okur/doğrular/paketler. Gerçek bir drill için:
+
+```powershell
+# 1) Gercek bir VerifyReload FAIL'i kasitli olarak tetikleyin (bilinen
+#    bir sinirlama kullanilabilir, ornegin persistent alertmanager.yml'deki
+#    ${VAR} yer tutucusu -- bkz. "Emergency Change Protocol"):
+pwsh scripts/ops/apply_threshold_proposal.ps1 -ProposalPath <proposal.json> `
+  -ReviewRecordPath <review.json> -Apply -VerifyReload `
+  -AutoRollbackOnVerifyFail -AutoRollbackMode strict `
+  -PromtoolPath <promtool.exe> -AmtoolPath <amtool.exe>
+
+# 2) Ciktiyi (apply_report.json) paketleyin -- --fresh-run BAYRAGI
+#    yalnizca GERCEKTEN taze bir calistirma oldugunda verilir:
+python scripts/ops/package_promotion_drill.py `
+  --source-apply-report-path <yeni apply_report.json yolu> --fresh-run
+```
+
+**Kabul kriterleri (KOŞULSUZ, hepsi sağlanmalı):**
+
+- `verification_state == "FAIL"` (gerçek bir doğrulama hatası, fabrike
+  edilmemiş).
+- `auto_rollback.triggered == true` VE `auto_rollback.restored == true`.
+- `auto_rollback.restored_checksum == old_checksum` (dosya GERÇEKTEN
+  apply-öncesi duruma döndü — rastgele/farklı bir checksum'a DEĞİL).
+- `data/audit/audit.log.jsonl`'de eşleşen `proposal_id`'li bir
+  `task=auto_rollback_triggered` kaydı BULUNMALIDIR (yalnızca
+  `apply_report.json`'a güvenmek yeterli değildir — audit defteri
+  BAĞIMSIZ bir ikinci kanıt kaynağıdır).
+
+**Şeffaflık kuralı — `--fresh-run` bayrağı:** varsayılan olarak `False`
+(kaynak kanıt MEVCUT/ÖNCEDEN üretilmiş sayılır). Yalnızca operatör, BU
+ÇALIŞTIRMADAN HEMEN ÖNCE gerçekten TAZE bir drill koşturduysa
+`--fresh-run` verilmelidir — `drill_summary.md` bu durumu AÇIKÇA
+etiketler (bayrak verilmezse "SEFFAFLIK NOTU" bölümü otomatik eklenir,
+kaynağın ne zaman/nereden geldiğini açıkça belirtir). Bu, "referans
+verilen eski kanıt" ile "bu oturumda gerçekten üretilen yeni kanıt"nın
+ASLA karıştırılmamasını garanti eder.
+
+## Adjudication traceability rules
+
+FPR adjudikasyonu (`infra/monitoring/governance/pilot_fpr_adjudications.json`)
+TASARIM GEREĞİ bir İNSAN YARGISI gerektirir (bkz. "How FPR is
+computed") — bu bölüm, bu yargının NASIL kaydedilmesi/İZLENEBİLİR
+kılınması gerektiğini tanımlar.
+
+**Kesin kural: hiçbir adjudikasyon fabrike EDİLEMEZ.** Bir adjudikasyon
+girdisi ya (a) GERÇEK bir insanın, GERÇEK bir olayı gözden geçirip
+verdiği YENİ bir kararı kaydeder, ya da (b) BAŞKA bir yerde (örneğin
+`docs/BACKLOG.md`, bir pilot özet raporu) ZATEN yazılı/belgelenmiş bir
+sonucu, DEĞİŞTİRMEDEN, doğrudan alıntılayarak aktarır. Üçüncü bir yol
+YOKTUR — otomatik/tahmine dayalı/"muhtemelen doğru görünüyor" türü bir
+YENİ yargı ASLA üretilmez (bu, tüm FPR sisteminin amacını bozar).
+
+**`validate_adjudication_traceability()` (`pilot_fpr_core.py`) iki
+kuralı MEKANİK olarak kontrol eder:**
+
+1. **Hayalet girdi yasağı:** her adjudikasyon (`feature`, `signal_id`)
+   çifti, `compute_pilot_false_positive_rate.py`'nin GERÇEKTEN
+   ÜRETTİĞİ bir sinyalle eşleşmelidir — hiçbir gerçek sinyalle
+   eşleşmeyen bir adjudikasyon (örneğin silinmiş kanıta veya yanlış
+   yazılmış bir `signal_id`'ye ait) REDDEDİLİR.
+2. **Anonimlik yasağı:** `adjudicated_by` alanı BOŞ/anonim OLAMAZ —
+   izlenebilir bir kaynak (bir kişi adı VEYA belgelenmiş bir kaynağın
+   dosya yolu) İÇERMELİDİR.
+
+`compute_pilot_false_positive_rate.py`, bu kontrolü HER çalıştırmada
+otomatik uygular ve ihlal varsa UYARI yazdırır (bloklamaz — mevcut
+tasarım felsefesiyle tutarlı: veri kalitesi sorunları görünür kılınır,
+ama pipeline durdurulmaz; asıl REJECT kararı zaten `INSUFFICIENT_DATA`/
+blocker mekanizmaları üzerinden gelir).
+
+**Mevcut 3 girdinin kaynağı (örnek, izlenebilirlik kuralının GERÇEK
+uygulaması):** `pilot_fpr_adjudications.json`'daki 3 girdi (2026-08-13,
+Final promotion attempt preparation sprint'inde eklendi) YENİ bir
+yargı ÜRETMEZ — `reports/v1_2_pilot_20260813T180035Z/pilot_summary.md`'de
+(Commit W/X pilot denemesi, GERÇEK kod yollarıyla çalıştırılmış) ZATEN
+yazılı üç sonucu DOĞRUDAN alıntılar (her girdinin `notes` alanı tam
+alıntıyı içerir, `adjudicated_by` kaynak dosya yolunu gösterir). Üçü de
+`CONFIRMED_TRUE_POSITIVE` — pilot_summary.md'nin kendi ifadesiyle: v1.2
+her üç senaryoda da "beklendiği gibi" / "doğru" davrandı, bu adjudike
+edilen sinyallerin HİÇBİRİ gerçek bir yanlış-pozitif DEĞİLDİR.
+
 ## Kalıcı (persistent) izleme profili
 
 `infra/monitoring/profiles/persistent/` — `prometheus.yml` +

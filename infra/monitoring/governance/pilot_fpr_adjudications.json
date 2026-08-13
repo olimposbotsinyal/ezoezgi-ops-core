@@ -1,5 +1,31 @@
 {
   "schema_version": 1,
   "$note": "Insan tarafindan doldurulan, v1.2 pilot sinyallerinin (chain-matching BROKEN_CHAIN bulgulari, auto-rollback tetiklenmeleri, legitimacy FAIL'leri) GERCEKTEN yanlis-pozitif mi oldugunu kaydeden defter. scripts/ops/compute_pilot_false_positive_rate.py tarafindan okunur. BOS baslar -- her adjudikasyon ACIK bir insan kararidir, otomatik olusturulmaz.",
-  "adjudications": []
+  "$adjudications_source_note": "Asagidaki 3 girdi (2026-08-13, Final promotion attempt preparation gorevinde eklendi) YENI bir insan yargisi URETMEZ -- YALNIZCA reports/v1_2_pilot_20260813T180035Z/pilot_summary.md'de (Commit W/X pilot denemesi sirasinda, GERCEK kod yollariyla calistirilip) ZATEN yazili/belgelenmis sonuclari, dogrudan alintilayarak aktarir (bkz. her girdinin 'notes' alani + docs/BACKLOG.md 'Governance v1.2 PILOT denemeleri (Commit W/X)'). Her uc ozellik icin YALNIZCA 1 sinyal/adjudikasyon vardir -- MIN_ADJUDICATED_FOR_RATE(3) esiginin ALTINDA kaldigi icin, adjudikasyondan SONRA bile false_positive_rate status'u INSUFFICIENT_DATA olarak KALIR (bu BEKLENEN ve DURUST bir sonuctur, fabrike edilmis bir yeterlilik ASLA iddia edilmez).",
+  "adjudications": [
+    {
+      "feature": "emergency_chain_matching",
+      "signal_id": "HIGH_NULL_INTENT_RATE-20260810T000000+0000",
+      "verdict": "CONFIRMED_TRUE_POSITIVE",
+      "adjudicated_by": "reports/v1_2_pilot_20260813T180035Z/pilot_summary.md (proje kaydi, Commit W/X pilot denemesi)",
+      "adjudicated_at_utc": "2026-08-13T18:05:00+00:00",
+      "notes": "pilot_summary.md Senaryo 1, dogrudan alinti: 'Bu, gercek bir YANLIS-POZITIF cozuldu senaryosudur. v1.2, checksum zincirinin kirik oldugunu dogru tespit edip WARN uretti.' -- yanlis-pozitif iddiasi v1.1'in 'cozuldu' sonucuna aittir; v1.2'nin BROKEN_CHAIN tespiti pilot_summary.md'de acikca DOGRU olarak nitelendiriliyor, dolayisiyla bu sinyal (v1.2'nin KENDI bulgusu) yanlis-pozitif DEGILDIR."
+    },
+    {
+      "feature": "auto_rollback_on_verify_fail",
+      "signal_id": "HIGH_NULL_INTENT_RATE-20260813T180435",
+      "verdict": "CONFIRMED_TRUE_POSITIVE",
+      "adjudicated_by": "reports/v1_2_pilot_20260813T180035Z/pilot_summary.md (proje kaydi, Commit W/X pilot denemesi)",
+      "adjudicated_at_utc": "2026-08-13T18:05:00+00:00",
+      "notes": "pilot_summary.md Senaryo 2, dogrudan alinti: 'GERCEK bir VerifyReload FAIL'i tetiklendi' (gercek amtool.exe dogrulama hatasi, bilinen ${VAR} sinirlamasi) -- 'strict' modda auto_rollback.triggered=true, dosya OTOMATIK OLARAK geri yuklendi, manuel mudahale GEREKMEDI. Rollback, GERCEK/dogrulanmis bir hataya karsi verilen DOGRU/beklenen tepkidir -- yanlis bir tetiklenme DEGILDIR."
+    },
+    {
+      "feature": "emergency_legitimacy_required",
+      "signal_id": "TICKET-BAD-FORMAT",
+      "verdict": "CONFIRMED_TRUE_POSITIVE",
+      "adjudicated_by": "reports/v1_2_pilot_20260813T180035Z/pilot_summary.md (proje kaydi, Commit W/X pilot denemesi)",
+      "adjudicated_at_utc": "2026-08-13T18:05:00+00:00",
+      "notes": "pilot_summary.md Senaryo 3, dogrudan alinti: 'Mekanizma beklendigi gibi calisiyor.' Sinyal, kasitli olarak GECERSIZ bicimli bir test bileti (TICKET-BAD-FORMAT, regex'e uymuyor) ile uretildi -- format kontrolu deterministiktir, FAIL sonucu GERCEKTEN gecersiz bir bicimi dogru yansitir, yanlis-pozitif DEGILDIR."
+    }
+  ]
 }

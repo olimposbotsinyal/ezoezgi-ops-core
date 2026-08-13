@@ -80,6 +80,13 @@ reports/pilot_metrics_*/
 # (kendisi zaten yukaridaki alt-rapor turlerini referans alir/toplar).
 reports/promotion_candidate_*/
 
+# Kontrollu VerifyReload FAIL + auto-rollback drill paketleri
+# (scripts/ops/package_promotion_drill.py) -- ayni gerekce: tekrar-
+# uretilebilir kanit paketleri. Belirli bir drill'in GENUINELY bir
+# terfi kararinin kaniti olarak gerektigi durumlarda `git add -f` ile
+# arsivlenir (bkz. reports/gate_d_real_validation_*/ icin ayni desen).
+reports/promotion_drill_*/
+
 # NOT: reports/weekly_observability_<YYYY-WW>/ KASITLI olarak burada
 # YOK -- bu, "Post-GO weekly ritual"in kalici governance gunlugudur
 # (her hafta EKLENIR, uzerine yazilmaz), diger raporlar gibi rutin/

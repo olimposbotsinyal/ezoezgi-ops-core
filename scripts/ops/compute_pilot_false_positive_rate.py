@@ -107,7 +107,13 @@ def main() -> int:
 
     sys.path.insert(0, str(repo_root / "scripts" / "ops"))
     from pilot_promotion_core import FEATURE_NAMES
-    from pilot_fpr_core import compute_feature_fpr, parse_adjudications, validate_adjudications_file, write_fpr_summary
+    from pilot_fpr_core import (
+        compute_feature_fpr,
+        parse_adjudications,
+        validate_adjudication_traceability,
+        validate_adjudications_file,
+        write_fpr_summary,
+    )
 
     adjudications_payload = _load_json_safely(adjudications_path) or {"adjudications": []}
     adjudication_errors = validate_adjudications_file(adjudications_payload)
@@ -123,6 +129,13 @@ def main() -> int:
         "auto_rollback_on_verify_fail": collect_auto_rollback_signals(repo_root),
         "emergency_legitimacy_required": collect_legitimacy_signals(repo_root),
     }
+
+    all_signals = [s for feature_signals in signals_by_feature.values() for s in feature_signals]
+    traceability_errors = validate_adjudication_traceability(all_adjudications, all_signals)
+    if traceability_errors:
+        print(f"UYARI: {len(traceability_errors)} adjudikasyon izlenebilirlik sorunu tespit edildi:")
+        for e in traceability_errors:
+            print(f"  - {e}")
 
     results = {}
     for feature_name in FEATURE_NAMES:

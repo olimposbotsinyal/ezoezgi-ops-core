@@ -950,6 +950,55 @@ geçişi denetlenebilir kılar.
   ilerleme mesajlari `Write-Host`'a tasindi. Ayrinti: `docs/ops/MONITORING_STACK_RUNBOOK.md`
   "Legitimacy status semantics (PASS/FAIL/SKIPPED)", "Promotion evidence
   runpack usage", "Rehearsal mode interpretation".
+- **Final promotion attempt preparation sprinti:** Kullanicidan ONCE
+  ortam durumu kontrol edildi (JIRA_* env degiskenleri, promtool/amtool,
+  mevcut kanit) -- gercek Jira kimlik bilgisi YOK, promtool/amtool bu
+  session'da kurulu DEGIL (ama BUGUN daha erken gercek amtool ile
+  uretilmis kanit MEVCUT), FPR sinyalleri INSUFFICIENT_DATA. Kullaniciya
+  3 net soru soruldu (Jira/drill/adjudikasyon nasil ilerlensin) --
+  fabrikasyon riski tasiyan hicbir adim kullanici onayi ALINMADAN
+  atilmadi. Kullanici cevaplari: (1) Jira icin durustce not_collected
+  raporlansin, (2) mevcut gercek drill kaniti seffaf referanslansin,
+  (3) adjudikasyon YALNIZCA docs/BACKLOG.md'de zaten yazili sonuclari
+  kaydetsin. (1) `scripts/ops/check_pilot_observation_window.py` (yeni)
+  -- her ozellik icin observed_days/run_count/remaining_days/remaining_runs
+  hesaplar, evaluate_pilot_promotion.py'nin GERCEK kanit tarama mantigini
+  yeniden kullanir (tek dogruluk kaynagi); evaluator (normal+--rehearsal)
+  artik EN SON boyle bir raporu bulursa bilgi amacli referans veriyor
+  (karar mantigina KARISTIRILMAZ). (2) `scripts/ops/package_promotion_drill.py`
+  ile `promotion_drill_core.py` (yeni) -- bir apply_report.json'daki
+  VerifyReload FAIL + auto-rollback kanitini (verification_state=FAIL,
+  auto_rollback.triggered+restored=true, checksum eslesmesi) dogrular,
+  data/audit/audit.log.jsonl'deki eslesen auto_rollback_triggered
+  kaydini bulur, `reports/promotion_drill_<UTC>/`'a paketler. GERCEK bir
+  drill'i KENDISI TETIKLEMEZ -- bu oturumda promtool/amtool kurulu
+  olmadigindan, BUGUN daha erken (18:04:44Z) GERCEK amtool.exe ile
+  uretilmis, TUM kabul kriterlerini karsilayan mevcut bir kanita
+  (`reports/v1_2_pilot_20260813T180035Z/scenario2_verify_fail_autorollback/autorollback_ON_strict/apply_report.json`)
+  SEFFAF referans verildi (`is_fresh_run=false` acikca etiketlendi,
+  `drill_summary.md`'de bir SEFFAFLIK NOTU ile) -- `reports/promotion_drill_20260813T205030Z/`
+  `git add -f` ile arsivlendi (kabul: EVET, tum kriterler saglandi,
+  audit kaydi BULUNDU). (3) `infra/monitoring/governance/pilot_fpr_adjudications.json`
+  -- 3 sinyal (chain-matching/auto-rollback/legitimacy) icin, HER BIRI
+  `reports/v1_2_pilot_20260813T180035Z/pilot_summary.md`'de ZATEN yazili
+  olan sonuclardan DOGRUDAN alintilanarak CONFIRMED_TRUE_POSITIVE olarak
+  kaydedildi (YENI bir yargi URETILMEDI, `adjudicated_by` kaynak dosya
+  yolunu gosterir). `pilot_fpr_core.py::validate_adjudication_traceability`
+  (yeni) -- her adjudikasyonun GERCEK bir sinyalle eslestigini VE
+  `adjudicated_by`nin anonim olmadigini MEKANIK olarak dogrular (uyari
+  olarak, `compute_pilot_false_positive_rate.py`'ye kablolandi). Sonuc:
+  3 sinyal < MIN_ADJUDICATED_FOR_RATE(3) oldugu icin FPR hala
+  INSUFFICIENT_DATA (beklenen/durust). **Final rehearsal + normal karar:**
+  `run_promotion_evidence_pack.ps1 -SkipJira`, `evaluate_pilot_promotion.py --rehearsal`
+  ve normal mod SIRAYLA calistirildi -- karar siniflari BIREBIR eslesti
+  (emergency_chain_matching/auto_rollback_on_verify_fail: EXTEND_PILOT,
+  emergency_legitimacy_required: REJECT [provider_is_stub_only], exit
+  code 2/2). Genel sonuc: **REJECT** -- gercek bir sonraki promotion
+  denemesi icin GERCEK Jira kimlik bilgisi + 2-4 haftalik gercek gozlem
+  penceresi + YENI insan adjudikasyonu GEREKIYOR (bkz. "Final promotion
+  attempt checklist"). Ayrinti: `docs/ops/MONITORING_STACK_RUNBOOK.md`
+  "Final promotion attempt checklist", "Controlled fail-path drill SOP",
+  "Adjudication traceability rules".
 
 ## Onay Gerektiren Aksiyonlar (Faz 4+ ile aktif olacak)
 

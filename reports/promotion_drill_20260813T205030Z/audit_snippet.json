@@ -1,0 +1,15 @@
+{
+  "timestamp": "2026-08-13T18:04:44.031202+00:00",
+  "request_id": "c3756e59-2ef4-4176-8733-f3fbbdb9b36e",
+  "alias": null,
+  "task": "auto_rollback_triggered",
+  "risk_level": "high",
+  "status": "ROLLED_BACK",
+  "details": {
+    "proposal_id": "HIGH_NULL_INTENT_RATE-20260813T180435",
+    "backup_path": "d:\\Projects\\ezoezgi-ops\\reports\\threshold_apply_20260813T180443Z\\backups\\model_gateway_alerts.yaml.HIGH_NULL_INTENT_RATE-20260813T180435.backup",
+    "restored_checksum": "1677b2657abc8cb8e67e47c300b7aa8c7fcdc7410b013cd39eb2bd04c0bd719c",
+    "reason": "auto-rollback (strict mod): strict mod: verification_state=FAIL, otomatik rollback TETIKLENIYOR",
+    "triggered_by": "apply_threshold_proposal.ps1 -AutoRollbackOnVerifyFail"
+  }
+}

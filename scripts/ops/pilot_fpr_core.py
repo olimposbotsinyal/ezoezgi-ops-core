@@ -138,6 +138,35 @@ def validate_adjudications_file(payload: Any) -> list[str]:
     return errors
 
 
+def validate_adjudication_traceability(adjudications: list[Adjudication], signals: list[Signal]) -> list[str]:
+    """Her adjudikasyonun GERCEK bir sinyale (feature+signal_id
+    eslesmesi) karsilik geldigini VE `adjudicated_by` alaninin bos/anonim
+    OLMADIGINI dogrular -- gorev kisiti: "keep entries traceable to
+    concrete evidence ids/paths", "no anonymous/manual ambiguous
+    entries". Hata mesajlari listesi doner (bos = gecerli), ASLA
+    exception firlatmaz.
+
+    Bu, `validate_adjudications_file`'dan (yapi/sema kontrolu) FARKLI
+    bir katmandir -- semasi GECERLI bir adjudikasyon yine de bir HAYALET
+    (hicbir gercek sinyalle eslesmeyen) veya ANONIM (izlenemeyen bir
+    kaynak) girdi OLABILIR; bu fonksiyon SPESIFIK olarak bunlari
+    yakalar."""
+    errors: list[str] = []
+    signal_keys = {(s.feature, s.signal_id) for s in signals}
+    for a in adjudications:
+        if (a.feature, a.signal_id) not in signal_keys:
+            errors.append(
+                f"adjudikasyon ({a.feature}, {a.signal_id}) hicbir GERCEK sinyalle eslesmiyor "
+                "-- izlenemeyen/hayalet bir girdi"
+            )
+        if not a.adjudicated_by or not a.adjudicated_by.strip():
+            errors.append(
+                f"adjudikasyon ({a.feature}, {a.signal_id}): 'adjudicated_by' bos/anonim "
+                "-- izlenebilir bir kaynak GEREKIR"
+            )
+    return errors
+
+
 def parse_adjudications(payload: dict[str, Any]) -> list[Adjudication]:
     """`validate_adjudications_file` ile ONCEDEN dogrulanmis bir
     payload'dan `Adjudication` nesneleri insa eder. Gecersiz/eksik

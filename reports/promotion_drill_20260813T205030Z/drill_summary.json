@@ -1,0 +1,19 @@
+{
+  "generated_at": "2026-08-13T20:50:30.243649+00:00",
+  "source_apply_report_path": "reports\\v1_2_pilot_20260813T180035Z\\scenario2_verify_fail_autorollback\\autorollback_ON_strict\\apply_report.json",
+  "source_generated_at": "2026-08-13T18:04:43.999833+00:00",
+  "is_fresh_run": false,
+  "parsed": {
+    "proposal_id": "HIGH_NULL_INTENT_RATE-20260813T180435",
+    "generated_at": "2026-08-13T18:04:43.999833+00:00",
+    "verification_state": "FAIL",
+    "old_checksum": "1677b2657abc8cb8e67e47c300b7aa8c7fcdc7410b013cd39eb2bd04c0bd719c",
+    "new_checksum": "c8285bbc14822010dd9a982d4bd43a4313034068997a87df1046e8bc5bf4c2da",
+    "auto_rollback_triggered": true,
+    "auto_rollback_restored": true,
+    "auto_rollback_restored_checksum": "1677b2657abc8cb8e67e47c300b7aa8c7fcdc7410b013cd39eb2bd04c0bd719c"
+  },
+  "accepted": true,
+  "violations": [],
+  "audit_entry_found": true
+}
