@@ -469,6 +469,52 @@ gate'i geçmeli, ya da (b) B031'in gecikme eşiği CPU-only gerçeğine göre ay
 bir ADR ile yeniden değerlendirilmeli. Her iki karar da bu triage'ın
 kapsamı dışında, kullanıcı/ekip kararını bekliyor.
 
+### B036 Upstream Issue — Durum
+
+**Durum: READY_TO_SUBMIT (henüz açılmadı).** Bu ortamdan (headless CLI)
+`ollama/ollama` deposuna doğrudan issue açılamadı — `gh` CLI kurulu değil,
+`GITHUB_TOKEN`/`GH_TOKEN` tanımlı değil, ve üçüncü taraf bir açık kaynak
+depoya kimlik doğrulaması olmadan issue açılamaz. Gönderime hazır tam paket
+(başlık, gövde, eklenecek dosya listesi, adım adım manuel gönderim
+talimatı): `reports/runtime_incident_20260813T004855Z/ISSUE_READY_PACKAGE.md`.
+
+Issue URL: **N/A** (gönderilmedi). Gönderildiğinde bu bölüm şu bilgilerle
+güncellenecek: issue URL, açılış zaman damgası, kısa özet, beklenen takip
+(maintainer yanıtı / patch takibi).
+
+### Geçici CPU-Only Workaround
+
+B036 çözülene kadar, çöküşten kaçınmak isteyen manuel/tanı amaçlı koşular
+için geçici bir CPU-only profil formalize edildi:
+`docs/ops/OLLAMA_WORKAROUND_CPU_ONLY.md` (`OLLAMA_VULKAN=false` veya
+`OLLAMA_LLM_LIBRARY=cpu`). **Bu, B031'in resmi kabul kararı için
+kullanılmaz** — yalnızca bilgilendirici koşular içindir (bkz. aşağıdaki
+"B031 Informational Probe").
+
+### B031 Informational Probe (CPU-only, non-gating) — 2026-08-13T01:19:53Z
+
+CPU-only workaround (`OLLAMA_VULKAN=false`) aktifken `tools/eval_nlu.py`
+bilgilendirme amaçlı çalıştırıldı (model: `llama3`, 50 örnek). Tam rapor:
+`reports/runtime_incident_20260813T004855Z/nlu_eval_20260813T011953Z_cpu_only_informational.md`
+(bilerek `reports/nlu_eval_20260813.md`'nin **dışında** ayrı bir dosyaya
+kaydedildi — o dosya, 2026-08-13T00:13:05Z çöküş-keşif koşusunun kanıtı
+olarak yukarıdaki tabloda referans gösteriliyor ve üzerine yazılmadı).
+
+| Kriter | Değer | Eşik | Sonuç |
+|---|---|---|---|
+| intent_accuracy | 74.0% | ≥ 90.0% | FAIL |
+| entity_match_rate | 41.7% | ≥ 85.0% | FAIL |
+| parse_error_rate | 0.0% | ≤ 2.0% | PASS |
+| fallback_rate | 0.0% | ≤ 5.0% | PASS |
+| latency_p95 | 20.59s | ≤ 2.50s | FAIL |
+
+**Sonuç: INFORMATIONAL_ONLY (non-gating).** Önemli gözlem: `fallback_rate`
+ve `parse_error_rate` `%0.0` — 50/50 çağrı **çökmeden** tamamlandı (CPU-only
+workaround'un stabilite bulgusuyla tutarlı). Ama `latency_p95=20.59s`,
+eşiğin (`2.50s`) çok üzerinde — beklenen CPU-only ödünleşimi. **Bu sonuç
+resmi B031 kararını DEĞİŞTİRMEZ; B031 resmi durumu BLOCKED_BY_RUNTIME
+olarak kalır.**
+
 ## Onay Gerektiren Aksiyonlar (Faz 4+ ile aktif olacak)
 
 - Risk seviyesi `high` veya `irreversible` olan her aksiyon, kullanıcı onayı

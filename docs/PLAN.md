@@ -434,3 +434,25 @@ sürücü etkileşimi kök neden olarak log-kanıtlı şekilde izole edildi.**
 B031 durumu değişmedi: **BLOCKED_BY_RUNTIME** (varsayılan/Vulkan modunda
 50/50 gate hâlâ koşulmadı; CPU-only workaround çökmüyor ama B031'in
 gecikme eşiğini muhtemelen karşılamıyor).
+
+**Ek (aynı gün, B036 post-triage aksiyonlar):** (1) Upstream issue bu
+ortamdan açılamadı (`gh` CLI/token yok) — gönderime hazır tam paket
+`reports/runtime_incident_20260813T004855Z/ISSUE_READY_PACKAGE.md`
+(**READY_TO_SUBMIT**, manuel gönderim bekliyor). (2) Geçici CPU-only
+workaround formalize edildi: `docs/ops/OLLAMA_WORKAROUND_CPU_ONLY.md`
+(`OLLAMA_VULKAN=false`/`OLLAMA_LLM_LIBRARY=cpu`) — yalnızca
+tanı/bilgilendirme amaçlı, resmi B031 kararını etkilemiyor. (3) CPU-only
+profil altında bilgilendirici/non-gating bir B031 probe koşuldu
+(`llama3`, 50 örnek): `intent_accuracy=%74.0`, `entity_match_rate=%41.7`,
+`parse_error_rate=%0.0`, `fallback_rate=%0.0`, `latency_p95=20.59s` — 50/50
+çağrı **çökmeden** tamamlandı (workaround'un stabilite bulgusuyla tutarlı)
+ama gecikme eşiğini (`≤2.50s`) açık ara aştı. Sonuç ayrı bir dosyaya
+kaydedildi (`reports/runtime_incident_20260813T004855Z/nlu_eval_20260813T011953Z_cpu_only_informational.md`)
+— `tools/eval_nlu.py`'nin tarih-bazlı çıktı yolu (`reports/nlu_eval_20260813.md`)
+üzerine yazılmaması için bilinçli olarak farklı isimlendirildi; ilk koşuda
+yanlışlıkla üzerine yazıldığı fark edilip `git checkout` ile geri alındı
+(o dosya, 00:13:05Z çöküş-keşif kanıtı olarak `RUNBOOK.md`'de referans
+gösteriliyor). **B031 resmi durumu değişmedi: BLOCKED_BY_RUNTIME.** B036
+durumu: **IN_PROGRESS** — çıkış kriterleri `docs/BACKLOG.md`'de netleştirildi
+(varsayılan profilde 50/50 + 0 HTTP 500 + 0 `0xc0000005`), NVIDIA sürücü
+güncelleme takip maddesi açıldı (sonuç bekliyor).
