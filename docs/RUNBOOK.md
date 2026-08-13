@@ -1066,8 +1066,8 @@ geçişi denetlenebilir kılar.
 
 ## Ops Suite — Çalıştırma ve Doğrulama
 
-> Bkz. `docs/PLAN.md` T21-T27, `docs/DECISIONS.md` ADR-015..018,
-> `docs/OPS_SUITE_PRODUCT_SPEC.md`.
+> Bkz. `docs/PLAN.md` T21-T28, `docs/DECISIONS.md` ADR-015..019,
+> `docs/OPS_SUITE_PRODUCT_SPEC.md`, `docs/IDENTITY_AND_DELEGATION_POLICY.md`.
 
 **Kurulum (ilk kez):**
 
@@ -1075,12 +1075,40 @@ geçişi denetlenebilir kılar.
 ./.venv/Scripts/python.exe -m pip install --group dev --group ops-suite
 ```
 
+**Kimlik doğrulama (B044, SECURITY P0) — sunucuyu başlatmadan ÖNCE:**
+
+Onay/red uç noktaları (`POST /api/approvals/{id}/approve|reject`) artık
+`Authorization: Bearer <token>` ZORUNLU kılıyor (bkz.
+`docs/IDENTITY_AND_DELEGATION_POLICY.md` §4). Sahibi (owner) token'ı,
+`config/ops_suite_identities.json`'daki `token_env_var` alanının işaret
+ettiği ortam değişkeninden okunur (varsayılan: `OPS_SUITE_OWNER_TOKEN`).
+Bu değişken SET EDİLMEZSE, owner ile giriş YAPILAMAZ (fail-closed) —
+salt-okunur uç noktalar (`GET /api/agents` vb.) etkilenmez.
+
+```powershell
+$env:OPS_SUITE_OWNER_TOKEN = "YOUR_OWN_RANDOM_VALUE_HERE"
+```
+
+Bir delegate eklemek için `config/ops_suite_identities.json`'ın
+`delegates` listesine bir kayıt eklenir (`actor_id`/`display_name`/
+`token_env_var`/`scopes`), ardından o `token_env_var`'ın işaret ettiği
+ortam değişkeni set edilir. Şu an committed config'te **hiçbir gerçek
+delegate YOK**.
+
 **Sunucuyu çalıştırma (gerçek, tek uvicorn süreci):**
 
 ```powershell
 $env:PYTHONPATH = "apps/ops-suite/backend/src;apps/orchestrator/src;services/tr-en-bridge/src;services/model-gateway/src;tools/cli-runner/src;tools"
 ./.venv/Scripts/python.exe -m ops_suite.server
 # tarayicida: http://127.0.0.1:8420/  (OPS_SUITE_PORT ile degistirilebilir)
+# onaylamak icin tarayicidaki "Erisim Token'i" kutusuna OPS_SUITE_OWNER_TOKEN degerini girin
+```
+
+**Onay/red API'sini token ile çağırma (curl örneği):**
+
+```powershell
+curl -X POST http://127.0.0.1:8420/api/approvals/<request_id>/approve `
+  -H "Authorization: Bearer $env:OPS_SUITE_OWNER_TOKEN" -H "Content-Type: application/json" -d "{}"
 ```
 
 **Gerçek E2E demo (ayrı bir alt-süreç sunucusu başlatır, kanıtı `reports/ops_suite_demo_<UTC>/`'a yazar):**
@@ -1113,6 +1141,8 @@ $env:PYTHONPATH = "apps/ops-suite/backend/src;apps/orchestrator/src;services/tr-
 | `ModuleNotFoundError: No module named 'model_gateway'`/`'echo_runner'` (yalnızca `scripts/ops_suite_demo.py` alt-süreciyle) | Alt-süreç kendi `PYTHONPATH`'ini pytest'ten miras ALMAZ | `scripts/ops_suite_demo.py::_subprocess_env()` — pytest'in `pythonpath` listesiyle EL İLE senkron tutulmalı |
 | `/api/agents`'te bir ajan hep `offline`/`not_implemented` görünüyor | BEKLENEN davranış — o ajanın gerçek kodu henüz yok | `docs/AGENT_PRESENCE_STATE_MODEL.md` §3 (dürüstlük kuralı) |
 | WS bağlantısı hemen kapanıyor/hiç açılmıyor | `fastapi`/`uvicorn`/`websockets` kurulu değil | `pip install --group ops-suite` çalıştırıldı mı kontrol et |
+| `POST /api/approvals/{id}/approve` → **401** | `Authorization: Bearer <token>` header YOK/geçersiz VEYA `OPS_SUITE_OWNER_TOKEN` hiç set edilmemiş | Yukarıdaki "Kimlik doğrulama (B044)" bölümü |
+| `POST /api/approvals/{id}/approve` → **403** | Token GEÇERLİ ama kapsam/yetki yetersiz (BEKLENEN davranış — ör. delegate `irreversible` onaylamaya çalıştı) | `docs/IDENTITY_AND_DELEGATION_POLICY.md` §4 owner-root-guard; hata mesajı hangi kapsamın eksik olduğunu söyler |
 
 ## Sorun Giderme (Genel)
 

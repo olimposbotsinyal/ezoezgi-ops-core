@@ -67,6 +67,50 @@ body {
   color: var(--danger);
 }
 
+.token-form {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.token-form label {
+  display: none;
+}
+
+.token-form input {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 0.25rem;
+  padding: 0.2rem 0.4rem;
+  width: 9rem;
+}
+
+.token-form button {
+  background: var(--panel-bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 0.25rem;
+  padding: 0.2rem 0.5rem;
+  cursor: pointer;
+}
+
+.whoami {
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+}
+
+.whoami--ok {
+  color: var(--accent);
+}
+
+.whoami--error {
+  color: var(--danger);
+}
+
 .layout {
   display: grid;
   grid-template-columns: 1fr 1fr;

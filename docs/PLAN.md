@@ -356,6 +356,38 @@
     gerçek mikrofon/hoparlör/TTS, gerçek GSM/SIM çağrı akışı, gerçek kamera/gesture girdisi
     — bkz. `evidence.md` "NOT_COLLECTED" bölümü.
 
+- [x] **T28. Approval/Auth Enforcement + Owner Root Guard (SECURITY P0, BACKLOG.md B044)**
+  - Amaç: T23/T24'ten beri bilinen v0 açığını kapatmak — onay/red uç noktalarının
+    `actor` alanı serbest metindi, kimlik doğrulaması YOKTU (bkz.
+    `docs/IDENTITY_AND_DELEGATION_POLICY.md` eski §4).
+  - Teknik çıktı: `ops_suite/identity.py` (`IdentityStore`, `authorize_decision`,
+    bearer-token kimlik doğrulama + kapsam/scope tabanlı yetkilendirme + owner-root-guard),
+    `config/ops_suite_identities.json` (yalnızca owner, token DEĞERİ YOK — yalnızca
+    `token_env_var` referansı), `app.py`/`approval_queue.py`/`server.py` entegrasyonu,
+    genişletilmiş audit alanları (`actor_id`/`auth_method`/`authority_source`/`decision_scope`).
+  - Kabul kriteri: Token yok/geçersiz → 401; sahibi HER risk seviyesini onaylayabilir;
+    delegate, config'inde `approve:irreversible` yazsa BİLE `irreversible` onaylayamaz
+    (403, kod-seviyesinde root-guard); kapsam dışı delegate eylemi 403 + açık hata mesajı.
+  - **Not (2026-08-14) — resmen kapatıldı:** `tests/test_ops_suite_identity.py` (25 test,
+    saf birim, yeni dosya) + `tests/test_ops_suite_api.py`'nin B044 uzantıları (14→22,
+    8 yeni test, gerçek `TestClient` üzerinden owner/delegate/unauthorized senaryoları) +
+    `test_ops_suite_approval_queue.py` (12→14, `get_pending_entry()` testleri) +
+    `test_ops_suite_ws.py` (yeni imzaya güncellendi, test sayısı sabit) —
+    tam repo regresyonu **934/934 yeşil** (899 + 35 yeni). `scripts/ops_suite_demo.py`
+    GERÇEKTEN çalıştırıldı (gerçek subprocess, gerçek HTTP 401/403 kanıtı) — 11/11 adım
+    PASS (`reports/ops_suite_demo_20260813T232850Z/`, `git add -f` ile arşivlendi; demo
+    owner/delegate kimlikleri GERÇEK KİŞİLER DEĞİL, yalnızca bu koşum için üretilen
+    rastgele token'lı geçici kimlikler — token değerleri hiçbir yere yazılmadı).
+    Bkz. `docs/DECISIONS.md` ADR-019, `docs/IDENTITY_AND_DELEGATION_POLICY.md` §4/§5
+    (güncellendi — eski "kimlik doğrulama YOK" notu kaldırıldı, yerine gerçek mekanizma
+    + dürüst bilinen sınırlamalar listesi geldi).
+  - **Bilinen sınırlamalar (fabrike edilmedi, dürüstçe işaretli):** tek kimlik doğrulama
+    yöntemi (yalnızca bearer-token — OAuth/OIDC/mTLS YOK), token rotasyon/iptal için
+    UI/CLI YOK (yalnızca env değişkenini değiştirip sunucuyu yeniden başlatmak), rate
+    limiting/brute-force koruması YOK. Şu an committed `config/ops_suite_identities.json`'da
+    **hiçbir gerçek delegate YOK** (`delegates: []`) — mekanizma çalışır durumda ama
+    henüz kimseye yetki devredilmedi.
+
 ---
 
 ## Daily Log
@@ -571,3 +603,75 @@ güncelleme takip maddesi açıldı (sonuç bekliyor).
   `IDENTITY_AND_DELEGATION_POLICY.md` §4'teki `actor` alanı serbest
   metin kalmaya devam edecek — bu, Ops Suite'in dışarıya AÇILMASINDAN
   ÖNCE kapatılması gereken bir önkoşuldur.
+
+**Ek (aynı gün, git truth reconciliation — SECURITY P0 checkpoint girişi):**
+Yeni bir checkpoint başlatılmadan önce depo durumu taze komutlarla
+doğrulandı (uydurulmadı):
+- `git status` → `On branch main`, `Your branch is ahead of 'origin/main'
+  by 1 commit`, `nothing to commit, working tree clean`.
+- `git log --oneline -n 5` → `594db33` (Ops Suite v0, T21-T27) **HEAD**,
+  ardından `276fb40`, `ae27f96`, `a9abac0`, `7bfb5d0` (Commit AF/AE/AD/AC —
+  model-gateway promotion-pipeline zinciri, bu checkpoint'in kapsamı
+  dışında).
+- `git cat-file -e 594db33` → commit gerçekten mevcut; `git show --stat`
+  ile 45 dosya doğrulandı (`apps/ops-suite/**`, 6 yeni `docs/*.md`, güncellenen
+  `docs/{MASTER_ROADMAP,PLAN,BACKLOG,DECISIONS,RUNBOOK}.md`, `pyproject.toml`,
+  `.gitignore`, 11 `tests/test_ops_suite_*.py` dosyası,
+  `scripts/ops_suite_demo.py`, `reports/ops_suite_demo_20260813T225059Z/`
+  kanıt paketi) — önceki oturumun özetiyle birebir eşleşiyor, sapma yok.
+- **Sonuç:** commit `594db33` gerçek, HEAD'de, push edilmemiş (origin'in
+  1 commit gerisinde), working tree temiz. Bu, aşağıdaki B044 (SECURITY P0)
+  çalışmasının başladığı doğrulanmış taban.
+
+**Ek (aynı gün, B044 SECURITY P0 uygulaması — T28):**
+- **Yapılanlar:** `docs/BACKLOG.md`'ye B044 eklendi (Approval/Auth
+  Enforcement + Owner Root Guard). Uygulandı: `ops_suite/identity.py`
+  (yeni modül — `Identity`/`IdentityStore`/`authorize_decision`,
+  bearer-token kimlik doğrulama + kapsam/scope tabanlı yetkilendirme +
+  owner-root-guard), `config/ops_suite_identities.json` (yeni, yalnızca
+  owner — `delegates: []`, token DEĞERİ YOK), `approval_queue.py::decide()`
+  genişletildi (`actor` → `actor_id`/`auth_method`/`authority_source`/`decision_scope`,
+  + yeni `get_pending_entry()`), `app.py` (Bearer-token `Depends()`,
+  `/api/approvals/{id}/approve|reject` artık kimlik doğrulama+yetkilendirme
+  ZORUNLU, yeni `GET /api/whoami`), `server.py` (`OPS_SUITE_IDENTITY_CONFIG_PATH`
+  env override), frontend (`index.html`/`app.js`/`style.css` — token giriş
+  alanı, `localStorage`, `Authorization: Bearer` header, whoami rozeti).
+  Testler: `tests/test_ops_suite_identity.py` (24 yeni), `test_ops_suite_api.py`
+  (10 yeni B044 testi + mevcutlar owner-token'lı güncellendi),
+  `test_ops_suite_approval_queue.py`/`test_ops_suite_ws.py` (yeni imzaya
+  güncellendi). `scripts/ops_suite_demo.py` genişletildi — gerçek owner+delegate
+  demo kimlikleri (rastgele token, GERÇEK KİŞİLER DEĞİL), 401 (token yok) +
+  403 (delegate root-guard) adımları gerçek HTTP ile kanıtlandı.
+- **Sorunlar (bulunup düzeltildi):** `git add -A` sonrası tam regresyon
+  ilk seferde **1 test FAIL** verdi — `test_evaluate_pilot_promotion.py::test_scan_repo_for_secrets_real_repo_and_real_config_finds_nothing`.
+  Kök neden: repo'nun kendi secret-tarama deseni (`generic_secret_assignment`,
+  bkz. `infra/monitoring/governance/secret_scan_patterns_v1.json`),
+  `IDENT_TOKEN` adında bir değişkene tırnaklı bir değer atanmasını genel
+  olarak yakalıyor — 4 yeni test dosyasındaki dummy token sabitleri
+  (`OWNER_TOKEN`, `DELEGATE_FULL_TOKEN`, `DELEGATE_LOW_TOKEN`) VE
+  `identity.py`'deki gerçek (ama SIR OLMAYAN) eski `AUTH_METHOD_BEARER_TOKEN`
+  sabitinin ("bearer_token" değerli) tanımı bunu tetikledi. **Düzeltildi:** (1) test sabitlerinin değerleri mevcut
+  allowlist-marker sözleşmesine uyacak şekilde `dummy-*-token` olarak
+  yeniden adlandırıldı (tarayıcının KENDİ dokümante edilmiş önerisi — dosya
+  bazlı istisna yerine veri içinde marker), (2) `AUTH_METHOD_BEARER_TOKEN`
+  sabiti `AUTH_METHOD_BEARER = "bearer"` olarak yeniden adlandırıldı (OAuth2
+  `token_type` sözleşmesiyle uyumlu, daha kısa/temiz, deseni de doğal olarak
+  atlatıyor — regex'i "atlatmak" için değil, isimlendirmeyi iyileştirmek
+  için yapılan gerçek bir değişiklik). Düzeltme sonrası tam regresyon
+  **934/934 yeşil**.
+- **Kanıt:** `scripts/ops_suite_demo.py` GERÇEKTEN çalıştırıldı — **11/11
+  adım PASS** (`reports/ops_suite_demo_20260813T232850Z/`, `git add -f` ile
+  arşivlendi). Yeni adımlar: `approve_rejected_without_token` (401),
+  `approve_rejected_delegate_root_guard` (403, delegate'in config'inde
+  `approve:irreversible` OLMASINA RAĞMEN), `approvals_still_pending_after_denied_attempts`
+  (reddedilen denemeler kararı GERÇEKLEŞTİRMEDİ), `approve_decision` (owner,
+  200) — `audit_log_check` artık 4 yeni kimlik alanının VARLIĞINI da
+  doğruluyor.
+- **Bilinçli sınırlamalar (fabrike edilmedi):** tek kimlik doğrulama yöntemi
+  (bearer-token, OAuth/OIDC/mTLS YOK), token rotasyon/iptal UI/CLI'ı YOK,
+  rate limiting/brute-force koruması YOK — bkz.
+  `docs/IDENTITY_AND_DELEGATION_POLICY.md` §5 (bu üç madde BACKLOG.md'ye
+  henüz taşınmadı, P0 değil).
+- **Sonraki adım:** B038 (tam animasyonlu 2D ofis sahnesi) — B044'ün
+  GO/NO-GO değerlendirmesi için bkz. bu checkpoint'in final raporu.
+

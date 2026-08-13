@@ -315,6 +315,50 @@
   görsel/etkileşimli doğrulama bu ortamda YAPILAMADI (SKIPPED, tarayıcı
   aracı yok).
 
+## ADR-019
+- **Tarih:** 2026-08-14
+- **Karar:** Ops Suite onay uç noktaları (`POST /api/approvals/{id}/approve|reject`)
+  için **bearer-token kimlik doğrulama + kapsam (scope) tabanlı
+  yetkilendirme + owner-root-guard** eklendi (BACKLOG.md B044, SECURITY
+  P0). Ayrıntılar: (1) her kimlik (`owner` veya `delegate`) bir token'a
+  eşlenir, token DEĞERİ yalnızca ortam değişkeninde tutulur (config
+  dosyasında ASLA); (2) `authority_source="owner"` kimlik kod
+  seviyesinde HER ZAMAN tüm kapsamlara sahiptir; (3) `risk_level="irreversible"`
+  (veya bilinmeyen risk seviyesi) onayı, delegate'in config'i ne
+  yazarsa yazsın, YALNIZCA owner'a açıktır (defense-in-depth); (4)
+  delegate'ler `approve:low`/`approve:medium`/`approve:high`/`approve:irreversible`/`reject`
+  kapsamlarından bir alt küme alır, kapsam dışı eylem HTTP 403 ile
+  reddedilir; (5) audit izine `actor_id`/`auth_method`/`authority_source`/`decision_scope`
+  eklendi (`AuditLogger`'ın kendi şeması DEĞİŞTİRİLMEDİ, bu alanlar
+  `details` sözlüğüne yazılıyor).
+- **Gerekçe:** `docs/IDENTITY_AND_DELEGATION_POLICY.md` §4, T23/T24'ten
+  beri Ops Suite'in bilinen, açık bir güvenlik açığını belgeliyordu:
+  `actor` alanı serbest metindi, kimlik doğrulaması YOKTU — yalnızca
+  `127.0.0.1` loopback izolasyonuna güveniliyordu. Kullanıcı bunu
+  açıkça "SECURITY P0" olarak işaretleyip kapatılmasını istedi.
+  Tam bir OAuth2/OIDC/mTLS katmanı, tek-kullanıcılı/yerel bir kontrol
+  merkezi için orantısız bir mühendislik yükü olurdu; paylaşılan
+  bearer-token + kapsam modeli, gerçek (mock/theater DEĞİL) bir
+  yetkilendirme kontrolü sağlarken karmaşıklığı sistemin gerçek tehdit
+  modeliyle (tek sahibi + olası birkaç güvenilir delegate, hepsi
+  loopback üzerinden) orantılı tutuyor.
+- **Alternatif:** (a) Tam OAuth2/OIDC entegrasyonu (reddedildi — bu
+  ölçekte aşırı mühendislik, ayrıca bu ortamda gerçek bir identity
+  provider'a karşı test EDİLEMEZDİ); (b) yalnızca "gizli bir URL
+  path'i" veya IP allowlist'i (reddedildi — bu bir kimlik doğrulama
+  DEĞİL, yalnızca gizlilik-yoluyla-güvenliktir); (c) `risk_level`'den
+  BAĞIMSIZ, tek bir "approve" kapsamı (reddedildi — owner-root-guard'ın
+  ayrım gücünü kaybederdi, `irreversible` ile `low` aynı kapsamda
+  olurdu).
+- **Sonuç:** Kabul edildi. Bkz. `apps/ops-suite/backend/src/ops_suite/identity.py`,
+  `docs/PLAN.md` T28, `tests/test_ops_suite_identity.py` (25 test, yeni) +
+  `tests/test_ops_suite_api.py`'nin B044 uzantıları (8 yeni test) +
+  `scripts/ops_suite_demo.py`'nin gerçek 401/403 kanıt adımları.
+  **Bilinen sınırlamalar** (BACKLOG'a henüz taşınmadı, bkz.
+  `docs/IDENTITY_AND_DELEGATION_POLICY.md` §5): token rotasyon/iptal
+  UI'ı yok, rate limiting yok, tek kimlik doğrulama yöntemi
+  (bearer-token).
+
 ---
 
-*Yeni ADR eklerken yukarıdaki formatı koru ve numarayı sırayla artır (ADR-019, ...).*
+*Yeni ADR eklerken yukarıdaki formatı koru ve numarayı sırayla artır (ADR-020, ...).*

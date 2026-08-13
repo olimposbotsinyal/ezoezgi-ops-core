@@ -11,7 +11,10 @@ from ops_suite.app import create_app
 from ops_suite.approval_queue import ApprovalQueueStore
 from ops_suite.assistant_presence import AssistantPresenceTracker
 from ops_suite.heartbeat import HeartbeatTracker
+from ops_suite.identity import AUTHORITY_OWNER, Identity, IdentityStore
 from ops_suite.voice_bridge import VoiceBridge
+
+OWNER_TOKEN = "dummy-owner-token"  # noqa: S105 -- test-only dummy deger, gercek secret DEGIL
 
 
 def _client(tmp_path) -> TestClient:
@@ -23,9 +26,12 @@ def _client(tmp_path) -> TestClient:
         audit_log_path=tmp_path / "audit.log.jsonl", approval_queue=approval_queue,
         assistant_presence=assistant_presence, heartbeat_tracker=heartbeat,
     )
+    identity_store = IdentityStore(
+        {OWNER_TOKEN: Identity(actor_id="serkan_eryilmaz", display_name="Serkan Eryılmaz", authority_source=AUTHORITY_OWNER)}
+    )
     app = create_app(
         heartbeat_tracker=heartbeat, approval_queue=approval_queue, assistant_presence=assistant_presence,
-        voice_bridge=voice_bridge, audit_logger=audit_logger,
+        voice_bridge=voice_bridge, audit_logger=audit_logger, identity_store=identity_store,
     )
     return TestClient(app)
 
@@ -95,7 +101,7 @@ def test_ws_receives_approval_decision_broadcast(tmp_path):
     request_id = client.post("/api/voice/command", json={"input_tr": "Ezo, tüm dosyaları sil"}).json()["request_id"]
 
     with client.websocket_connect("/ws/live") as websocket:
-        client.post(f"/api/approvals/{request_id}/approve", json={"actor": "serkan"})
+        client.post(f"/api/approvals/{request_id}/approve", json={}, headers={"Authorization": f"Bearer {OWNER_TOKEN}"})
         message = websocket.receive_json()
         assert message["topic"] == "approval.queue"
         assert message["payload"]["decision"] == "approved"

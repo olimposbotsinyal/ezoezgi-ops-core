@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "owner": {
+    "actor_id": "ops_suite_demo_owner",
+    "display_name": "Demo Owner (yalniz bu E2E kosusu icin -- GERCEK bir kisi DEGIL)",
+    "token_env_var": "OPS_SUITE_DEMO_OWNER_TOKEN"
+  },
+  "delegates": [
+    {
+      "actor_id": "ops_suite_demo_delegate",
+      "display_name": "Demo Delegate (yalniz bu E2E kosusu icin -- GERCEK bir kisi DEGIL)",
+      "token_env_var": "OPS_SUITE_DEMO_DELEGATE_TOKEN",
+      "scopes": [
+        "approve:low",
+        "approve:medium",
+        "approve:high",
+        "approve:irreversible",
+        "reject"
+      ]
+    }
+  ]
+}

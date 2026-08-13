@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "owner": {
+    "actor_id": "serkan_eryilmaz",
+    "display_name": "Serkan Eryılmaz",
+    "token_env_var": "OPS_SUITE_OWNER_TOKEN"
+  },
+  "delegates": []
+}

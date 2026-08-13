@@ -14,6 +14,12 @@
 <body>
   <header class="topbar">
     <h1>EzoEzgi Ops Suite <span class="badge">v0</span></h1>
+    <form id="token-form" class="token-form">
+      <label for="token-input">Erişim Token'ı</label>
+      <input id="token-input" name="token" type="password" placeholder="Bearer token" autocomplete="off" />
+      <button type="submit">Kaydet</button>
+      <span id="whoami" class="whoami">kimlik doğrulanmadı</span>
+    </form>
     <div id="ws-status" class="ws-status ws-status--connecting">bağlanıyor…</div>
   </header>
 

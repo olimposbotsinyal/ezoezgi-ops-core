@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Ops Suite E2E demo -- PLAN.md T27 (S5).
+"""Ops Suite E2E demo -- PLAN.md T27/T28 (S5, BACKLOG.md B044 SECURITY P0).
 
 `python -m ops_suite.server`'i GERCEK bir ayri OS alt-surecinde
 (subprocess) baslatir -- `TestClient` KULLANMAZ, boylece gercek
@@ -12,18 +12,32 @@ Adimlar (hepsi gercek HTTP/dosya G/C, hicbiri fabrike edilmez):
   2) Mocked-TR "sesli komut" -- echo (dusuk risk, otomatik izinli).
   3) Mocked-TR "sesli komut" -- dosya silme (irreversible, onay bekler).
   4) Onay kuyrugunda GERCEKTEN gorunup gorunmedigini kontrol eder.
-  5) Onaylar, kuyruktan GERCEKTEN silinip silinmedigini kontrol eder.
-  6) `data/audit/audit.log.jsonl`'de eslesen bir kayit ARANIR.
-  7) `/api/agents` anlik goruntusu alinir.
+  5) [B044] Token OLMADAN onay denemesi -- GERCEKTEN 401 ile reddedilir.
+  6) [B044] Bir delege token'i ILE (config'inde `approve:irreversible`
+     OLSA BILE) onay denemesi -- owner-root-guard GERCEKTEN 403 ile
+     reddeder (defense-in-depth, bkz. `ops_suite/identity.py`).
+  7) Sahibi (owner) token'i ile onaylar -- GERCEKTEN 200 doner.
+  8) Onaylar, kuyruktan GERCEKTEN silinip silinmedigini kontrol eder.
+  9) `data/audit/audit.log.jsonl`'de eslesen, YENI kimlik alanlarini
+     (`actor_id`/`auth_method`/`authority_source`/`decision_scope`)
+     ICEREN bir kayit ARANIR.
+  10) `/api/agents` anlik goruntusu alinir.
 
 Kanit: `reports/ops_suite_demo_<UTC>/evidence.json`+`.md`. Ses/GSM/kamera/
 tarayici gibi bu ortamda OLMAYAN donanimlar ACIKCA `NOT_COLLECTED` olarak
-isaretlenir -- hicbir sonuc FABRIKE EDILMEZ (gorev kisiti)."""
+isaretlenir -- hicbir sonuc FABRIKE EDILMEZ (gorev kisiti).
+
+**Demo kimlikleri (owner/delegate) GERCEK KISILER DEGILDIR** -- yalnizca bu
+kosum icin uretilen, rastgele token'li, gecici bir config dosyasina
+yazilir (`<evidence_dir>/demo_identities.json`, TOKEN DEGERLERI DOSYADA
+TUTULMAZ -- yalnizca `token_env_var` referansi; gercek token'lar sadece
+alt-surecin ortam degiskenlerinde yasar, evidence'a hicbir zaman yazilmaz)."""
 
 from __future__ import annotations
 
 import json
 import os
+import secrets
 import subprocess
 import sys
 import time
@@ -37,6 +51,9 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 OPS_SUITE_BACKEND_SRC = REPO_ROOT / "apps" / "ops-suite" / "backend" / "src"
 DEFAULT_PORT = 8420
 AUDIT_LOG_PATH = REPO_ROOT / "data" / "audit" / "audit.log.jsonl"
+
+DEMO_OWNER_TOKEN_ENV_VAR = "OPS_SUITE_DEMO_OWNER_TOKEN"
+DEMO_DELEGATE_TOKEN_ENV_VAR = "OPS_SUITE_DEMO_DELEGATE_TOKEN"
 
 NOT_COLLECTED = [
     {"item": "real_browser_rendering", "reason": "bu ortamda tarayici-otomasyon araci YOK -- bkz. docs/BACKLOG.md B039"},
@@ -57,19 +74,69 @@ def _wait_for_server(base_url: str, *, timeout_sec: float = 15.0) -> bool:
     return False
 
 
-def _http_get(url: str) -> Any:
-    with urllib.request.urlopen(url, timeout=5.0) as resp:
-        return json.loads(resp.read().decode("utf-8"))
-
-
-def _http_post(url: str, payload: dict[str, Any]) -> Any:
-    data = json.dumps(payload).encode("utf-8")
-    req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"}, method="POST")
+def _http_get(url: str, *, headers: dict[str, str] | None = None) -> Any:
+    req = urllib.request.Request(url, headers=headers or {})
     with urllib.request.urlopen(req, timeout=5.0) as resp:
         return json.loads(resp.read().decode("utf-8"))
 
 
-def _subprocess_env(port: int) -> dict[str, str]:
+def _http_post(url: str, payload: dict[str, Any], *, headers: dict[str, str] | None = None) -> Any:
+    data = json.dumps(payload).encode("utf-8")
+    all_headers = {"Content-Type": "application/json", **(headers or {})}
+    req = urllib.request.Request(url, data=data, headers=all_headers, method="POST")
+    with urllib.request.urlopen(req, timeout=5.0) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+def _http_post_expect_error(url: str, payload: dict[str, Any], *, headers: dict[str, str] | None = None) -> tuple[int, Any]:
+    """`_http_post` gibi ama BASARISIZLIK BEKLENEN (4xx) cagrilar icin --
+    `HTTPError`'i YAKALAR ve `(status_code, response_body)` doner (raise
+    ETMEZ). Beklenmedik bir basari (2xx) veya ag hatasi ise CAGIRANA
+    firlatilir -- yalnizca 4xx/5xx'i "beklenen sonuc" olarak ele alir."""
+    data = json.dumps(payload).encode("utf-8")
+    all_headers = {"Content-Type": "application/json", **(headers or {})}
+    req = urllib.request.Request(url, data=data, headers=all_headers, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=5.0) as resp:
+            body = json.loads(resp.read().decode("utf-8"))
+            return resp.status, body
+    except urllib.error.HTTPError as exc:
+        raw = exc.read()
+        try:
+            body = json.loads(raw.decode("utf-8")) if raw else {}
+        except json.JSONDecodeError:
+            body = {"raw": raw.decode("utf-8", errors="replace")}
+        return exc.code, body
+
+
+def _write_demo_identity_config(out_dir: Path) -> Path:
+    """B044 -- bu E2E kosusu icin GECICI, GERCEK-OLMAYAN bir owner+delegate
+    kimlik config'i yazar. Token DEGERLERI dosyaya YAZILMAZ -- yalnizca
+    hangi ortam degiskeninde bulunacaklari (`token_env_var`)."""
+    config = {
+        "schema_version": 1,
+        "owner": {
+            "actor_id": "ops_suite_demo_owner",
+            "display_name": "Demo Owner (yalniz bu E2E kosusu icin -- GERCEK bir kisi DEGIL)",
+            "token_env_var": DEMO_OWNER_TOKEN_ENV_VAR,
+        },
+        "delegates": [
+            {
+                "actor_id": "ops_suite_demo_delegate",
+                "display_name": "Demo Delegate (yalniz bu E2E kosusu icin -- GERCEK bir kisi DEGIL)",
+                "token_env_var": DEMO_DELEGATE_TOKEN_ENV_VAR,
+                # BILEREK approve:irreversible DAHIL -- root-guard'in bunu
+                # config'ten BAGIMSIZ reddettigini kanitlamak icin (bkz. adim 6).
+                "scopes": ["approve:low", "approve:medium", "approve:high", "approve:irreversible", "reject"],
+            }
+        ],
+    }
+    path = out_dir / "demo_identities.json"
+    path.write_text(json.dumps(config, indent=2, ensure_ascii=False), encoding="utf-8")
+    return path
+
+
+def _subprocess_env(port: int, *, identity_config_path: Path, owner_token: str, delegate_token: str) -> dict[str, str]:
     env = dict(os.environ)
     # NOT: bu liste, pyproject.toml'daki [tool.pytest.ini_options].pythonpath
     # ile AYNI olmalidir -- ops_suite gercek bir subprocess olarak calistigi
@@ -86,10 +153,13 @@ def _subprocess_env(port: int) -> dict[str, str]:
     existing = env.get("PYTHONPATH")
     env["PYTHONPATH"] = os.pathsep.join(pythonpath_entries + ([existing] if existing else []))
     env["OPS_SUITE_PORT"] = str(port)
+    env["OPS_SUITE_IDENTITY_CONFIG_PATH"] = str(identity_config_path)
+    env[DEMO_OWNER_TOKEN_ENV_VAR] = owner_token
+    env[DEMO_DELEGATE_TOKEN_ENV_VAR] = delegate_token
     return env
 
 
-def run_demo(*, port: int = DEFAULT_PORT) -> dict[str, Any]:
+def run_demo(*, port: int = DEFAULT_PORT, out_dir: Path) -> dict[str, Any]:
     base_url = f"http://127.0.0.1:{port}"
     evidence: dict[str, Any] = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -99,9 +169,16 @@ def run_demo(*, port: int = DEFAULT_PORT) -> dict[str, Any]:
         "not_collected": NOT_COLLECTED,
     }
 
+    identity_config_path = _write_demo_identity_config(out_dir)
+    owner_token = secrets.token_urlsafe(24)
+    delegate_token = secrets.token_urlsafe(24)
+    owner_headers = {"Authorization": f"Bearer {owner_token}"}
+    delegate_headers = {"Authorization": f"Bearer {delegate_token}"}
+
     proc = subprocess.Popen(
         [sys.executable, "-m", "ops_suite.server"],
-        cwd=str(REPO_ROOT), env=_subprocess_env(port),
+        cwd=str(REPO_ROOT),
+        env=_subprocess_env(port, identity_config_path=identity_config_path, owner_token=owner_token, delegate_token=delegate_token),
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8",
     )
 
@@ -134,11 +211,40 @@ def run_demo(*, port: int = DEFAULT_PORT) -> dict[str, Any]:
         found_pending = any(p.get("request_id") == request_id for p in pending)
         _record("approvals_pending_check", found_pending, pending=pending)
 
+        # --- B044 (SECURITY P0) -- kimlik dogrulama/yetkilendirme, GERCEK HTTP ---
+
+        status_no_token, body_no_token = _http_post_expect_error(
+            base_url + f"/api/approvals/{request_id}/approve", {}
+        )
+        _record(
+            "approve_rejected_without_token", status_no_token == 401,
+            status_code=status_no_token, response=body_no_token,
+        )
+
+        status_delegate, body_delegate = _http_post_expect_error(
+            base_url + f"/api/approvals/{request_id}/approve", {}, headers=delegate_headers
+        )
+        _record(
+            "approve_rejected_delegate_root_guard", status_delegate == 403,
+            status_code=status_delegate, response=body_delegate,
+            note="delegate config'inde approve:irreversible OLMASINA RAGMEN root-guard reddetti",
+        )
+
+        # Reddedilen denemeler kararı GERCEKLESTIRMEMIS olmali -- hala bekliyor.
+        pending_after_denied_attempts = _http_get(base_url + "/api/approvals?status=pending")
+        still_pending = any(p.get("request_id") == request_id for p in pending_after_denied_attempts)
+        _record("approvals_still_pending_after_denied_attempts", still_pending, pending=pending_after_denied_attempts)
+
         approve_response = _http_post(
             base_url + f"/api/approvals/{request_id}/approve",
-            {"actor": "ops_suite_demo", "note": "E2E demo onayi (scripts/ops_suite_demo.py)"},
+            {"note": "E2E demo onayi (scripts/ops_suite_demo.py)"},
+            headers=owner_headers,
         )
-        _record("approve_decision", approve_response.get("decision") == "approved", response=approve_response)
+        _record(
+            "approve_decision",
+            approve_response.get("decision") == "approved" and approve_response.get("authority_source") == "owner",
+            response=approve_response,
+        )
 
         pending_after = _http_get(base_url + "/api/approvals?status=pending")
         cleared = not any(p.get("request_id") == request_id for p in pending_after)
@@ -153,7 +259,15 @@ def run_demo(*, port: int = DEFAULT_PORT) -> dict[str, Any]:
                 continue
             if record.get("request_id") == request_id:
                 matching_audit.append(record)
-        _record("audit_log_check", len(matching_audit) >= 2, matching_records=matching_audit)
+        decided_record = next((r for r in matching_audit if r.get("status") == "APPROVED"), {})
+        decided_details = decided_record.get("details", {})
+        has_identity_fields = all(
+            field in decided_details for field in ("actor_id", "auth_method", "authority_source", "decision_scope")
+        )
+        _record(
+            "audit_log_check", len(matching_audit) >= 2 and has_identity_fields,
+            matching_records=matching_audit,
+        )
 
         agents = _http_get(base_url + "/api/agents")
         _record("agents_snapshot", isinstance(agents, list) and len(agents) > 0, agents=agents)
@@ -208,7 +322,7 @@ def main() -> int:
     out_dir = REPO_ROOT / "reports" / f"ops_suite_demo_{ts}"
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    evidence = run_demo()
+    evidence = run_demo(out_dir=out_dir)
 
     (out_dir / "evidence.json").write_text(json.dumps(evidence, indent=2, ensure_ascii=False), encoding="utf-8")
     (out_dir / "evidence.md").write_text(_render_markdown(evidence), encoding="utf-8")

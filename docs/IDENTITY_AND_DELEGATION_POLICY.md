@@ -1,7 +1,8 @@
 # Kimlik ve Yetki Devri Politikası (Identity and Delegation Policy)
 
-> Durum: v0, 2026-08-14 — bkz. [PLAN.md](PLAN.md) T23/T24,
-> [DECISIONS.md](DECISIONS.md) ADR-016.
+> Durum: v0.1, 2026-08-14 — bkz. [PLAN.md](PLAN.md) T23/T24/T28,
+> [DECISIONS.md](DECISIONS.md) ADR-016/ADR-019, [BACKLOG.md](BACKLOG.md) B044
+> (SECURITY P0, kapalı).
 
 ## 1. Sahibi (owner) yetki değişmezi
 
@@ -38,46 +39,89 @@ risk_engine.py (RiskEngine.get_risk)
 approval_stub.py (check_approval)
         │  AUTO_ALLOWED | WAITING_APPROVAL
         ▼
-[YENİ, T23] approval_queue.py (ApprovalQueueStore)
+approval_queue.py (ApprovalQueueStore)
         │  submit() -- kalıcı, sorgulanabilir kayıt
         ▼
-Ops Suite API (POST /api/approvals/{id}/approve|reject)
-        │  actor (serbest metin), note (opsiyonel)
+[YENİ, T28/B044] identity.py (IdentityStore.authenticate + authorize_decision)
+        │  Authorization: Bearer <token> → Identity (owner|delegate)
+        │  risk_level + decision → izinli mi? → decision_scope
         ▼
-audit_logger.py (APPROVED/REJECTED kaydı) + approval_queue.decide()
+Ops Suite API (POST /api/approvals/{id}/approve|reject)
+        │  identity.actor_id, auth_method, authority_source, decision_scope, note (opsiyonel)
+        ▼
+audit_logger.py (APPROVED/REJECTED kaydı, 4 yeni kimlik alanıyla) + approval_queue.decide()
 ```
 
 `risk_engine.py`/`approval_stub.py` **DEĞİŞTİRİLMEDİ** — Ops Suite
 yalnızca `WAITING_APPROVAL` durumunu, önceden var olmayan kalıcı bir
 kuyruğa SARAR (bkz. `docs/DECISIONS.md` ADR-016).
 
-## 4. v0 bilinen sınırlama — kimlik doğrulaması YOK (açık, önemli)
+## 4. Kimlik doğrulama + yetkilendirme (v0.1, B044 ile kapatıldı)
 
-`POST /api/approvals/{id}/approve|reject`'in `actor` alanı **SERBEST
-METİNDİR, kimlik doğrulaması (authentication) YOKTUR.** Bu, §1'deki
-sahibi-yetki invaryantının şu an yalnızca **PROSEDÜREL** olarak
-korunduğu, **TEKNİK** olarak henüz UYGULANMADIĞI anlamına gelir:
+**Önceki v0 sınırlaması (2026-08-14, T23/T24 sırasında) kapatıldı** —
+`POST /api/approvals/{id}/approve|reject` artık **`Authorization:
+Bearer <token>` ZORUNLUDUR** (bkz. `ops_suite/identity.py`,
+`docs/DECISIONS.md` ADR-019). Eylemi kimin yaptığı artık istemcinin
+beyan ettiği serbest metinden DEĞİL, dogrulanmış bir `Identity`'den
+gelir.
 
-- Ops Suite v0, tek-kullanıcılı ve yalnızca `127.0.0.1` (loopback)
-  üzerinde çalışacak şekilde tasarlanmıştır (bkz.
-  `ops_suite/server.py::DEFAULT_HOST`) — dışarıdan erişim YOKTUR.
-- Bu, gerçek bir kimlik doğrulama/yetkilendirme katmanının YERİNE
-  GEÇMEZ — yalnızca ağ düzeyinde bir izolasyondur.
-- `actor` alanına HERHANGİ bir metin girilebilir; sistem bunun
-  GERÇEKTEN Serkan Eryılmaz olduğunu doğrulamaz.
+**Kimlik kaynağı:** `config/ops_suite_identities.json` — yalnızca
+`actor_id`/`display_name`/`token_env_var`(/`scopes`) alanlarını
+içerir; **token DEĞERLERİ bu dosyada ASLA tutulmaz** (ADR-010 ile aynı
+ilke — bkz. `legitimacy_provider_client.py`'nin Jira credential
+deseni). Gerçek token yalnızca `token_env_var`'ın işaret ettiği ortam
+değişkeninde yaşar. Env değişkeni SET EDİLMEMİŞSE o kimlikle giriş
+**YAPILAMAZ** — fail-closed, fail-open DEĞİL.
 
-**Bu sınırlama BİLEREK v0 kapsamında bırakıldı** (bir kimlik doğrulama
-sistemi kurmak, Ops Suite'in gerçek zamanlı görünürlük hedefinden
-AYRI, kendi başına büyük bir iş kalemidir) — gelecekteki bir kimlik
-doğrulama katmanı (`docs/BACKLOG.md`'ye eklenmesi gereken bir madde)
-GERÇEK yetki denetimini sağlayana kadar, Ops Suite'in onay
-uçnoktalarının **yalnızca güvenilir/yerel bir ortamda** çalıştırıldığı
-varsayılır.
+**Sahibi kök koruyucu (owner root guard) — kod seviyesinde, config'ten
+BAĞIMSIZ:**
+- `authority_source="owner"` olan kimlik HER ZAMAN tüm kapsamlara
+  (scopes) sahiptir (`Identity.has_scope` sabiti).
+- `risk_level="irreversible"` (veya bilinmeyen/eşleşmeyen bir risk
+  seviyesi) onayı **YALNIZCA sahibi** tarafından verilebilir — bir
+  delegate'in config'inde `approve:irreversible` yazıyor OLSA BİLE
+  reddedilir (bkz. `identity.py::authorize_decision`,
+  `tests/test_ops_suite_identity.py::test_delegate_cannot_approve_irreversible_even_without_config_restriction`).
+  Bu, yanlış yapılandırılmış bir delegate kaydına karşı
+  defense-in-depth'tir.
 
-## 5. Delegasyon (gelecek)
+**Delegasyon (kapsam/scope modeli, artık UYGULANDI):** `config/ops_suite_identities.json`'ın
+`delegates` listesi, her delegate'e ayrı bir `scopes` kümesi tanımlar
+(`approve:low`/`approve:medium`/`approve:high`/`approve:irreversible`/`reject`
+— bkz. `identity.py::ALL_SCOPES`). Kapsam dışı bir eylem denemesi
+**HTTP 403** ile, açık bir hata mesajıyla reddedilir (ör. `"'delegate_1'
+(delegate) 'approve:high' kapsamına sahip DEĞİL"`). Şu an
+**komite edilen `config/ops_suite_identities.json`'da hiçbir gerçek
+delegate YOK** (`delegates: []`) — mekanizma çalışır durumda ama
+Serkan Eryılmaz henüz kimseye yetki devretmedi; ilk gerçek delegate
+eklenmesi ayrı, açık bir config değişikliği + BACKLOG kaydı
+gerektirir.
 
-MASTER_ROADMAP.md'nin genel "delegable authorization model" hedefi
-(başka kişilere sınırlı yetki devri) Ops Suite v0 kapsamında
-UYGULANMADI — mevcut model tek-sahipli (`actor` yalnızca bilgi amaçlı
-bir alan, ayrı yetki seviyeleri YOK). Bu, kimlik doğrulama katmanıyla
-BİRLİKTE ele alınması gereken bir gelecek işidir.
+**Ağ düzeyi izolasyon hâlâ geçerli** (Ops Suite v0, yalnızca
+`127.0.0.1` loopback'te çalışır, bkz. `ops_suite/server.py::DEFAULT_HOST`)
+— ama artık kimlik doğrulama/yetkilendirme katmanının **YERİNE**
+değil, **YANINDA** ikinci bir savunma katmanı olarak.
+
+**Audit izi genişletildi:** her onay/red kararı artık `actor_id`,
+`auth_method` (şu an her zaman `"bearer"`), `authority_source`
+(`owner`/`delegate`), `decision_scope` (`"owner_root"` veya ör.
+`"approve:high"`) alanlarını hem `data/audit/audit.log.jsonl`'a hem
+`data/approvals/approval_queue.jsonl`'ın `DECIDED` kaydına yazar (bkz.
+`approval_queue.py::ApprovalQueueStore.decide()`).
+
+## 5. Bilinen sınırlamalar (v0.1, dürüstçe işaretli)
+
+- **Tek kimlik doğrulama yöntemi:** yalnızca bearer-token (paylaşılan
+  sır) — OAuth/OIDC/mTLS/donanım anahtarı YOK. Tek-kullanıcılı, yerel
+  bir kontrol merkezi için orantılı görülüyor (bkz.
+  `docs/DECISIONS.md` ADR-019), ama gelecekte dışarıya açılma
+  senaryosunda yeniden değerlendirilmeli.
+- **Token rotasyonu/iptali için UI/CLI YOK** — bir token'ı iptal etmek
+  şu an yalnızca ilgili ortam değişkenini değiştirip sunucuyu yeniden
+  başlatmakla mümkün.
+- **Rate limiting/brute-force koruması YOK** — `IdentityStore.authenticate()`
+  zamanlama-saldırısına dayanıklıdır (`hmac.compare_digest`) ama
+  deneme sayısı sınırlanmaz.
+- Bu üç madde **BACKLOG.md**'ye kaydedilmedi (henüz P0 değil, Ops
+  Suite hâlâ yalnızca loopback'te) — dışarıya açılma kararı alınırsa
+  önce buraya, sonra BACKLOG'a eklenmelidir.

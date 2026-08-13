@@ -15,12 +15,60 @@
   var wsStatusEl = document.getElementById("ws-status");
   var voiceForm = document.getElementById("voice-form");
   var voiceInput = document.getElementById("voice-input");
+  var tokenForm = document.getElementById("token-form");
+  var tokenInput = document.getElementById("token-input");
+  var whoamiEl = document.getElementById("whoami");
 
   var MAX_FEED_ITEMS = 50;
+  var TOKEN_STORAGE_KEY = "ops_suite_access_token";
 
   function apiUrl(path) {
     return path; // ayni-origin: FastAPI hem API'yi hem frontend'i sunuyor
   }
+
+  // B044 -- onay/red uc noktalari artik kimlik dogrulama ISTIYOR
+  // (Authorization: Bearer <token>). Token yalnizca bu tarayicinin
+  // localStorage'inda tutulur, hicbir zaman sunucuya baska bir yolla
+  // gonderilmez/loglanmaz.
+  function getToken() {
+    return window.localStorage.getItem(TOKEN_STORAGE_KEY) || "";
+  }
+
+  function authHeaders() {
+    var token = getToken();
+    return token ? { Authorization: "Bearer " + token } : {};
+  }
+
+  function refreshWhoami() {
+    var token = getToken();
+    if (!token) {
+      whoamiEl.textContent = "kimlik doğrulanmadı";
+      whoamiEl.className = "whoami whoami--anon";
+      return;
+    }
+    fetch(apiUrl("/api/whoami"), { headers: authHeaders() })
+      .then(function (r) {
+        if (!r.ok) {
+          throw new Error("HTTP " + r.status);
+        }
+        return r.json();
+      })
+      .then(function (identity) {
+        whoamiEl.textContent = identity.display_name + " (" + identity.authority_source + ")";
+        whoamiEl.className = "whoami whoami--ok";
+      })
+      .catch(function () {
+        whoamiEl.textContent = "token geçersiz";
+        whoamiEl.className = "whoami whoami--error";
+      });
+  }
+
+  tokenForm.addEventListener("submit", function (event) {
+    event.preventDefault();
+    window.localStorage.setItem(TOKEN_STORAGE_KEY, tokenInput.value.trim());
+    tokenInput.value = "";
+    refreshWhoami();
+  });
 
   function renderAgents(agents) {
     agentGrid.innerHTML = "";
@@ -83,16 +131,26 @@
   }
 
   function decide(requestId, action) {
+    var headers = { "Content-Type": "application/json" };
+    Object.keys(authHeaders()).forEach(function (key) {
+      headers[key] = authHeaders()[key];
+    });
     fetch(apiUrl("/api/approvals/" + encodeURIComponent(requestId) + "/" + action), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ actor: "owner-ui" }),
+      headers: headers,
+      body: JSON.stringify({}),
     })
-      .then(function () {
+      .then(function (r) {
+        if (!r.ok) {
+          return r.json().then(function (body) {
+            throw new Error("HTTP " + r.status + ": " + (body.detail || "bilinmeyen hata"));
+          });
+        }
         refreshApprovals();
       })
       .catch(function (err) {
         console.error("ops-suite: karar gonderilemedi", err);
+        window.alert("Karar gönderilemedi: " + err.message);
       });
   }
 
@@ -172,6 +230,7 @@
   refreshAgents();
   refreshApprovals();
   refreshAssistant();
+  refreshWhoami();
 
   var wsClient = new OpsSuiteWSClient("/ws/live", handleLiveEvent, setWsStatus);
   wsClient.connect();

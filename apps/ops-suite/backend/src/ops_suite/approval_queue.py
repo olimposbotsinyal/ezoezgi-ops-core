@@ -102,6 +102,17 @@ class ApprovalQueueStore:
         self._append(record)
         return record
 
+    def get_pending_entry(self, request_id: str) -> ApprovalQueueEntry | None:
+        """`list_pending()`'ten TEK bir kaydi bulur -- yetkilendirme
+        kararindan ONCE (`identity.py::authorize_decision`) gereken
+        `risk_level`'i almak icin kullanilir. Bulunamazsa `None` doner
+        (hata FIRLATMAZ -- cagiran taraf, `decide()`'in kendi
+        `UnknownRequestIdError`'ini zaten firlatacaktir)."""
+        for entry in self.list_pending():
+            if entry.request_id == request_id:
+                return entry
+        return None
+
     def list_pending(self) -> list[ApprovalQueueEntry]:
         """Gunlugu BASTAN OYNATIR -- SUBMITTED'i, ayni `request_id`'ye
         sahip bir DECIDED kaydi VARSA cikarir. Bozuk/silinmis dosya =
@@ -128,11 +139,28 @@ class ApprovalQueueStore:
             )
         return pending
 
-    def decide(self, request_id: str, decision: str, *, actor: str, note: str | None = None) -> dict[str, Any]:
+    def decide(
+        self,
+        request_id: str,
+        decision: str,
+        *,
+        actor_id: str,
+        auth_method: str,
+        authority_source: str,
+        decision_scope: str,
+        note: str | None = None,
+    ) -> dict[str, Any]:
         """`request_id` icin bir DECIDED kaydi ekler. `request_id` hic
         `submit()` edilmemisse `UnknownRequestIdError`, ZATEN karara
         baglanmissa `AlreadyDecidedError` firlatir -- `decision`
-        `VALID_DECISIONS` disindaysa `ValueError`."""
+        `VALID_DECISIONS` disindaysa `ValueError`.
+
+        `actor_id`/`auth_method`/`authority_source`/`decision_scope`
+        (PLAN.md T28, BACKLOG.md B044) -- cagiran taraf (Ops Suite API
+        katmani) bunlari `identity.py::IdentityStore.authenticate()` +
+        `authorize_decision()`'dan GERCEKTEN dogrulanmis bir kimlikten
+        turetmis OLMALIDIR; bu store kendisi kimlik dogrulamasi YAPMAZ,
+        yalnizca sonucu kalici kaydeder (tek sorumluluk ayrimi)."""
         if decision not in VALID_DECISIONS:
             raise ValueError(f"gecersiz decision: {decision!r} (gecerli: {VALID_DECISIONS})")
 
@@ -150,7 +178,10 @@ class ApprovalQueueStore:
             "request_id": request_id,
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "decision": decision,
-            "actor": actor,
+            "actor_id": actor_id,
+            "auth_method": auth_method,
+            "authority_source": authority_source,
+            "decision_scope": decision_scope,
             "note": note,
         }
         self._append(record)

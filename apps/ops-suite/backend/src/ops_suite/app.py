@@ -1,4 +1,4 @@
-"""Ops Suite FastAPI uygulamasi (PLAN.md T24, DECISIONS.md ADR-015).
+"""Ops Suite FastAPI uygulamasi (PLAN.md T24/T28, DECISIONS.md ADR-015/ADR-019).
 
 `create_app(**overrides)` DI-dostu bir fabrikadir -- testler her bileseni
 (tmp_path'e izole edilmis `ApprovalQueueStore`/`AuditLogger` gibi) ayrica
@@ -9,8 +9,12 @@ Uc nokta ozeti:
   - `GET /api/agents` -- `AgentStatusResolver.resolve_all()`
   - `GET /api/assistant` -- `AssistantPresenceTracker.current()`
   - `GET /api/approvals?status=pending` -- `ApprovalQueueStore.list_pending()`
-  - `POST /api/approvals/{request_id}/approve|reject` -- `ApprovalQueueStore.decide()`
-    + audit kaydi + `approval.queue` WS yayini
+  - `POST /api/approvals/{request_id}/approve|reject` -- **kimlik dogrulama
+    ZORUNLU** (`Authorization: Bearer <token>`, bkz. `identity.py`),
+    `authorize_decision()` ile kapsam/owner-root-guard kontrolu, sonra
+    `ApprovalQueueStore.decide()` + genisletilmis audit kaydi
+    (`actor_id`/`auth_method`/`authority_source`/`decision_scope`) +
+    `approval.queue` WS yayini
   - `POST /api/voice/command` -- `VoiceBridge.handle_voice_command()` +
     `task.lifecycle`/`assistant.presence`/(varsa) `approval.queue` WS yayinlari
   - `WS /ws/live` -- tum konulara abone TEK bir baglanti (v0: konu bazli
@@ -23,13 +27,15 @@ from pathlib import Path
 from typing import Any
 
 from audit_logger import AuditLogger
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from ops_suite.approval_queue import AlreadyDecidedError, ApprovalQueueStore, UnknownRequestIdError
 from ops_suite.assistant_presence import AssistantPresenceTracker
 from ops_suite.events import TOPIC_APPROVAL_QUEUE, TOPIC_ASSISTANT_PRESENCE, TOPIC_TASK_LIFECYCLE
+from ops_suite.identity import AUTH_METHOD_BEARER, AuthenticationError, AuthorizationError, Identity, IdentityStore, authorize_decision
 
 # apps/ops-suite/backend/src/ops_suite/app.py -> apps/ops-suite/frontend
 FRONTEND_DIR = Path(__file__).resolve().parents[3] / "frontend"
@@ -38,13 +44,18 @@ from ops_suite.status_resolver import AgentStatusResolver
 from ops_suite.voice_bridge import VoiceBridge
 from ops_suite.ws_manager import ConnectionManager
 
+_bearer_scheme = HTTPBearer(auto_error=False)
+
 
 class VoiceCommandRequest(BaseModel):
     input_tr: str
 
 
 class ApprovalDecisionRequest(BaseModel):
-    actor: str
+    """`actor` alani BILEREK YOK -- eylemi kimin yaptigi artik istemcinin
+    beyan ettigi serbest metinden DEGIL, `Authorization: Bearer <token>`
+    ile dogrulanan `Identity`'den gelir (bkz. BACKLOG.md B044)."""
+
     note: str | None = None
 
 
@@ -57,6 +68,7 @@ def create_app(
     voice_bridge: VoiceBridge | None = None,
     connection_manager: ConnectionManager | None = None,
     audit_logger: AuditLogger | None = None,
+    identity_store: IdentityStore | None = None,
 ) -> FastAPI:
     heartbeat_tracker = heartbeat_tracker or HeartbeatTracker()
     status_resolver = status_resolver or AgentStatusResolver(heartbeat_tracker)
@@ -67,6 +79,7 @@ def create_app(
         approval_queue=approval_queue, assistant_presence=assistant_presence, heartbeat_tracker=heartbeat_tracker,
     )
     connection_manager = connection_manager or ConnectionManager()
+    identity_store = identity_store or IdentityStore.from_config_path()
 
     app = FastAPI(title="EzoEzgi Ops Suite", version="0.1.0")
 
@@ -80,6 +93,14 @@ def create_app(
     app.state.voice_bridge = voice_bridge
     app.state.connection_manager = connection_manager
     app.state.audit_logger = audit_logger
+    app.state.identity_store = identity_store
+
+    def _get_current_identity(credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme)) -> Identity:
+        token = credentials.credentials if credentials is not None else None
+        try:
+            return identity_store.authenticate(token)
+        except AuthenticationError as exc:
+            raise HTTPException(status_code=401, detail=str(exc)) from exc
 
     @app.get("/api/agents")
     def get_agents() -> list[dict[str, Any]]:
@@ -95,28 +116,56 @@ def create_app(
             raise HTTPException(status_code=400, detail=f"desteklenmeyen status: {status!r} (yalnizca 'pending')")
         return [e.to_dict() for e in approval_queue.list_pending()]
 
-    async def _decide_and_broadcast(request_id: str, decision: str, body: ApprovalDecisionRequest) -> dict[str, Any]:
+    @app.get("/api/whoami")
+    def whoami(identity: Identity = Depends(_get_current_identity)) -> dict[str, Any]:
+        """Frontend'in token'ini gondermeden once kendi kimligini
+        dogrulayabilmesi icin (bkz. B044) -- `scopes` kasitli DAHIL
+        EDILMEDI (sahibi icin anlamsiz, delegate icin de UI'da simdilik
+        gosterilmiyor); yalnizca kim olarak KIMLIK DOGRULANDIGI donuyor."""
+        return {"actor_id": identity.actor_id, "display_name": identity.display_name, "authority_source": identity.authority_source}
+
+    async def _decide_and_broadcast(request_id: str, decision: str, body: ApprovalDecisionRequest, identity: Identity) -> dict[str, Any]:
+        pending_entry = approval_queue.get_pending_entry(request_id)
+        risk_level = pending_entry.risk_level if pending_entry is not None else None
+
         try:
-            record = approval_queue.decide(request_id, decision, actor=body.actor, note=body.note)
+            decision_scope = authorize_decision(identity, decision=decision, risk_level=risk_level)
+        except AuthorizationError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+        try:
+            record = approval_queue.decide(
+                request_id, decision,
+                actor_id=identity.actor_id, auth_method=AUTH_METHOD_BEARER,
+                authority_source=identity.authority_source, decision_scope=decision_scope,
+                note=body.note,
+            )
         except UnknownRequestIdError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except AlreadyDecidedError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
 
         audit_logger.log(
-            alias=None, task=None, status=decision.upper(), risk_level="unknown", request_id=request_id,
-            details={"actor": body.actor, "note": body.note, "source": "ops_suite_approval_endpoint"},
+            alias=None, task=None, status=decision.upper(), risk_level=risk_level or "unknown", request_id=request_id,
+            details={
+                "actor_id": identity.actor_id,
+                "auth_method": AUTH_METHOD_BEARER,
+                "authority_source": identity.authority_source,
+                "decision_scope": decision_scope,
+                "note": body.note,
+                "source": "ops_suite_approval_endpoint",
+            },
         )
         await connection_manager.broadcast(TOPIC_APPROVAL_QUEUE, {"request_id": request_id, "decision": decision})
         return record
 
     @app.post("/api/approvals/{request_id}/approve")
-    async def approve(request_id: str, body: ApprovalDecisionRequest) -> dict[str, Any]:
-        return await _decide_and_broadcast(request_id, "approved", body)
+    async def approve(request_id: str, body: ApprovalDecisionRequest, identity: Identity = Depends(_get_current_identity)) -> dict[str, Any]:
+        return await _decide_and_broadcast(request_id, "approved", body, identity)
 
     @app.post("/api/approvals/{request_id}/reject")
-    async def reject(request_id: str, body: ApprovalDecisionRequest) -> dict[str, Any]:
-        return await _decide_and_broadcast(request_id, "rejected", body)
+    async def reject(request_id: str, body: ApprovalDecisionRequest, identity: Identity = Depends(_get_current_identity)) -> dict[str, Any]:
+        return await _decide_and_broadcast(request_id, "rejected", body, identity)
 
     @app.post("/api/voice/command")
     async def voice_command(body: VoiceCommandRequest) -> dict[str, Any]:
