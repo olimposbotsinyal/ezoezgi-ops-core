@@ -242,3 +242,30 @@ def test_main_normal_approve_does_not_require_emergency_fields(tmp_path, monkeyp
     assert exit_code == 0
     review = json.loads((out_base / proposal["proposal_id"] / "review_record.json").read_text(encoding="utf-8"))
     assert "incident_id" not in review
+
+
+def test_main_attaches_legitimacy_report_path_when_provided(tmp_path, monkeypatch):
+    """v1.2 PILOT: --legitimacy-report-path opsiyoneldir, verilirse
+    review_record.json'a BILGI AMACLI eklenir -- exit code/basari
+    davranisini ETKILEMEZ."""
+    proposal_path, proposal = _write_sample_proposal(tmp_path)
+    out_base = tmp_path / "reviews"
+
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "create_threshold_review_record.py",
+            "--proposal-path", str(proposal_path),
+            "--reviewer", "alice",
+            "--decision", "APPROVE",
+            "--rationale", "normal onay",
+            "--legitimacy-report-path", "reports/emergency_legitimacy_X/legitimacy_report.json",
+            "--output-base-dir", str(out_base),
+        ],
+    )
+    import create_threshold_review_record as mod
+
+    exit_code = mod.main()
+    assert exit_code == 0
+    review = json.loads((out_base / proposal["proposal_id"] / "review_record.json").read_text(encoding="utf-8"))
+    assert review["legitimacy_report_path"] == "reports/emergency_legitimacy_X/legitimacy_report.json"

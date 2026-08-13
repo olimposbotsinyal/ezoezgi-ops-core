@@ -24,7 +24,13 @@ from detect_observability_drift import (
     run_drift_detection,
 )
 from model_gateway.metrics_sink import JsonlAppendSink, MetricEvent
-from observability_drift_core import CATEGORY_ALERT_RULES, SEVERITY_CRITICAL, SEVERITY_NONE, overall_drift_exit_code
+from observability_drift_core import (
+    CATEGORY_ALERT_RULES,
+    SEVERITY_CRITICAL,
+    SEVERITY_NONE,
+    SEVERITY_WARN,
+    overall_drift_exit_code,
+)
 
 
 def test_load_baseline_manifest_parses_valid_json(tmp_path):
@@ -252,3 +258,56 @@ def test_run_drift_detection_flags_overdue_emergency_with_no_followup(tmp_path):
     assert len(emergency_findings) == 1
     assert emergency_findings[0].severity == SEVERITY_CRITICAL
     assert overall_drift_exit_code(findings) == 2
+
+
+def test_run_drift_detection_use_chain_matching_downgrades_broken_chain_to_warn(tmp_path):
+    """v1.2 PILOT: `use_chain_matching=True` `run_drift_detection`'a
+    kadar dogru sekilde iletilmelidir -- ayni-alert-ama-kirik-zincir
+    senaryosu CRITICAL yerine WARN uretmelidir."""
+    ledger_path = tmp_path / "approved_checksums_ledger.jsonl"
+    ledger_path.write_text(
+        "\n".join(
+            json.dumps(e)
+            for e in [
+                {
+                    "timestamp": "2020-01-01T00:00:00+00:00", "proposal_id": "A-1", "alert_name": "HIGH_NULL_INTENT_RATE",
+                    "old_checksum": "x0", "new_checksum": "x1", "apply_report_path": "r1.json",
+                    "is_emergency": True, "retro_review_due_utc": "2020-01-02T00:00:00+00:00",
+                },
+                {
+                    "timestamp": "2020-01-03T00:00:00+00:00", "proposal_id": "A-2", "alert_name": "HIGH_NULL_INTENT_RATE",
+                    "old_checksum": "UNRELATED_CHECKSUM", "new_checksum": "x2", "apply_report_path": "r2.json",
+                    "is_emergency": False, "retro_review_due_utc": None,
+                },
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    empty_jsonl = tmp_path / "empty.jsonl"
+    findings_default, _ = run_drift_detection(
+        repo_root=REPO_ROOT_DEFAULT,
+        manifest_path=REPO_ROOT_DEFAULT / DEFAULT_MANIFEST_PATH,
+        checksum_path=REPO_ROOT_DEFAULT / DEFAULT_CHECKSUM_PATH,
+        alerts_path=REPO_ROOT_DEFAULT / DEFAULT_ALERTS_PATH,
+        jsonl_path=empty_jsonl,
+        window_minutes=60,
+        ledger_path=ledger_path,
+    )
+    emergency_default = [f for f in findings_default if f.category == "emergency_governance"]
+    assert emergency_default == []  # v1.1 (varsayilan): ayni alert_name -> "cozuldu" sayilir
+
+    findings_chain, _ = run_drift_detection(
+        repo_root=REPO_ROOT_DEFAULT,
+        manifest_path=REPO_ROOT_DEFAULT / DEFAULT_MANIFEST_PATH,
+        checksum_path=REPO_ROOT_DEFAULT / DEFAULT_CHECKSUM_PATH,
+        alerts_path=REPO_ROOT_DEFAULT / DEFAULT_ALERTS_PATH,
+        jsonl_path=empty_jsonl,
+        window_minutes=60,
+        ledger_path=ledger_path,
+        use_chain_matching=True,
+    )
+    emergency_chain = [f for f in findings_chain if f.category == "emergency_governance"]
+    assert len(emergency_chain) == 1
+    assert emergency_chain[0].severity == SEVERITY_WARN

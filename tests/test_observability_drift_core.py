@@ -310,3 +310,55 @@ def test_emergency_overdue_exit_code_is_critical():
     entry = _ledger_entry()
     findings = check_emergency_review_overdue_drift([entry], now=NOW)
     assert overall_drift_exit_code(findings) == EXIT_CRITICAL
+
+
+# --- v1.2 PILOT: use_chain_matching entegrasyonu --------------------------------
+
+
+def test_use_chain_matching_default_false_behavior_unchanged():
+    """`use_chain_matching` parametresi hic verilmezse (varsayilan
+    False), sonuc v1.1 ile BIREBIR AYNI olmalidir -- gorev kisiti
+    'Default behavior unchanged unless explicit flag enabled'."""
+    emergency = _ledger_entry(new_checksum="bbb")
+    broken_chain_followup = _ledger_entry(
+        proposal_id="X-2", timestamp="2026-08-12T00:00:00+00:00", is_emergency=False,
+        old_checksum="SOMETHING_ELSE", new_checksum="ccc", retro_review_due_utc=None,
+    )
+    ledger = [emergency, broken_chain_followup]
+
+    findings_default = check_emergency_review_overdue_drift(ledger, now=NOW)
+    findings_explicit_false = check_emergency_review_overdue_drift(ledger, now=NOW, use_chain_matching=False)
+    assert findings_default == findings_explicit_false == []
+
+
+def test_use_chain_matching_true_flags_broken_chain_as_warn_not_critical():
+    emergency = _ledger_entry(new_checksum="bbb")
+    broken_chain_followup = _ledger_entry(
+        proposal_id="X-2", timestamp="2026-08-12T00:00:00+00:00", is_emergency=False,
+        old_checksum="SOMETHING_ELSE", new_checksum="ccc", retro_review_due_utc=None,
+    )
+    ledger = [emergency, broken_chain_followup]
+
+    findings = check_emergency_review_overdue_drift(ledger, now=NOW, use_chain_matching=True)
+    assert len(findings) == 1
+    assert findings[0].severity == SEVERITY_WARN
+    assert findings[0].category == CATEGORY_EMERGENCY_GOVERNANCE
+
+
+def test_use_chain_matching_true_still_resolves_genuine_chain():
+    emergency = _ledger_entry(new_checksum="bbb")
+    chained_followup = _ledger_entry(
+        proposal_id="X-2", timestamp="2026-08-12T00:00:00+00:00", is_emergency=False,
+        old_checksum="bbb", new_checksum="ccc", retro_review_due_utc=None,
+    )
+    ledger = [emergency, chained_followup]
+
+    findings = check_emergency_review_overdue_drift(ledger, now=NOW, use_chain_matching=True)
+    assert findings == []
+
+
+def test_use_chain_matching_true_still_critical_when_no_followup_at_all():
+    entry = _ledger_entry()
+    findings = check_emergency_review_overdue_drift([entry], now=NOW, use_chain_matching=True)
+    assert len(findings) == 1
+    assert findings[0].severity == SEVERITY_CRITICAL

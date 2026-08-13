@@ -187,7 +187,7 @@ def check_alert_rules_checksum_drift(
 
 
 def check_emergency_review_overdue_drift(
-    ledger_entries: list[dict[str, Any]], *, now: datetime
+    ledger_entries: list[dict[str, Any]], *, now: datetime, use_chain_matching: bool = False
 ) -> list[DriftFinding]:
     """`approved_checksums_ledger.jsonl`'deki (bkz. `threshold_apply_core.load_ledger_entries`)
     HER acil durum (`is_emergency=True`) girdisi icin: `retro_review_due_utc`
@@ -197,7 +197,16 @@ def check_emergency_review_overdue_drift(
     v1.1 madde 4, BIREBIR). Vadesi henuz gelmemis VEYA takip eden normal
     onayi olan girdiler icin HICBIR finding URETILMEZ (SESSIZCE gecilir --
     bu, "her seyin drift oldugu" gurultusunu onler, yalnizca GERCEKTEN
-    ihlal edilen SOP'lar raporlanir)."""
+    ihlal edilen SOP'lar raporlanir).
+
+    `use_chain_matching` (v1.2 PILOT, varsayilan False -- GERIYE UYUMLU,
+    varsayilan davranis DEGISMEZ): True ise, "takip eden onay" kontrolu
+    `emergency_chain_core.evaluate_chain_closure`'a devredilir -- yalnizca
+    alert_name degil, checksum-ZINCIRI SUREKLILIGI de aranir. Uc sonuc:
+    RESOLVED (zincir kesintisiz -> finding YOK, v1.1 ile ayni), BROKEN_CHAIN
+    (ayni alert icin sonraki bir girdi var ama zincir kopuk -> WARN,
+    CRITICAL DEGIL -- "tamamen takipsiz degil ama dogrulanmali"),
+    NO_FOLLOWUP (v1.1 ile ayni -> CRITICAL)."""
     findings: list[DriftFinding] = []
     for entry in ledger_entries:
         if not entry.get("is_emergency"):
@@ -214,17 +223,45 @@ def check_emergency_review_overdue_drift(
             continue
 
         alert_name = entry.get("alert_name")
-        entry_ts = entry.get("timestamp", "")
-        has_followup = any(
-            other.get("alert_name") == alert_name
-            and not other.get("is_emergency")
-            and str(other.get("timestamp", "")) > str(entry_ts)
-            for other in ledger_entries
-        )
-        if has_followup:
-            continue
-
         hours_overdue = (now - retro_dt).total_seconds() / 3600
+        evidence = {
+            "proposal_id": entry.get("proposal_id"),
+            "alert_name": alert_name,
+            "retro_review_due_utc": retro_raw,
+            "hours_overdue": round(hours_overdue, 2),
+            "apply_report_path": entry.get("apply_report_path"),
+        }
+
+        if use_chain_matching:
+            from emergency_chain_core import CLOSURE_BROKEN_CHAIN, CLOSURE_RESOLVED, evaluate_chain_closure
+
+            closure = evaluate_chain_closure(entry, ledger_entries)
+            if closure == CLOSURE_RESOLVED:
+                continue
+            if closure == CLOSURE_BROKEN_CHAIN:
+                findings.append(
+                    DriftFinding(
+                        CATEGORY_EMERGENCY_GOVERNANCE,
+                        SEVERITY_WARN,
+                        f"ACIL DURUM esik degisikligi (proposal_id={entry.get('proposal_id')}) icin "
+                        "ayni alert'e sonraki bir normal apply VAR ama checksum ZINCIRI SUREKSIZ "
+                        "(araya baska bir degisiklik girmis olabilir) -- elle dogrulayin",
+                        evidence=evidence,
+                    )
+                )
+                continue
+            # closure == CLOSURE_NO_FOLLOWUP -> asagidaki CRITICAL yoluna devam eder
+        else:
+            entry_ts = str(entry.get("timestamp", ""))
+            has_followup = any(
+                other.get("alert_name") == alert_name
+                and not other.get("is_emergency")
+                and str(other.get("timestamp", "")) > entry_ts
+                for other in ledger_entries
+            )
+            if has_followup:
+                continue
+
         findings.append(
             DriftFinding(
                 CATEGORY_EMERGENCY_GOVERNANCE,
@@ -232,13 +269,7 @@ def check_emergency_review_overdue_drift(
                 f"ACIL DURUM esik degisikligi (proposal_id={entry.get('proposal_id')}) retroaktif "
                 f"inceleme vadesini ({retro_raw}) {hours_overdue:.1f} saat gecti, TAKIP EDEN normal "
                 "onay YOK -- governance SOP'u ihlal ediliyor",
-                evidence={
-                    "proposal_id": entry.get("proposal_id"),
-                    "alert_name": alert_name,
-                    "retro_review_due_utc": retro_raw,
-                    "hours_overdue": round(hours_overdue, 2),
-                    "apply_report_path": entry.get("apply_report_path"),
-                },
+                evidence=evidence,
             )
         )
     return findings

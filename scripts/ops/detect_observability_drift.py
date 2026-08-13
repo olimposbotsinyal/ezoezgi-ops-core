@@ -24,6 +24,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -114,6 +115,7 @@ def run_drift_detection(
     jsonl_path: Path,
     window_minutes: int,
     ledger_path: Path | None = None,
+    use_chain_matching: bool = False,
 ) -> tuple[list, str]:
     from observability_drift_core import (
         check_alert_rules_checksum_drift,
@@ -145,7 +147,15 @@ def run_drift_detection(
     # v1.1: ledger'daki HER acil durum (APPROVE_EMERGENCY) girdisi icin,
     # retroaktif inceleme vadesi gecmis VE takip eden normal onay yoksa
     # CRITICAL -- bkz. check_emergency_review_overdue_drift.
-    findings.extend(check_emergency_review_overdue_drift(ledger_entries, now=datetime.now(timezone.utc)))
+    # v1.2 PILOT: `use_chain_matching=False` (varsayilan) -- v1.1 ile
+    # BIREBIR AYNI davranis. True ise (GOV_EMERGENCY_CHAIN_MATCHING=1
+    # veya --use-chain-matching), checksum-zinciri sureklilik kontrolu
+    # devreye girer (bkz. emergency_chain_core.py).
+    findings.extend(
+        check_emergency_review_overdue_drift(
+            ledger_entries, now=datetime.now(timezone.utc), use_chain_matching=use_chain_matching
+        )
+    )
 
     config_defaults = read_config_source_defaults(repo_root)
     findings.append(check_remote_default_drift(config_defaults["remote_enabled"], baseline))
@@ -164,6 +174,11 @@ def main() -> int:
     parser.add_argument("--alerts-path", default=None)
     parser.add_argument("--jsonl-path", default=None)
     parser.add_argument("--ledger-path", default=None)
+    parser.add_argument(
+        "--use-chain-matching", action="store_true", default=None,
+        help="v1.2 PILOT: checksum-zinciri sureklilik kontrolu (varsayilan: GOV_EMERGENCY_CHAIN_MATCHING "
+        "ortam degiskeni, o da yoksa KAPALI/0)",
+    )
     parser.add_argument("--output-dir", default=None)
     args = parser.parse_args()
 
@@ -172,6 +187,12 @@ def main() -> int:
     checksum_path = Path(args.checksum_path) if args.checksum_path else repo_root / DEFAULT_CHECKSUM_PATH
     alerts_path = Path(args.alerts_path) if args.alerts_path else repo_root / DEFAULT_ALERTS_PATH
     ledger_path = Path(args.ledger_path) if args.ledger_path else repo_root / DEFAULT_LEDGER_PATH
+    # `--use-chain-matching` acikca gecilmediyse (None), GOV_EMERGENCY_CHAIN_MATCHING
+    # ortam degiskenine bakilir -- o da yoksa varsayilan KAPALI (0/False).
+    # Gorev kisiti: "Default behavior unchanged unless explicit flag enabled".
+    use_chain_matching = args.use_chain_matching
+    if use_chain_matching is None:
+        use_chain_matching = os.environ.get("GOV_EMERGENCY_CHAIN_MATCHING", "0") == "1"
 
     if args.jsonl_path:
         jsonl_path = Path(args.jsonl_path)
@@ -191,6 +212,7 @@ def main() -> int:
         jsonl_path=jsonl_path,
         window_minutes=args.window_minutes,
         ledger_path=ledger_path,
+        use_chain_matching=use_chain_matching,
     )
 
     generated_at = datetime.now(timezone.utc).isoformat()

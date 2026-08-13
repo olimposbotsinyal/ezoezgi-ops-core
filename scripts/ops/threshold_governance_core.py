@@ -138,12 +138,20 @@ def build_review_record(
     justification: str | None = None,
     timebox_hours: float | None = None,
     retro_review_due_utc: str | None = None,
+    legitimacy_report_path: str | None = None,
 ) -> dict[str, Any]:
     """`incident_id`/`justification`/`timebox_hours`/`retro_review_due_utc`
     yalnizca `decision == DECISION_APPROVE_EMERGENCY` ise kayda EKLENIR --
     normal APPROVE/REJECT/NEEDS_DATA icin review_record.json'un ALANLARI
     (Commit S/T ile AYNI sekil) DEGISMEZ, bu da mevcut proposal/review
-    artefaktlariyla geriye donuk uyumlulugu korur."""
+    artefaktlariyla geriye donuk uyumlulugu korur.
+
+    `legitimacy_report_path` (v1.2 PILOT, opsiyonel, HERHANGI bir karar
+    turu icin): `check_emergency_legitimacy.py`'nin ürettigi rapora bir
+    BAGLANTI/REFERANSTIR -- yalnizca BILGI AMACLIDIR, `check_apply_eligibility`
+    tarafindan OKUNMAZ/DOGRULANMAZ (henuz zorlayici degil, bkz. docs
+    'Promotion criteria from pilot to enforced'). `None` ise (varsayilan)
+    kayda HIC EKLENMEZ -- mevcut kayitlarla BIREBIR ayni sekil korunur."""
     if decision not in VALID_DECISIONS:
         raise ValueError(f"gecersiz karar: {decision!r} (gecerli: {VALID_DECISIONS})")
 
@@ -160,6 +168,8 @@ def build_review_record(
         record["justification"] = justification
         record["timebox_hours"] = timebox_hours
         record["retro_review_due_utc"] = retro_review_due_utc
+    if legitimacy_report_path is not None:
+        record["legitimacy_report_path"] = legitimacy_report_path
     return record
 
 

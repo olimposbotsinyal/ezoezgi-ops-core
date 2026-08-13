@@ -420,3 +420,38 @@ def test_apply_eligibility_checksum_check_still_applies_to_emergency_decision(sc
     result = check_apply_eligibility(tampered_proposal, review, schema)
     assert result.eligible is False
     assert any("checksum uyusmazligi" in r for r in result.reasons)
+
+
+# --- v1.2 PILOT: legitimacy_report_path (opsiyonel, non-blocking referans) -----
+
+
+def test_build_review_record_omits_legitimacy_report_path_by_default():
+    """Gorev kisiti: mevcut kayitlarla BIREBIR geriye donuk uyumluluk --
+    parametre verilmezse yeni alan HIC EKLENMEZ."""
+    proposal = _sample_proposal()
+    review = build_review_record(reviewer="alice", decision=DECISION_APPROVE, rationale="x", proposal=proposal)
+    assert "legitimacy_report_path" not in review
+
+
+def test_build_review_record_includes_legitimacy_report_path_when_provided():
+    proposal = _sample_proposal()
+    review = build_review_record(
+        reviewer="alice", decision=DECISION_APPROVE, rationale="x", proposal=proposal,
+        legitimacy_report_path="reports/emergency_legitimacy_X/legitimacy_report.json",
+    )
+    assert review["legitimacy_report_path"] == "reports/emergency_legitimacy_X/legitimacy_report.json"
+
+
+def test_build_review_record_legitimacy_report_path_does_not_affect_eligibility(schema):
+    """Gorev kisiti: legitimacy raporu HENUZ apply uygunlugunu
+    ETKILEMEMELIDIR (pilot, non-blocking) -- rapor yolu verilse de
+    verilmese de check_apply_eligibility sonucu AYNI olmalidir."""
+    proposal = _sample_proposal()
+    review_without = build_review_record(reviewer="alice", decision=DECISION_APPROVE, rationale="x", proposal=proposal)
+    review_with = build_review_record(
+        reviewer="alice", decision=DECISION_APPROVE, rationale="x", proposal=proposal,
+        legitimacy_report_path="reports/emergency_legitimacy_X/legitimacy_report.json",
+    )
+    result_without = check_apply_eligibility(proposal, review_without, schema)
+    result_with = check_apply_eligibility(proposal, review_with, schema)
+    assert result_without.eligible == result_with.eligible is True

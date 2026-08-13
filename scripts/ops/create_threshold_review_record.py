@@ -45,6 +45,11 @@ def main() -> int:
         "--retro-review-due-utc", default=None,
         help="YALNIZCA --decision APPROVE_EMERGENCY icin zorunlu, ISO8601 UTC (ornek: 2026-08-14T12:00:00+00:00)",
     )
+    parser.add_argument(
+        "--legitimacy-report-path", default=None,
+        help="Opsiyonel (v1.2 PILOT, non-blocking) -- scripts/ops/check_emergency_legitimacy.py "
+        "ciktisina bir referans; yalnizca bilgi amaclidir, apply uygunlugunu ETKILEMEZ",
+    )
     parser.add_argument("--output-base-dir", default=None, help="Varsayilan: reports/threshold_reviews/")
     args = parser.parse_args()
 
@@ -75,6 +80,7 @@ def main() -> int:
         justification=args.justification,
         timebox_hours=args.timebox_hours,
         retro_review_due_utc=args.retro_review_due_utc,
+        legitimacy_report_path=args.legitimacy_report_path,
     )
 
     if args.decision == "APPROVE_EMERGENCY":
