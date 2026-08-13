@@ -335,6 +335,47 @@ olarak saklandı."
 | 2026-08-13T00:01:19Z | local Ollama (`http://localhost:11434`, `llama3:latest`, winget ile kuruldu) | %30.0 | %0.0 | %0.0 | %100.0 | 6.06s | **Partial / FAILED_THRESHOLDS** — ilk canlı ölçüm; 5 kriterden 4'ü FAIL (yalnızca parse_error_rate PASS). Kök neden: `model_client.py::DEFAULT_TIMEOUT_SECONDS=2.0s`, gerçek CPU inference gecikmesinin (~6s, ölçülen p95) çok altında — her istek zaman aşımına uğrayıp mock fallback'e düşüyor (`fallback_rate=%100`). `intent_accuracy=%30`, modelin gerçekten çalışmasından değil, golden set'teki `UNKNOWN` oranıyla (15/50) rastlantısal örtüşmeden kaynaklanıyor — model bir kez bile gerçek yanıt veremedi. **Sonraki adım:** timeout'u gerçekçi bir değere (ör. 15-30s) çıkarıp yeniden koşmak (bkz. `reports/nlu_eval_20260813.md`) |
 | 2026-08-13T00:13:05Z | local Ollama (`llama3:latest`, `OLLAMA_TIMEOUT_SECONDS` hotfix sonrası: 2.0s→30.0s) | %30.0 | %0.0 | %0.0 | %100.0 | 12.89s | **Partial / FAILED_THRESHOLDS** — timeout hotfix'i doğru çalıştı (istekler artık erken kesilmiyor, gerçek sunucuya ulaşıyor) ama **yeni ve farklı bir kök neden** ortaya çıktı: Ollama'nın `llama-server` alt süreci her istekte çöküyor — sunucu `HTTP 500` ile `"llama-server process has terminated: exit status 0xc0000005: The instruction at 0xp referenced memory at 0xp"` (Windows access violation) döndürüyor; manuel `curl` ile doğrulandı. Bu bir timeout/config sorunu değil, yerel Ollama çalışma zamanının bu makinede çökmesi. Sistem RAM'i yeterli (66.9GB toplam, 23GB boş) — kaynak kısıtı değil. Sayılar önceki koşuyla aynı görünüyor (%30/%0/%100) ama nedeni farklı — tesadüfen aynı fallback deseni. **Sonraki adım:** kullanıcıyla birlikte netleştirilecek (bkz. sohbetteki soru) |
 
+### Incident: Ollama Windows runtime çöküyor (0xc0000005) — 2026-08-13
+
+**Özet:** Timeout hotfix'i sonrası ikinci canlı B031 koşusunda, Ollama'nın
+`/api/generate` uç noktası her istekte `HTTP 500` döndürdü. Kök neden,
+Ollama'nın çıkarım (inference) için başlattığı alt süreç olan
+`llama-server`'ın bir Windows *access violation* (bellek erişim ihlali,
+`STATUS_ACCESS_VIOLATION`) ile çökmesi.
+
+**Tam hata gövdesi (manuel `curl` ile yakalandı):**
+```
+{"error":"llama-server process has terminated: exit status 0xc0000005: The instruction at 0xp referenced memory at 0xp. The memory could not be s."}
+```
+
+**Diagnostik komut çıktıları (kısa):**
+
+| Komut | Sonuç |
+|---|---|
+| `ollama --version` | `ollama version is 0.32.9` |
+| `ollama ps` | Boş (çalışan model/süreç yok — çöküş sonrası kalıcı bir model instance kalmıyor) |
+| `ollama list` | `llama3:latest` (4.7GB), `qwen2.5:3b-instruct` (1.9GB, bu tanı için ayrıca çekildi) |
+| `curl .../api/tags` | `HTTP 200`, servis kendisi (API katmanı) ayakta ve sağlıklı |
+| `curl .../api/generate` (`llama3`) | `HTTP 500`, `0xc0000005` |
+| `curl .../api/generate` (`qwen2.5:3b-instruct`, çok daha küçük model) | **Aynı `HTTP 500`, aynı `0xc0000005`** |
+
+**Değerlendirme:** Çöküş, `llama3` (8B) ile sınırlı değil — çok daha küçük
+`qwen2.5:3b-instruct` (1.9GB) ile de **birebir aynı hata** tekrarlandı. Bu,
+sorunun belirli bir modelin boyutu/kaynak ihtiyacıyla değil, bu makinedeki
+`llama-server` binary'sinin kendisiyle (muhtemelen CPU komut seti uyumsuzluğu,
+bozuk/eksik bir bağımlılık ya da bu Ollama sürümüne özgü bir Windows hatası)
+ilgili olduğunu gösteriyor. Sistem RAM'i bol (66.9GB toplam, 23GB boş) —
+kaynak yetersizliği değil. API katmanı (`/api/tags`) sağlıklı yanıt veriyor;
+yalnızca gerçek çıkarım gerektiren `/api/generate` çağrıları çöküyor.
+
+**Sonuç: Ollama çalışma zamanı bu makinede kararlı değil (runtime unstable).**
+B031 için canlı ölçüm bu haliyle güvenilir şekilde tamamlanamaz.
+
+**Karar:** B031 **Partial / FAILED_THRESHOLDS** olarak kalıyor — sayı
+uydurulmadı, PASS iddia edilmedi. Kapanış koşulu netleşene kadar (bkz.
+`docs/BACKLOG.md` yeni madde) canlı Ollama koşuları güvenilir kabul
+edilmeyecek.
+
 ## Onay Gerektiren Aksiyonlar (Faz 4+ ile aktif olacak)
 
 - Risk seviyesi `high` veya `irreversible` olan her aksiyon, kullanıcı onayı
