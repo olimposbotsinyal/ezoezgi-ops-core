@@ -5,8 +5,19 @@ pythonpath = [
     "apps/orchestrator/src",
     "services/tr-en-bridge/src",
     "services/model-gateway/src",
+    "apps/ops-suite/backend/src",
     "tools/cli-runner/src",
     "scripts",
     "scripts/ops",
     "tools",
 ]
+
+# PEP 735 dependency-groups (ADR-017) -- bu, projenin ilk resmi bagimlilik
+# beyanidir (bkz. BACKLOG.md B032). `dev` HER ZAMAN gerekli (pytest/pyyaml,
+# onceden ad-hoc .venv'e kuruluydu); `ops-suite` YALNIZCA apps/ops-suite'in
+# FastAPI/uvicorn/WebSocket katmani icin GEREKLIDIR -- scripts/ops/ (model-
+# gateway governance alt-sistemi) BILEREK stdlib-yalniz kalir, bu grubu
+# GEREKTIRMEZ (bkz. threshold_governance_core.py'deki felsefe notu).
+[dependency-groups]
+dev = ["pytest>=8.0", "pyyaml>=6.0"]
+ops-suite = ["fastapi>=0.115", "uvicorn>=0.32", "websockets>=13.0", "httpx>=0.27"]

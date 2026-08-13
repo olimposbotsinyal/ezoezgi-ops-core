@@ -1064,6 +1064,56 @@ geçişi denetlenebilir kılar.
 - Post-mortem: Olay `data/audit` kayıtlarına referansla `docs/DECISIONS.md`'ye
   gerekirse bir ADR olarak (politika değişikliği varsa) işlenir.
 
+## Ops Suite — Çalıştırma ve Doğrulama
+
+> Bkz. `docs/PLAN.md` T21-T27, `docs/DECISIONS.md` ADR-015..018,
+> `docs/OPS_SUITE_PRODUCT_SPEC.md`.
+
+**Kurulum (ilk kez):**
+
+```powershell
+./.venv/Scripts/python.exe -m pip install --group dev --group ops-suite
+```
+
+**Sunucuyu çalıştırma (gerçek, tek uvicorn süreci):**
+
+```powershell
+$env:PYTHONPATH = "apps/ops-suite/backend/src;apps/orchestrator/src;services/tr-en-bridge/src;services/model-gateway/src;tools/cli-runner/src;tools"
+./.venv/Scripts/python.exe -m ops_suite.server
+# tarayicida: http://127.0.0.1:8420/  (OPS_SUITE_PORT ile degistirilebilir)
+```
+
+**Gerçek E2E demo (ayrı bir alt-süreç sunucusu başlatır, kanıtı `reports/ops_suite_demo_<UTC>/`'a yazar):**
+
+```powershell
+./.venv/Scripts/python.exe scripts/ops_suite_demo.py
+```
+
+**Testler:**
+
+```powershell
+./.venv/Scripts/python.exe -m pytest tests/test_ops_suite_*.py -v
+./.venv/Scripts/python.exe -m pytest   # tam repo regresyonu
+```
+
+**Bilinçli olarak toplanamayan kanıt (NOT_COLLECTED, `scripts/ops_suite_demo.py`
+çıktısında da görünür):**
+
+- Gerçek tarayıcı render'ı/etkileşimi — bu ortamda tarayıcı-otomasyon
+  aracı yok (bkz. `docs/BACKLOG.md` B039).
+- Gerçek mikrofon/hoparlör/TTS sesi — ses donanımı yok (B040).
+- Gerçek GSM/SIM çağrı akışı — modem yok, `services/gsm-gateway` boş (B040/B043).
+- Gerçek kamera/gesture girdisi — kamera donanımı yok, `services/gesture-vision` boş (B040).
+
+**Sorun giderme (Ops Suite'e özel):**
+
+| Belirti | Olası Neden | İlk Bakılacak Yer |
+|---|---|---|
+| `ModuleNotFoundError: No module named 'ops_suite'` | `PYTHONPATH`'e `apps/ops-suite/backend/src` eklenmemiş | Yukarıdaki "Sunucuyu çalıştırma" komutu, `pyproject.toml::pythonpath` |
+| `ModuleNotFoundError: No module named 'model_gateway'`/`'echo_runner'` (yalnızca `scripts/ops_suite_demo.py` alt-süreciyle) | Alt-süreç kendi `PYTHONPATH`'ini pytest'ten miras ALMAZ | `scripts/ops_suite_demo.py::_subprocess_env()` — pytest'in `pythonpath` listesiyle EL İLE senkron tutulmalı |
+| `/api/agents`'te bir ajan hep `offline`/`not_implemented` görünüyor | BEKLENEN davranış — o ajanın gerçek kodu henüz yok | `docs/AGENT_PRESENCE_STATE_MODEL.md` §3 (dürüstlük kuralı) |
+| WS bağlantısı hemen kapanıyor/hiç açılmıyor | `fastapi`/`uvicorn`/`websockets` kurulu değil | `pip install --group ops-suite` çalıştırıldı mı kontrol et |
+
 ## Sorun Giderme (Genel)
 
 | Belirti | Olası Neden | İlk Bakılacak Yer |
@@ -1079,3 +1129,6 @@ geçişi denetlenebilir kılar.
 - Aktif sprint: `docs/PLAN.md`
 - Ertelenen/gelecek işler: `docs/BACKLOG.md`
 - Mimari kararlar: `docs/DECISIONS.md`
+- Ops Suite: `docs/OPS_SUITE_PRODUCT_SPEC.md`, `docs/AGENT_PRESENCE_STATE_MODEL.md`,
+  `docs/IDENTITY_AND_DELEGATION_POLICY.md`, `docs/VOICE_FIRST_INTERACTION_POLICY.md`,
+  `docs/GSM_CALL_FLOW.md`, `docs/TR_EN_BRIDGE_EXTERNAL_AI_POLICY.md`

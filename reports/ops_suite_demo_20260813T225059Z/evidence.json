@@ -1,0 +1,215 @@
+{
+  "generated_at": "2026-08-13T22:50:59.379117+00:00",
+  "base_url": "http://127.0.0.1:8420",
+  "steps": [
+    {
+      "step": "server_startup",
+      "ok": true,
+      "base_url": "http://127.0.0.1:8420"
+    },
+    {
+      "step": "voice_command_echo",
+      "ok": true,
+      "request": {
+        "request_id": "9bfa7cc3-f638-48e1-aa0e-4d94995aba93",
+        "tr_response": "Merhaba yazdırıldı.",
+        "result_en": {
+          "value": "Merhaba",
+          "status": "ok",
+          "task_en": "RUN_ECHO",
+          "risk_level": "low"
+        }
+      }
+    },
+    {
+      "step": "voice_command_irreversible",
+      "ok": true,
+      "response": {
+        "request_id": "109887c9-f32a-40c5-b666-9dfdc916177a",
+        "tr_response": "Bu işlem yüksek riskli (irreversible) olduğu için onay bekliyor. Devam etmek için onay vermeniz gerekiyor.",
+        "result_en": {
+          "status": "WAITING_APPROVAL",
+          "task_en": "RUN_DELETE_FILE",
+          "risk_level": "irreversible"
+        }
+      }
+    },
+    {
+      "step": "approvals_pending_check",
+      "ok": true,
+      "pending": [
+        {
+          "request_id": "109887c9-f32a-40c5-b666-9dfdc916177a",
+          "alias": "ezo",
+          "task": "RUN_DELETE_FILE",
+          "risk_level": "irreversible",
+          "original_tr": "Ezo, tüm dosyaları sil",
+          "submitted_at": "2026-08-13T22:51:01.209073+00:00",
+          "details": {
+            "confidence": 0.6
+          }
+        }
+      ]
+    },
+    {
+      "step": "approve_decision",
+      "ok": true,
+      "response": {
+        "record_type": "DECIDED",
+        "request_id": "109887c9-f32a-40c5-b666-9dfdc916177a",
+        "timestamp": "2026-08-13T22:51:01.215762+00:00",
+        "decision": "approved",
+        "actor": "ops_suite_demo",
+        "note": "E2E demo onayi (scripts/ops_suite_demo.py)"
+      }
+    },
+    {
+      "step": "approvals_cleared_check",
+      "ok": true,
+      "pending_after": []
+    },
+    {
+      "step": "audit_log_check",
+      "ok": true,
+      "matching_records": [
+        {
+          "timestamp": "2026-08-13T22:51:01.209565+00:00",
+          "request_id": "109887c9-f32a-40c5-b666-9dfdc916177a",
+          "alias": "ezo",
+          "task": "RUN_DELETE_FILE",
+          "risk_level": "irreversible",
+          "status": "WAITING_APPROVAL",
+          "details": {
+            "original_tr": "Ezo, tüm dosyaları sil",
+            "confidence": 0.6,
+            "result_en": {
+              "status": "WAITING_APPROVAL",
+              "task_en": "RUN_DELETE_FILE",
+              "risk_level": "irreversible"
+            }
+          }
+        },
+        {
+          "timestamp": "2026-08-13T22:51:01.216109+00:00",
+          "request_id": "109887c9-f32a-40c5-b666-9dfdc916177a",
+          "alias": null,
+          "task": null,
+          "risk_level": "unknown",
+          "status": "APPROVED",
+          "details": {
+            "actor": "ops_suite_demo",
+            "note": "E2E demo onayi (scripts/ops_suite_demo.py)",
+            "source": "ops_suite_approval_endpoint"
+          }
+        }
+      ]
+    },
+    {
+      "step": "agents_snapshot",
+      "ok": true,
+      "agents": [
+        {
+          "agent_id": "orchestrator",
+          "display_name": "Orchestrator",
+          "state": "idle",
+          "last_heartbeat_ts": "2026-08-13T22:51:01.209557+00:00",
+          "last_task_id": "109887c9-f32a-40c5-b666-9dfdc916177a",
+          "detail": "",
+          "updated_at": "2026-08-13T22:51:01.227923+00:00"
+        },
+        {
+          "agent_id": "bridge_agent",
+          "display_name": "Bridge Agent",
+          "state": "offline",
+          "last_heartbeat_ts": null,
+          "last_task_id": null,
+          "detail": "henuz heartbeat alinmadi",
+          "updated_at": ""
+        },
+        {
+          "agent_id": "tool_runners",
+          "display_name": "Tool Runners",
+          "state": "offline",
+          "last_heartbeat_ts": null,
+          "last_task_id": null,
+          "detail": "henuz heartbeat alinmadi",
+          "updated_at": ""
+        },
+        {
+          "agent_id": "finance_agent",
+          "display_name": "Finance Agent",
+          "state": "offline",
+          "last_heartbeat_ts": null,
+          "last_task_id": null,
+          "detail": "not_implemented -- bkz. MASTER_ROADMAP.md §3, servis klasoru henuz bos",
+          "updated_at": ""
+        },
+        {
+          "agent_id": "social_agent",
+          "display_name": "Social Agent",
+          "state": "offline",
+          "last_heartbeat_ts": null,
+          "last_task_id": null,
+          "detail": "not_implemented -- bkz. MASTER_ROADMAP.md §3, servis klasoru henuz bos",
+          "updated_at": ""
+        },
+        {
+          "agent_id": "research_agent",
+          "display_name": "Research Agent",
+          "state": "offline",
+          "last_heartbeat_ts": null,
+          "last_task_id": null,
+          "detail": "not_implemented -- bkz. MASTER_ROADMAP.md §3, servis klasoru henuz bos",
+          "updated_at": ""
+        },
+        {
+          "agent_id": "doc_agent",
+          "display_name": "Doc Agent",
+          "state": "offline",
+          "last_heartbeat_ts": null,
+          "last_task_id": null,
+          "detail": "not_implemented -- bkz. MASTER_ROADMAP.md §3, servis klasoru henuz bos",
+          "updated_at": ""
+        },
+        {
+          "agent_id": "device_agent",
+          "display_name": "Device Agent",
+          "state": "offline",
+          "last_heartbeat_ts": null,
+          "last_task_id": null,
+          "detail": "not_implemented -- bkz. MASTER_ROADMAP.md §3, servis klasoru henuz bos",
+          "updated_at": ""
+        },
+        {
+          "agent_id": "voice_agent",
+          "display_name": "Voice Agent",
+          "state": "offline",
+          "last_heartbeat_ts": null,
+          "last_task_id": null,
+          "detail": "not_implemented -- bkz. MASTER_ROADMAP.md §3, servis klasoru henuz bos",
+          "updated_at": ""
+        }
+      ]
+    }
+  ],
+  "overall_ok": true,
+  "not_collected": [
+    {
+      "item": "real_browser_rendering",
+      "reason": "bu ortamda tarayici-otomasyon araci YOK -- bkz. docs/BACKLOG.md B039"
+    },
+    {
+      "item": "real_microphone_speaker_audio",
+      "reason": "ses donanimi (mikrofon/hoparlor/gercek TTS) bu ortamda YOK -- bkz. docs/BACKLOG.md B040"
+    },
+    {
+      "item": "real_gsm_sim_call_flow",
+      "reason": "GSM modem/SIM donanimi YOK, services/gsm-gateway hala bos -- bkz. docs/BACKLOG.md B040/B043"
+    },
+    {
+      "item": "real_camera_gesture_input",
+      "reason": "kamera donanimi YOK, services/gesture-vision hala bos -- bkz. docs/BACKLOG.md B040"
+    }
+  ],
+  "server_log_tail": "INFO:     Started server process [91788]\nINFO:     Waiting for application startup.\nINFO:     Application startup complete.\nINFO:     Uvicorn running on http://127.0.0.1:8420 (Press CTRL+C to quit)\nINFO:     127.0.0.1:49536 - \"GET /api/agents HTTP/1.1\" 200 OK\nINFO:     127.0.0.1:49539 - \"POST /api/voice/command HTTP/1.1\" 200 OK\nINFO:     127.0.0.1:49541 - \"POST /api/voice/command HTTP/1.1\" 200 OK\nINFO:     127.0.0.1:49542 - \"GET /api/approvals?status=pending HTTP/1.1\" 200 OK\nINFO:     127.0.0.1:49543 - \"POST /api/approvals/109887c9-f32a-40c5-b666-9dfdc916177a/approve HTTP/1.1\" 200 OK\nINFO:     127.0.0.1:49545 - \"GET /api/approvals?status=pending HTTP/1.1\" 200 OK\nINFO:     127.0.0.1:49547 - \"GET /api/agents HTTP/1.1\" 200 OK\n"
+}

@@ -276,6 +276,86 @@
   - Kabul kriteri: Faz 1 için en az 5 üst seviye görev BACKLOG.md'de mevcut.
   - Bağımlılıklar: T15.
 
+## Ops Suite v0 — Faz 5 Öne Çekme (İstisna)
+
+> Bu bölüm, MASTER_ROADMAP.md §7'deki Faz 5 (gün 96-110) hedefinin bir
+> parçasını (admin panel) BİLEREK öne çeken, ADR-015'te belgelenmiş bir
+> istisnadır — Faz sırası genel olarak DEĞİŞMEDİ. Görev kısıtları: (1)
+> mevcut governance/promotion mekanizmaları KALDIRILMADI, (2) hiçbir
+> test sonucu FABRİKE EDİLMEDİ (gerçek donanım/tarayıcı gerektiren
+> kısımlar açıkça NOT_COLLECTED/SKIPPED işaretlendi), (3) sahibi
+> (Serkan Eryılmaz) tek kök yetkilisi değişmezi korundu (bkz.
+> `docs/IDENTITY_AND_DELEGATION_POLICY.md`).
+
+- [x] **T21. Ops Suite domain modeli + olay sözleşmeleri (S1)**
+  - Amaç: Ajan/görev/asistan durumunu temsil eden gerçek, doğrulanmış şemalar.
+  - Teknik çıktı: `apps/ops-suite/backend/src/ops_suite/schemas.py`
+    (`AgentPresence`/`TaskLifecycleEvent`/`AssistantPresenceEvent`/`ApprovalQueueEntry`),
+    `events.py` (konu haritası + WS zarfı).
+  - Kabul kriteri: Geçersiz durum değerleri reddedilir, JSON zarfı round-trip eder.
+  - **Not (2026-08-14) — resmen kapatıldı:** `tests/test_ops_suite_schemas.py`
+    (11 test) + `tests/test_ops_suite_events.py` (10 test), 21/21 yeşil.
+
+- [x] **T22. Heartbeat tracker + ajan durum çözümleyici (S2 mantık)**
+  - Amaç: Bir ajanın "canlı" mı "offline" mı olduğunu, sahte veri üretmeden hesaplamak.
+  - Teknik çıktı: `heartbeat.py::HeartbeatTracker`, `status_resolver.py::AgentStatusResolver`,
+    `audit_tail.py::AuditTailReader`.
+  - Kabul kriteri: Kodu olmayan ajanlar (Finance/Social/Research/Doc/Device/Voice)
+    HER ZAMAN `offline`+`not_implemented` — asla fabrike `idle`.
+  - **Not (2026-08-14) — resmen kapatıldı:** `tests/test_ops_suite_heartbeat.py` (10),
+    `tests/test_ops_suite_audit_tail.py` (8), `tests/test_ops_suite_status_resolver.py` (7) —
+    25/25 yeşil.
+
+- [x] **T23. Onay kuyruğu kalıcı deposu (S2 mantık)**
+  - Amaç: `approval_stub.py`'nin durumsuz dönüşünü gerçek, sorgulanabilir bir kuyruğa çevirmek.
+  - Teknik çıktı: `approval_queue.py::ApprovalQueueStore` (JSONL append-only,
+    submit/list_pending/decide) — `orchestrator.py`/`approval_stub.py`/`risk_engine.py`
+    DEĞİŞTİRİLMEDİ.
+  - Kabul kriteri: Bilinmeyen/zaten-karara-bağlanmış `request_id` reddedilir.
+  - **Not (2026-08-14) — resmen kapatıldı:** `tests/test_ops_suite_approval_queue.py`
+    (12 test), 12/12 yeşil.
+
+- [x] **T24. FastAPI + WebSocket sunucusu (S2 sunucu)**
+  - Amaç: Gerçek zamanlı REST + WS uç noktaları (ADR-007'nin sanksiyonladığı FastAPI'nin
+    ilk gerçek kullanımı).
+  - Teknik çıktı: `app.py::create_app()` (agents/assistant/approvals/voice-command uç
+    noktaları + statik frontend mount'u), `server.py` (`python -m ops_suite.server`),
+    `ws_manager.py::ConnectionManager`.
+  - Kabul kriteri: Gerçek WS el sıkışması + REST çağrıları `TestClient` ile doğrulanır.
+  - **Not (2026-08-14) — resmen kapatıldı:** `tests/test_ops_suite_api.py` (14),
+    `tests/test_ops_suite_ws.py` (7), 21/21 yeşil — gerçek in-process ASGI, mock yok.
+
+- [x] **T25. Sesli komut/UI kablolaması (S4, mocked metin girdisi)**
+  - Amaç: `bridge.py`+`orchestrator.py` zincirini Ops Suite'e (audit/onay kuyruğu/heartbeat
+    dahil) bağlamak — gerçek mikrofon YOK, bu yüzden TR metin girdisi kullanılır.
+  - Teknik çıktı: `voice_bridge.py::VoiceBridge.handle_voice_command()`.
+  - Kabul kriteri: Echo (düşük risk) tamamlanır; "tüm dosyaları sil" (irreversible) onay
+    kuyruğuna düşer, audit'e yazılır.
+  - **Not (2026-08-14) — resmen kapatıldı:** `tests/test_ops_suite_voice_bridge.py`
+    (9 test) + `tests/test_ops_suite_assistant_presence.py` (6 test), 15/15 yeşil.
+
+- [x] **T26. Ops Suite frontend v0 statik kabuğu (S3)**
+  - Amaç: Ajan kartları + canlı akış + onay paneli + asistan paneli gösteren minimal bir UI.
+  - Teknik çıktı: `apps/ops-suite/frontend/` (saf HTML/CSS/vanilla-JS, npm/bundler YOK —
+    bkz. ADR-018), PWA manifest + asgari service worker.
+  - Kabul kriteri: `node --check` ile sözdizimi doğrulanır; FastAPI gerçekten sunar.
+  - **Not (2026-08-14) — resmen kapatıldı:** `node --check` 3/3 dosya temiz;
+    `tests/test_ops_suite_api.py::test_root_serves_frontend_index_html`/`test_static_css_is_served`
+    ile gerçek statik sunum doğrulandı. **SKIPPED:** görsel/etkileşimli tarayıcı
+    doğrulaması (bu ortamda tarayıcı-otomasyon aracı yok, bkz. BACKLOG.md B039).
+
+- [x] **T27. Dokümantasyon + E2E demo + kanıt (S5)**
+  - Amaç: Gerçek bir uçtan-uca kanıt + eksiksiz doküman güncellemesi.
+  - Teknik çıktı: `scripts/ops_suite_demo.py`, 6 yeni doküman
+    (`OPS_SUITE_PRODUCT_SPEC.md` vb.), MASTER_ROADMAP/BACKLOG/DECISIONS/RUNBOOK güncellemeleri.
+  - Kabul kriteri: Demo script GERÇEK bir `python -m ops_suite.server` alt-sürecine karşı
+    çalışır (TestClient DEĞİL), kanıtı `reports/ops_suite_demo_<UTC>/`'a yazar.
+  - **Not (2026-08-14) — resmen kapatıldı:** `scripts/ops_suite_demo.py` GERÇEKTEN
+    çalıştırıldı — 8/8 adım PASS (`reports/ops_suite_demo_20260813T225059Z/`, `git add -f`
+    ile arşivlendi). **NOT_COLLECTED (dürüstçe işaretli):** gerçek tarayıcı render'ı,
+    gerçek mikrofon/hoparlör/TTS, gerçek GSM/SIM çağrı akışı, gerçek kamera/gesture girdisi
+    — bkz. `evidence.md` "NOT_COLLECTED" bölümü.
+
 ---
 
 ## Daily Log
@@ -456,3 +536,38 @@ gösteriliyor). **B031 resmi durumu değişmedi: BLOCKED_BY_RUNTIME.** B036
 durumu: **IN_PROGRESS** — çıkış kriterleri `docs/BACKLOG.md`'de netleştirildi
 (varsayılan profilde 50/50 + 0 HTTP 500 + 0 `0xc0000005`), NVIDIA sürücü
 güncelleme takip maddesi açıldı (sonuç bekliyor).
+
+### 2026-08-14
+
+- **Yapılanlar:** Ops Suite v0 (T21-T27, ADR-015..018) uygulandı — bkz.
+  "Ops Suite v0 — Faz 5 Öne Çekme (İstisna)" bölümü yukarıda. Özet:
+  gerçek domain modeli/olay sözleşmeleri (T21), heartbeat+durum
+  çözümleyici (T22, "not_implemented" dürüstlük kuralıyla), kalıcı JSONL
+  onay kuyruğu (T23, `orchestrator.py`/`approval_stub.py`/`risk_engine.py`
+  DEĞİŞTİRİLMEDEN), gerçek FastAPI+WebSocket sunucusu (T24, ADR-007'nin
+  ilk gerçek kullanımı), mocked-metin sesli komut kablolaması (T25),
+  statik HTML/CSS/vanilla-JS frontend kabuğu (T26, ADR-018), gerçek bir
+  alt-süreç `uvicorn` sunucusuna karşı çalışan E2E demo (T27,
+  `scripts/ops_suite_demo.py`, 8/8 PASS). PEP 735 `[dependency-groups]`
+  ile B032 (bağımlılık dosyası) de bu sırada kapatıldı (ADR-017).
+  Toplam yeni test: 113 (`tests/test_ops_suite_*.py`, tamamı yeşil).
+  Tam repo regresyonu: bkz. RUNBOOK.md.
+- **Sorunlar (bulunup düzeltildi):** (1) `scripts/ops_suite_demo.py`'nin
+  ilk iki çalıştırması, alt-süreç `PYTHONPATH`'inde
+  `services/model-gateway/src` ve `tools/cli-runner/src` eksik olduğu
+  için `ModuleNotFoundError` ile çöktü — pytest'in kendi `pythonpath`
+  listesiyle EL İLE eşleştirilerek düzeltildi. (2) Gerçek demo
+  çalıştırmasında `orchestrator` ajanının `display_name`'i yanlışlıkla
+  `"orchestrator"` (ham `agent_id`) olarak görünüyordu (heartbeat
+  kaydında `display_name` hiç geçilmemişti) — `voice_bridge.py`,
+  `status_resolver.py::KNOWN_LIVE_AGENTS`'teki kanonik ismi yeniden
+  kullanacak şekilde düzeltildi.
+- **Bilinçli sınırlamalar (NOT_COLLECTED, fabrike edilmedi):** gerçek
+  tarayıcı render'ı/etkileşimi (tarayıcı-otomasyon aracı yok), gerçek
+  mikrofon/hoparlör/TTS sesi, gerçek GSM/SIM çağrı akışı, gerçek
+  kamera/gesture girdisi — hepsi `docs/BACKLOG.md` B038-B040/B043'e
+  kaydedildi, hiçbiri "tamamlandı" olarak İDDİA EDİLMEDİ.
+- **Sonraki adım:** Gerçek bir Jira/kimlik-doğrulama katmanı OLMADAN
+  `IDENTITY_AND_DELEGATION_POLICY.md` §4'teki `actor` alanı serbest
+  metin kalmaya devam edecek — bu, Ops Suite'in dışarıya AÇILMASINDAN
+  ÖNCE kapatılması gereken bir önkoşuldur.

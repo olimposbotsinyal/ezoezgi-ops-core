@@ -1,7 +1,7 @@
 # MASTER ROADMAP — EzoEzgi Ops
 
 > Durum: Taslak v0.1 — Bootstrap aşaması
-> Son güncelleme: 2026-08-12
+> Son güncelleme: 2026-08-14 (§11 Ops Suite eklendi)
 
 ## 1. Vizyon ve Kapsam
 
@@ -60,6 +60,7 @@ Prensipler:
 | Device Agent | GSM/Bluetooth/kamera köprüsü | services/gsm-gateway, services/gesture-vision |
 | Voice Agent | STT/TTS | services/stt-whisper, services/tts-service |
 | Tool Runners | CLI/tarayıcı/dosya işlemleri (sandboxed) | tools/* |
+| Ops Suite (gözlemleyici katman) | Ajan/asistan durumu, görev akışı görselleştirme, onay kuyruğu UI — bir ajan DEĞİL, salt-gözlemleyici bir katman | apps/ops-suite |
 
 Orchestrator, Hermes/Crew-tarzı bir yaklaşımla ajanları görev bazlı çağırır (bkz. DECISIONS.md).
 
@@ -113,7 +114,7 @@ Orchestrator, Hermes/Crew-tarzı bir yaklaşımla ajanları görev bazlı çağ�
 | Faz 2 — Ajan Genişleme | 36–60 | Finance + Research + Doc Ingestion ajanları, temel memory |
 | Faz 3 — Ses ve Cihaz | 61–80 | STT/TTS entegrasyonu, GSM gateway, mobil PWA ilk sürüm |
 | Faz 4 — Güvenlik Sertleştirme | 81–95 | Onay mekanizması, audit log, risk politikaları, OSV taraması |
-| Faz 5 — Sosyal + Gesture | 96–110 | Social engine, gesture-vision, admin panel |
+| Faz 5 — Sosyal + Gesture | 96–110 | Social engine, gesture-vision, admin panel¹ |
 | Faz 6 — Stabilizasyon | 111–120 | Monitoring (Prometheus/Grafana), yük testi, DoD doğrulama |
 
 ## 8. Güvenlik ve Onay Mekanizması
@@ -141,3 +142,29 @@ Bir görev/faz "tamamlandı" sayılır ancak:
 - Güvenlik/onay etkisi olan değişiklikler `policies/` altında belgelenmişse,
 - Kod/servis iskeletleri için en az bir manuel veya otomatik doğrulama yapılmışsa,
 - Daily Log'a sonuç ve varsa açık sorunlar not düşülmüşse.
+
+## 11. Ops Suite — Gerçek Zamanlı Kontrol Merkezi (Faz 5'ten öne çekilmiş, bilinçli istisna)
+
+**¹** Bu bölüm, §7'deki Faz 5 satırındaki "admin panel" hedefinin bir
+kısmını (ve Faz 6'daki `B015` izleme paneli hedefinin bir kısmını)
+BİLEREK öne çeken bir istisnadır (bkz. `docs/DECISIONS.md` ADR-015) —
+Faz tablosunun genel sırası DEĞİŞTİRİLMEDİ, yalnızca bu ÖZEL özellik
+erken teslim edildi.
+
+**Vizyon:** Sahibinin (Serkan Eryılmaz), EzoEzgi'nin hangi ajanların ne
+durumda olduğunu, hangi görevin hangi ajana yönlendirildiğini ve hangi
+kararların onay beklediğini **gerçek zamanlı** görebildiği bir web
+kontrol merkezi ("Command Center").
+
+**v0 kapsamı (uygulandı):** gerçek domain modeli + olay sözleşmeleri,
+gerçek heartbeat/durum çözümleme, gerçek kalıcı onay kuyruğu, gerçek
+tek-süreçli FastAPI+WebSocket sunucusu, statik HTML/CSS/vanilla-JS
+frontend kabuğu, mocked-metin sesli komut kablolaması. **v0 kapsamı
+dışı (gerçek donanım/tarayıcı gerektirir, bkz. `docs/BACKLOG.md`
+B038-B040/B043):** tam animasyonlu 2D ofis sahnesi, gerçek-tarayıcı
+görsel doğrulama, gerçek ses/GSM/kamera entegrasyonu.
+
+Ayrıntı: `docs/OPS_SUITE_PRODUCT_SPEC.md`, `docs/AGENT_PRESENCE_STATE_MODEL.md`,
+`docs/IDENTITY_AND_DELEGATION_POLICY.md`, `docs/VOICE_FIRST_INTERACTION_POLICY.md`,
+`docs/GSM_CALL_FLOW.md`, `docs/TR_EN_BRIDGE_EXTERNAL_AI_POLICY.md`,
+`docs/PLAN.md` (T21-T27).

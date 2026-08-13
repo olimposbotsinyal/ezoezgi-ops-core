@@ -209,6 +209,112 @@
   de şablon olarak kullanılabilir. Test: `tests/test_eval_nlu.py` (30 test,
   loader/parser, metrik hesaplama, fallback/parse-error ayrımı dahil).
 
+## ADR-015
+- **Tarih:** 2026-08-14
+- **Karar:** Ops Suite v0 (gerçek zamanlı ajan/asistan/onay kontrol
+  merkezi) şu kapsamla uygulanacak: (1) domain modeli + olay sözleşmeleri
+  tam/gerçek, (2) heartbeat/status-resolver/approval-queue mantığı
+  tam/gerçek, (3) tek süreçli FastAPI + WebSocket sunucusu tam/gerçek
+  (ADR-007'nin zaten sanksiyonladığı çerçeve, ilk gerçek kullanımı), (4)
+  frontend yalnızca statik HTML/CSS/vanilla-JS bir v0 "shell" (tam
+  animasyonlu 2D ofis sahnesi DEĞİL), (5) sesli komut mocked TR metin
+  girdisiyle (gerçek mikrofon/GSM/kamera donanımı bu ortamda YOK). "Event
+  bus", harici bir araç (Redis/Kafka) DEĞİL, `ws_manager.py::ConnectionManager`'in
+  TEK bir uvicorn sürecinin bellek-içi asyncio yayıncısıdır.
+- **Gerekçe:** Kullanıcının istediği tam kapsam (5 fazlı sprint: domain
+  modeli, backend, animasyonlu frontend, ses+GSM+kamera entegrasyonu,
+  E2E) gerçekte çok haftalık bir mühendislik işidir; bu ortamda ne
+  tarayıcı-otomasyonu ne de ses/GSM/kamera donanımı vardır. Görev kısıtı
+  "don't fabricate test results, mark NOT_COLLECTED/SKIPPED" açıkça bunu
+  öngörüyordu — bu yüzden dürüstçe test edilebilir/gerçek olan HER ŞEY
+  tam uygulandı, gerçek donanım gerektiren kısımlar açıkça ertelendi
+  (bkz. BACKLOG.md B038-B040/B043) FABRİKE EDİLMEDİ.
+- **Alternatif:** (a) Yalnızca planlama/doküman, hiç kod yazmamak —
+  reddedildi, görev "IMPLEMENTATION SPRINT PLAN (NOW)" diye açıkça
+  yürütme istiyordu. (b) Tüm 5 fazı "tam" iddia edip gerçekte
+  test edilemeyen kısımları sessizce atlamak — reddedildi, "don't
+  fabricate" kısıtını doğrudan ihlal ederdi.
+- **Sonuç:** Kabul edildi. Bkz. `docs/OPS_SUITE_PRODUCT_SPEC.md`
+  (tam kapsam tablosu), `docs/PLAN.md` T21-T27,
+  `scripts/ops_suite_demo.py` (gerçek E2E kanıtı +
+  `reports/ops_suite_demo_<UTC>/` NOT_COLLECTED bölümü).
+
+## ADR-016
+- **Tarih:** 2026-08-14
+- **Karar:** `approval_stub.py`'nin durumsuz `WAITING_APPROVAL` dönüşü,
+  `data/approvals/approval_queue.jsonl`'a append-only (ADR-009 deseni)
+  yazan, replay-tabanlı (SUBMITTED-eksi-DECIDED) bir kalıcı kuyruğa
+  (`ops_suite/approval_queue.py::ApprovalQueueStore`) genelleştirildi.
+  `orchestrator.py`/`approval_stub.py`/`risk_engine.py` HİÇBİRİ
+  DEĞİŞTİRİLMEDİ.
+- **Gerekçe:** Ops Suite'in onay kuyruğu panelinin GERÇEK, sorgulanabilir
+  bir veri kaynağına ihtiyacı var — `approval_stub.py` yalnızca bir
+  stub'dur, hiçbir kalıcı/sorgulanabilir durum tutmaz. Yeni bir veritabanı
+  bağımlılığı yerine, projenin ZATEN kanıtlanmış JSONL append-only
+  deseni (ADR-009) tercih edildi.
+- **Kapsam notu (önemli):** bu, ADR-011'in (finans yürürlüğü erteleme)
+  VEYA PLAN.md T20'nin (finans-özel onay CLI simülasyonu, T19'a bağlı)
+  YENİDEN AÇILMASI DEĞİLDİR — herhangi bir `high`/`irreversible` task
+  için genel/yeniden-kullanılabilir altyapıdır (T17/T18'in aynı
+  istisnası).
+- **Alternatif:** SQLite/gerçek bir veritabanı (reddedildi — bu ölçekte
+  gereksiz bir bağımlılık); durumu yalnızca bellek-içi tutmak
+  (reddedildi — sunucu yeniden başladığında onay kuyruğu kaybolurdu).
+- **Sonuç:** Kabul edildi. v0 bilinen sınırlaması: `decide()`'ın `actor`
+  alanı serbest metindir, kimlik doğrulaması YOKTUR (bkz.
+  `docs/IDENTITY_AND_DELEGATION_POLICY.md` §4). Test:
+  `tests/test_ops_suite_approval_queue.py` (12 test).
+
+## ADR-017
+- **Tarih:** 2026-08-14
+- **Karar:** Python bağımlılıkları artık PEP 735 `[dependency-groups]`
+  ile `pyproject.toml`'da resmi olarak beyan ediliyor (`dev`:
+  pytest/pyyaml, `ops-suite`: fastapi/uvicorn/websockets/httpx) —
+  `[project.dependencies]` DEĞİL.
+- **Gerekçe:** BACKLOG.md B032 ("Python bağımlılık dosyası") uzun süredir
+  açıktı — pytest/pyyaml yalnızca ad-hoc `.venv`'e kuruluydu,
+  reproducibility riski taşıyordu. Ops Suite'in FastAPI'yi (ADR-007'nin
+  zaten sanksiyonladığı ama hiç kurulmamış çerçeve) ilk kez gerçekten
+  kurması, bunu düzeltmek için doğal bir fırsattı.
+- **`[project.dependencies]` DEĞİL, `[dependency-groups]` NEDEN:** bu
+  repo, tek bir `pip install -e .` ile kurulabilir bir paket DEĞİLDİR VE
+  olmamalıdır — birden çok ayrı `apps/*/src`/`services/*/src` kökü var;
+  bunları tek bir ad alanına zorlamak riskli/kapsam dışı bir refactor
+  olurdu. Dependency-groups, `[project]`/`[build-system]` tablosu
+  GEREKTİRMEDEN `pip install --group <ad>` ile kurulabilir.
+- **Alternatif:** `requirements-dev.txt` (B032'nin önerdiği diğer
+  seçenek) — reddedildi, `pyproject.toml` zaten var ve tek dosyada
+  tutmak daha az dosya-senkronizasyon riski taşır.
+- **Sonuç:** Kabul edildi. FastAPI yığını KENDİ grubunda izole edildi
+  (kök bağımlılık DEĞİL) — `scripts/ops/`'un stdlib-yalnız felsefesi
+  ihlal edilmedi (bkz. `threshold_governance_core.py`'deki not).
+
+## ADR-018
+- **Tarih:** 2026-08-14
+- **Karar:** Ops Suite v0 frontend'i saf HTML/CSS/vanilla JavaScript'tir
+  — npm, bundler (webpack/vite), veya bir framework (React/Vue/Svelte)
+  KULLANILMAZ. PWA manifest + asgari bir cache-first service worker
+  (yalnızca statik shell dosyaları, API/WS trafiği ASLA önbelleklenmez)
+  eklendi.
+- **Gerekçe:** Repo'da şu ana kadar HİÇ JS/TS araç zinciri (`package.json`
+  bile) yoktu — bir npm/bundler/framework seçimi, tek başına büyük ve
+  geri dönüşü zor bir mimari karardır, "IMPLEMENTATION SPRINT PLAN (NOW)"
+  kapsamında TEK TARAFLI verilmemesi gereken bir karardır. Saf HTML/CSS/JS,
+  MASTER_ROADMAP.md §6 offline-first ilkesine de doğal olarak uyar (harici
+  bir CDN/build adımı gerektirmez).
+- **Alternatif:** React/Vite gibi modern bir yığın (reddedildi — bu
+  oturumda unilateral olarak karar verilecek kadar büyük bir seçim,
+  ayrıca gerçek bir tarayıcıda test edilemeyeceği için doğrulanamaz bir
+  karmaşıklık eklerdi); Node bu makinede KURULU (v24.14.1) olsa da, bu
+  yalnızca `node --check` ile sözdizimi doğrulaması YAPILABİLDİĞİ
+  anlamına gelir, gerçek bir SPA çalıştırma/render doğrulaması YAPILAMAZ.
+- **Sonuç:** Kabul edildi. Tam 2D ofis sahnesi/animasyon VE olası bir
+  npm/framework benimsemesi `docs/BACKLOG.md` B038/B042'ye ertelendi.
+  Doğrulama: `node --check` (sözdizimi) + `fastapi.testclient.TestClient`
+  ile gerçek statik dosya sunumu testi (`tests/test_ops_suite_api.py::test_root_serves_frontend_index_html`) —
+  görsel/etkileşimli doğrulama bu ortamda YAPILAMADI (SKIPPED, tarayıcı
+  aracı yok).
+
 ---
 
-*Yeni ADR eklerken yukarıdaki formatı koru ve numarayı sırayla artır (ADR-015, ...).*
+*Yeni ADR eklerken yukarıdaki formatı koru ve numarayı sırayla artır (ADR-019, ...).*

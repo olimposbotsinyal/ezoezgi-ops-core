@@ -18,6 +18,8 @@ data/audit/*
 !data/audit/.gitkeep
 data/metrics/*
 !data/metrics/.gitkeep
+data/approvals/*
+!data/approvals/.gitkeep
 
 .claude/
 # Runtime incident watch evidence
@@ -86,6 +88,12 @@ reports/promotion_candidate_*/
 # terfi kararinin kaniti olarak gerektigi durumlarda `git add -f` ile
 # arsivlenir (bkz. reports/gate_d_real_validation_*/ icin ayni desen).
 reports/promotion_drill_*/
+
+# Ops Suite E2E demo kanit paketleri (scripts/ops_suite_demo.py, PLAN.md
+# T27) -- ayni gerekce: tekrar-uretilebilir. Belirli bir calistirmanin
+# GENUINELY bu ozelligin dogru calistiginin kaniti olarak gerektigi
+# durumlarda `git add -f` ile arsivlenir.
+reports/ops_suite_demo_*/
 
 # NOT: reports/weekly_observability_<YYYY-WW>/ KASITLI olarak burada
 # YOK -- bu, "Post-GO weekly ritual"in kalici governance gunlugudur

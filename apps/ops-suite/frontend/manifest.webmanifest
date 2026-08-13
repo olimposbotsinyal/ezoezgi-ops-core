@@ -1,0 +1,17 @@
+{
+  "name": "EzoEzgi Ops Suite",
+  "short_name": "Ops Suite",
+  "description": "EzoEzgi ajan/asistan durumu, gorev akisi ve onay kuyrugu icin gercek zamanli kontrol merkezi (v0).",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b1220",
+  "theme_color": "#0b1220",
+  "lang": "tr",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='45' fill='%230b1220'/%3E%3Ctext x='50' y='68' font-size='55' text-anchor='middle' fill='%234ade80'%3EE%3C/text%3E%3C/svg%3E",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
