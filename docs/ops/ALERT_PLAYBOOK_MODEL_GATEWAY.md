@@ -305,7 +305,11 @@ drift üretimi orada belgelidir).
 hiçbir davranış değişmez):** checksum-zinciri farkındalıklı vade takibi
 (`GOV_EMERGENCY_CHAIN_MATCHING`), VerifyReload FAIL'de opsiyonel otomatik
 geri alma (`GOV_AUTO_ROLLBACK_ON_VERIFY_FAIL` / `-AutoRollbackOnVerifyFail`),
-ve acil durum bilet-format ön-kontrolü (`check_emergency_legitimacy.py`).
+ve acil durum bilet-format ön-kontrolü (`check_emergency_legitimacy.py`
+— **GÜNCELLENDİ:** `--provider jira` ile artık GERÇEK, salt-okunur bir
+Jira bilet-varlık doğrulaması da mümkün, hâlâ v1.2'de non-blocking;
+bkz. `docs/ops/MONITORING_STACK_RUNBOOK.md` "Jira legitimacy
+verification setup (env-only secrets)").
 Tam flag tablosu + güvenli deneme adımları: `docs/ops/MONITORING_STACK_RUNBOOK.md`
 "Pilot Flags Matrix (default OFF)".
 
@@ -320,6 +324,17 @@ BAŞINA ayarlamak HİÇBİR ŞEYİ değiştirmez. Engellendiğinde hata mesajı
 AÇIKÇA nedeni gösterir (rapor eksik/okunamadı/`FAIL`). Tam politika +
 karar matrisi + güvenli geri alma: `docs/ops/MONITORING_STACK_RUNBOOK.md`
 "Pilot Promotion Policy".
+
+**GÜNCELLENDİ — terfi kararları artık otomatik üretilen kanıtla
+beslenir:** `false_positive_rate` artık elle/opsiyonel bir alan
+DEĞİLDİR — `compute_pilot_false_positive_rate.py`, gerçek kanıt
+dosyalarından sinyal toplayıp bir insan-onaylı defterle (`pilot_fpr_adjudications.json`)
+eşleştirir; yeterli veri yoksa oran `INSUFFICIENT_DATA` olarak KALIR
+(asla sıfır fabrike edilmez). `secrets_committed`/`classify_contract_changed`
+blocker'ları artık gerçek deterministik kontrollerdir (önceden hiçbir
+zaman tetiklenmeyen yer tutuculardı). Tam model: `docs/ops/MONITORING_STACK_RUNBOOK.md`
+"Evidence maturity model", "How FPR is computed", "Promotion blockers
+now auto-checked".
 
 ## Bilinen sınırlamalar
 

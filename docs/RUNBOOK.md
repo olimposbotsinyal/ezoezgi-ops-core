@@ -864,6 +864,44 @@ geçişi denetlenebilir kılar.
   dondugu `git diff` ile teyit edildi. Ayrinti: `docs/ops/MONITORING_STACK_RUNBOOK.md`
   "Pilot Promotion Policy", "Decision matrix and escalation path", "How
   to revert promoted flags safely".
+- **Kanit olgunlastirma sprinti (otomatik FPR + gercek legitimacy
+  saglayicisi + yapilandirilmis haftalik kanit):** yukaridaki terfi
+  kapisinin surekli EXTEND_PILOT/REJECT donmesinin uc kok nedenini
+  kapatti. (1) `scripts/ops/compute_pilot_false_positive_rate.py`,
+  ucucu (chain-matching/auto-rollback/legitimacy) kanit dosyalarindan
+  "sinyal" toplar, `infra/monitoring/governance/pilot_fpr_adjudications.json`
+  (insan tarafindan elle doldurulan bir defter) ile eslestirir; oran
+  YALNIZCA >=3 onayli sinyal varsa hesaplanir, aksi halde
+  `INSUFFICIENT_DATA` (ASLA sifir fabrike edilmez) --
+  `reports/pilot_metrics_<UTC>/fpr_summary.json`+`.md`.
+  `evaluate_pilot_promotion.py` bunu VARSA otomatik tercih eder, YOKSA
+  eski per-evidence-file ortalama davranisi GERIYE UYUMLU olarak
+  korunur. (2) `scripts/ops/legitimacy_provider_client.py`, `--provider
+  jira` ile GERCEK (salt-okunur) bilet-varlik dogrulamasi ekler --
+  kimlik bilgileri YALNIZCA `JIRA_BASE_URL`/`JIRA_EMAIL`/`JIRA_API_TOKEN`
+  ortam degiskenlerinden okunur, hicbir dosyaya yazilmaz, tum hata
+  yollari redaksiyondan gecer, 404/401/403 ASLA yeniden denenmez.
+  `emergency_legitimacy_core.py::evaluate_legitimacy` yeni
+  `precomputed_provider_result` parametresiyle genisletildi;
+  `provider='jira'` bu parametre OLMADAN cagrilirsa `ValueError` firlatir
+  (STUB fonksiyonun yanlislikla gercek bir sonucu fabrike etmesini
+  ONLEYEN bir guvenlik koruyucusu ile birlikte) -- `provider_is_stub_only`
+  blocker'i artik EK KOD DEGISIKLIGI GEREKMEDEN gercekten temizlenebilir.
+  (3) `scripts/ops/export_weekly_observability_json.py`, haftalik
+  gozden gecirme markdown'ini `reports/weekly_observability_<YYYY-WW>/review.json`'a
+  donusturur (yalnizca bu projenin KENDI denetimindeki render
+  formatini ayristirir); evaluator bunu VARSA tercih eder, markdown'a
+  asla geri DONMEZ. (4) Aslinda Commit AA'da (degerlendirici dosyasindaki
+  degisikliklerin FPR/haftalik-kanit kablolamasiyla ic ice gelismesi
+  nedeniyle) `secrets_committed`/`classify_contract_changed` blocker'lari
+  yer-tutucudan gercek deterministik kontrollere tasindi (bkz. yukarida
+  "v1.2 pilot terfi" bulten notu) -- desen-tabanli sir taramasi
+  (`secret_scan_core.py`) + AST-tabanli `classify()` sozlesme checksum'i
+  (`classify_contract_core.py`, docstring/yorum/varsayilan-deger
+  degisikliklerinden ETKILENMEZ). Ayrinti: `docs/ops/MONITORING_STACK_RUNBOOK.md`
+  "Evidence maturity model", "How FPR is computed", "Promotion blockers
+  now auto-checked", "Jira legitimacy verification setup (env-only
+  secrets)".
 
 ## Onay Gerektiren Aksiyonlar (Faz 4+ ile aktif olacak)
 

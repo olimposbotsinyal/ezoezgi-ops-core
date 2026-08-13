@@ -828,6 +828,177 @@ gerektirir.
    bir "env var'ı da kapat" adımı GEREKMEZ, ama netlik için yine de
    kapatılması ÖNERİLİR.
 
+## Evidence maturity model
+
+Commit Y/Z'de (bkz. "Pilot Promotion Policy") kararlar zaten
+otomatikti, ama KANIT üç yerde eksikti — bu yuzden gercek pilot
+verisiyle bile kararlar sürekli `EXTEND_PILOT`/`REJECT` çıkıyordu:
+
+1. **`false_positive_rate` elle/tutarsız üretiliyordu** — değerlendirici
+   yalnızca `required_evidence_paths`'teki dosyalarda VARSA bir
+   `false_positive_rate` alanını ortalıyordu; hiçbir standart üretici
+   yoktu.
+2. **Legitimacy sağlayıcısı YALNIZCA stub'du** (`mock`/`jira_stub`) —
+   `provider_is_stub_only` blocker'ı bu yüzden HER ZAMAN tetikleniyordu,
+   gerçek bir entegrasyon olmadan asla temizlenemezdi.
+3. **Haftalık gözden geçirme yalnızca markdown'dı** — makine tarafından
+   tutarlı biçimde ayrıştırılabilir DEĞİLDİ, değerlendirici bunu hiç
+   okumuyordu.
+
+Bu üç boşluk artık kapatıldı (bkz. aşağıdaki üç bölüm + Commit AA/AB),
+AMA hiçbiri "insan yargısını" ortadan kaldırmıyor — yalnızca insan
+yargısının ÖNÜNDEKİ mekanik/toplama işini otomatikleştiriyor:
+
+| Boşluk | Önce | Şimdi |
+|---|---|---|
+| FPR üretimi | Elle/opsiyonel, çoğu zaman eksik → `INSUFFICIENT_DATA` bile değil, sessizce yok | `compute_pilot_false_positive_rate.py` sinyalleri otomatik toplar; oran YALNIZCA yeterli insan-onaylı (`adjudicated`) veri varsa hesaplanır (bkz. "How FPR is computed") |
+| Legitimacy sağlayıcısı | Yalnızca `mock`/`jira_stub` — `provider_is_stub_only` her zaman REJECT | `--provider jira` ile GERÇEK (salt-okunur) bilet doğrulaması mümkün (bkz. "Jira legitimacy verification setup") — blocker artık GERÇEKTEN temizlenebilir |
+| Haftalık kanıt | Yalnızca markdown, değerlendirici tarafından OKUNMUYOR | `export_weekly_observability_json.py` → `review.json`; değerlendirici bunu VARSA tercih eder |
+| `secrets_committed`/`classify_contract_changed` blocker'ları | Her zaman `pass` (placeholder, hiçbir zaman tetiklenmez) | Gerçek deterministik kontroller (bkz. "Promotion blockers now auto-checked") |
+
+**Dürüstlük notu:** blocker otomasyonu (son satır) plan olarak "Commit
+AB" altında öngörülmüştü, ama değerlendirici dosyasındaki değişiklikler
+FPR/haftalık-kanıt kablolamasıyla iç içe geliştiği için fiilen Commit
+AA'da gönderildi — bkz. bu dosyanın Commit AA/AB özeti için
+`docs/BACKLOG.md`.
+
+## How FPR is computed
+
+`scripts/ops/compute_pilot_false_positive_rate.py`, üç pilot özelliği
+için GERÇEK kanıt dosyalarını tarayarak "sinyal" (incelenmesi gereken
+olay) toplar:
+
+| Özellik | Sinyal kaynağı | Tetikleyici koşul |
+|---|---|---|
+| `emergency_chain_matching` | `reports/emergency_chain_trial_*/chain_eval.json` + `reports/v1_2_pilot_*/**/chain_eval.json` | satırda `v1_2_checksum_chain == "BROKEN_CHAIN"` |
+| `auto_rollback_on_verify_fail` | `reports/v1_2_pilot_*/**/apply_report.json` + `reports/threshold_apply_*/apply_report.json` | `auto_rollback.triggered == true` |
+| `emergency_legitimacy_required` | `reports/emergency_legitimacy_*/legitimacy_report.json` + `reports/v1_2_pilot_*/**/legitimacy_report.json` | `legitimacy_status == "FAIL"` |
+
+Her sinyal bir `signal_id`'ye sahiptir (ör. `proposal_id`). Bu sinyaller
+KENDİ BAŞLARINA "yanlış pozitif" ANLAMINA GELMEZ — yalnızca "bir insanın
+gözden geçirmesi gereken bir olay" anlamına gelir. Gerçek
+doğru-pozitif/yanlış-pozitif kararı, `infra/monitoring/governance/pilot_fpr_adjudications.json`
+adlı **insan tarafından elle doldurulan** bir defterde tutulur (şema:
+`{feature, signal_id, verdict: CONFIRMED_TRUE_POSITIVE|CONFIRMED_FALSE_POSITIVE, adjudicated_by, adjudicated_at_utc}`).
+
+**Oran hesaplama kuralı — ASLA fabrike sıfır:**
+
+```text
+false_positive_rate = confirmed_false_positives / adjudicated_signals
+```
+
+YALNIZCA `adjudicated_signals >= 3` (`MIN_ADJUDICATED_FOR_RATE`) ise
+hesaplanır; aksi halde `status=INSUFFICIENT_DATA` ve
+`false_positive_rate=None` döner — **asla `0.0` olarak fabrike
+edilmez**. Güven bandı: `LOW` (<10 onaylı sinyal), `MEDIUM` (10-29),
+`HIGH` (>=30).
+
+**Çalıştırma:** `python scripts/ops/compute_pilot_false_positive_rate.py --repo-root <repo>`
+→ `reports/pilot_metrics_<UTC>/fpr_summary.json`+`.md`.
+
+**Değerlendiriciye kablolanışı:** `evaluate_pilot_promotion.py`, EN SON
+`reports/pilot_metrics_*/fpr_summary.json`'ı (üretim zamanına göre)
+otomatik bulur; bir özelliğin durumu orada `COMPUTED` ise, o dosyadaki
+oranı kullanır (eski, per-evidence-file ortalama davranışının YERİNE
+geçer). `fpr_summary.json` hiç yoksa veya özellik `INSUFFICIENT_DATA`
+ise, eski davranış (mevcut kanıt dosyalarındaki `false_positive_rate`
+alanlarının ortalaması, varsa) AYNEN korunur — geriye dönük uyumluluk
+kırılmaz.
+
+**Pratik sonuç:** bu boru hattı sinyal TOPLAMA işini otomatikleştirir,
+insan HAKEMLİĞİNİ (adjudication) ORTADAN KALDIRMAZ —
+`pilot_fpr_adjudications.json` boş başlar ve gerçek bir FPR
+`COMPUTED` olmadan önce bir insanın en az 3 sinyali gözden geçirip
+karar vermesi GEREKİR.
+
+## Promotion blockers now auto-checked
+
+Daha önce `_check_blockers()` içinde `secrets_committed` ve
+`classify_contract_changed` her zaman `pass` (hiçbir zaman
+tetiklenmeyen) yer tutuculardı. Artık ikisi de gerçek, deterministik
+kontrollerdir; `evaluate_pilot_promotion.py` her çalıştırmada (özellik
+döngüsünden ÖNCE, tek seferde) ikisini de çalıştırır:
+
+- **`secrets_committed`** — `scan_repo_for_secrets()`, `git ls-files`
+  ile TÜM izlenen dosyaları listeler, her birini
+  `scripts/ops/secret_scan_core.py::scan_files_for_secrets`'a verir.
+  Desen listesi (AWS anahtarı, genel `api_key`/`secret`/`password`
+  ataması, private key bloğu, Slack token'ı), allowlist-marker'lar
+  (`EXAMPLE`, `dummy`, `mock`, `placeholder`, vb.) ve allowlist-path'ler
+  (`.venv/`, `node_modules/`, `.git/`, `archive/`)
+  `infra/monitoring/governance/secret_scan_patterns_v1.json`'da
+  tanımlıdır. **Bu, TruffleHog/GitLeaks gibi genel amaçlı bir tarayıcı
+  DEĞİLDİR** — küçük, açık bir desen kümesidir; yazım anında repodaki
+  TÜM izlenen dosyalara karşı sıfır yanlış-pozitifle doğrulandı, ama
+  YENİ desenler pratikte ihtiyaç oldukça denylist'e EKLENMELİDİR.
+  Herhangi bir bulgu → blocker tetiklenir (REJECT), diğer kriterlerden
+  BAĞIMSIZ.
+- **`classify_contract_changed`** — `check_classify_contract_drift()`,
+  `services/tr-en-bridge/src/ollama_nlu.py`'deki GERÇEK `classify()`
+  fonksiyonunu AST ile ayrıştırır, YALNIZCA arayüz yüzeyini (parametre
+  adları/tipleri, opsiyonel-mi/zorunlu-mu — gerçek varsayılan DEĞER
+  değil, yalnızca bir `<default>` yer tutucusu — ve dönüş tipi) çıkarır
+  (docstring/yorum/varsayılan-değer değişiklikleri BİLEREK yok
+  sayılır), bir sha256 checksum hesaplar ve
+  `infra/contracts/classify_contract_checksum_v1.txt`'teki baseline ile
+  karşılaştırır. GERÇEK bir sözleşme değişikliği (yeni/kaldırılan
+  parametre, değişen tip, değişen dönüş tipi) → blocker tetiklenir.
+  **Baseline güncelleme prosedürü:** kasıtlı bir `classify()` imza
+  değişikliği (a) checksum dosyasının yeniden hesaplanmasını (dosyanın
+  başlığındaki tek-satırlık komutla) VE (b) `docs/BACKLOG.md`'de açık
+  bir karar notunu GEREKTİRİR — sessiz bir baseline güncellemesi
+  blocker'ın amacını ortadan kaldırır.
+
+**Çıktı üzerindeki etki:** herhangi bir gerçek bulgu, ilgili
+`blocker_conditions` listesinde bu blocker'ı içeren TÜM özellikler için
+kararı otomatik olarak `REJECT`'e çevirir (bkz. "Decision matrix").
+
+## Jira legitimacy verification setup (env-only secrets)
+
+`check_emergency_legitimacy.py --provider jira`, `mock`/`jira_stub`'ın
+YANINDA (onları DEĞİŞTİRMEDEN) eklenen GERÇEK, salt-okunur bir Jira
+bilet-varlık doğrulamasıdır (`scripts/ops/legitimacy_provider_client.py`).
+
+**Kurulum — YALNIZCA ortam değişkenleri, hiçbir dosyaya sır YAZILMAZ:**
+
+```powershell
+$env:JIRA_BASE_URL = "https://your-domain.atlassian.net"
+$env:JIRA_EMAIL = "you@example.com"
+$env:JIRA_API_TOKEN = "<Jira API token>"
+
+python scripts/ops/check_emergency_legitimacy.py --incident-id OPS-1234 --provider jira
+```
+
+- Üç değişkenden HERHANGİ BİRİ eksikse, GERÇEK bir ağ çağrısı hiç
+  DENENMEZ — `provider_evidence.checked=False` ile açıkça
+  "yapılandırılmadı" raporlanır. **Önemli tuzak:** bu, `provider=none`
+  ile AYNI semantiğe sahiptir — bir "atlama"dır, bir "başarısızlık"
+  DEĞİLDİR; ticket formatı geçerliyse sonuç yine `PASS` olur. GERÇEK
+  bir doğrulamanın yapıldığını teyit etmek için üretilen
+  `legitimacy_report.json`'daki `provider_evidence.checked` alanının
+  `true` olduğunu kontrol edin — yalnızca `legitimacy_status=PASS`
+  görmek GERÇEK bir Jira kontrolü yapıldığı anlamına GELMEZ.
+- Yapılandırılmışsa: salt-okunur tek bir `GET {JIRA_BASE_URL}/rest/api/2/issue/{ticket_id}`
+  çağrısı (Basic auth) yapılır. Yalnızca GEÇİCİ hatalarda (bağlantı/
+  zaman aşımı) varsayılan olarak 2 kez yeniden denenir; `404` (bilet
+  yok) ve `401`/`403` (kimlik doğrulama hatası) ASLA yeniden denenmez.
+- TÜM hata yolları redaksiyondan geçer — email/token değerleri hiçbir
+  zaman ham olarak rapora/loga yazılmaz (bkz.
+  `legitimacy_provider_client.py::redact`).
+- Çıktı: `legitimacy_report.json`/`.md` artık gerçek bir sağlayıcı
+  kontrolü yapıldığında açık bir `provider_evidence` bloğu içerir
+  (`mode`/`checked`/`found`/`status_code`/`detail`/`attempts`).
+- **`provider_is_stub_only` blocker'ıyla ilişkisi:** bu blocker zaten
+  `evidence_payloads`'taki `provider` alanını inceliyordu ve
+  `{"mock", "jira_stub", "none", None}` dışındaki HERHANGİ bir değeri
+  "gerçek sağlayıcı" sayıyordu (bkz. `evaluate_pilot_promotion.py`) —
+  yani `provider="jira"` ile üretilmiş en az bir `legitimacy_report.json`
+  `required_evidence_paths` içinde bulunduğunda bu blocker EK bir kod
+  değişikliği GEREKMEDEN otomatik olarak temizlenir.
+- **Hâlâ v1.2'de non-blocking:** diğer sağlayıcılar gibi, bu kontrolün
+  sonucu `apply_threshold_proposal.ps1`'i ENGELLEMEZ — bkz. "Emergency
+  Change Protocol" ve "Promotion criteria from pilot → enforced".
+
 ## Kalıcı (persistent) izleme profili
 
 `infra/monitoring/profiles/persistent/` — `prometheus.yml` +

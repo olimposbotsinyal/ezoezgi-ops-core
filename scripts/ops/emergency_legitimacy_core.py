@@ -37,7 +37,8 @@ DEFAULT_TICKET_REGEX = r"^OPS-\d+$"
 PROVIDER_NONE = "none"
 PROVIDER_MOCK = "mock"
 PROVIDER_JIRA_STUB = "jira_stub"
-VALID_PROVIDERS = (PROVIDER_NONE, PROVIDER_MOCK, PROVIDER_JIRA_STUB)
+PROVIDER_JIRA = "jira"
+VALID_PROVIDERS = (PROVIDER_NONE, PROVIDER_MOCK, PROVIDER_JIRA_STUB, PROVIDER_JIRA)
 
 
 def validate_ticket_format(ticket_id: str | None, *, pattern: str = DEFAULT_TICKET_REGEX) -> tuple[bool, str]:
@@ -64,13 +65,27 @@ class ProviderCheckResult:
 
 
 def run_provider_check(ticket_id: str | None, *, provider: str) -> ProviderCheckResult:
-    """PILOT: `mock`/`jira_stub` GERCEK bir aga/servise BAGLANMAZ --
+    """PILOT STUB: `mock`/`jira_stub` GERCEK bir aga/servise BAGLANMAZ --
     deterministik, sabit bir 'bulundu' sonucu doner (yalnizca
     gelecekteki gercek entegrasyonun ARAYUZUNU/SEKLINI gostermek
     icindir, gorev kisiti: "no real secrets required in pilot").
-    `none` ise kontrolun kendisi hic CALISTIRILMAZ (`checked=False`)."""
+    `none` ise kontrolun kendisi hic CALISTIRILMAZ (`checked=False`).
+
+    **`provider='jira'` (GERCEK mod) BU FONKSIYONLA ASLA DESTEKLENMEZ**
+    -- gercek bir ag cagrisi gerektirir, bu fonksiyon SAF/deterministik
+    kalmalidir. GERCEK kontrol icin `legitimacy_provider_client.check_ticket_via_jira()`
+    (CLI seviyesinde, `check_emergency_legitimacy.py` icinde) kullanilir
+    ve sonuc `evaluate_legitimacy()`'ye `precomputed_provider_result`
+    olarak GECIRILIR -- boylece bu STUB fonksiyon YANLISLIKLA gercek bir
+    Jira kontrolunu FABRIKE EDEMEZ."""
     if provider == PROVIDER_NONE:
         return ProviderCheckResult(checked=False, found=False, detail="provider=none -- saglayici kontrolu atlandi")
+    if provider == PROVIDER_JIRA:
+        return ProviderCheckResult(
+            checked=False, found=False,
+            detail="provider='jira' bu STUB fonksiyonla desteklenmez -- GERCEK kontrol icin "
+            "legitimacy_provider_client.check_ticket_via_jira() + precomputed_provider_result kullanilmalidir",
+        )
     if provider not in VALID_PROVIDERS:
         return ProviderCheckResult(checked=False, found=False, detail=f"bilinmeyen provider: {provider!r}")
     if not ticket_id:
@@ -93,7 +108,11 @@ class LegitimacyResult:
 
 
 def evaluate_legitimacy(
-    *, incident_id: str | None, provider: str = PROVIDER_NONE, ticket_regex: str = DEFAULT_TICKET_REGEX
+    *,
+    incident_id: str | None,
+    provider: str = PROVIDER_NONE,
+    ticket_regex: str = DEFAULT_TICKET_REGEX,
+    precomputed_provider_result: ProviderCheckResult | None = None,
 ) -> LegitimacyResult:
     """PILOT (non-blocking) mesruiyet degerlendirmesi.
 
@@ -101,7 +120,14 @@ def evaluate_legitimacy(
       (`SKIPPED`) -- bu bir on-kontroldur, henuz ZORUNLU degildir.
     - `incident_id` verilmisse: ONCE format kontrolu calisir (basarisizsa
       HEMEN `FAIL`, provider kontrolune GEREK KALMAZ), SONRA (format
-      gectiyse) provider kontrolu calisir -- ikisi de gecerse `PASS`."""
+      gectiyse) provider kontrolu calisir -- ikisi de gecerse `PASS`.
+
+    `precomputed_provider_result` VERILMISSE (CLI, `legitimacy_provider_client.check_ticket_via_jira()`
+    ile GERCEK bir ag cagrisi yaptiktan SONRA), bu fonksiyon KENDI
+    `run_provider_check()` STUB'ini CAGIRMAZ -- verilen sonucu DOGRUDAN
+    kullanir. `provider='jira'` VERILMIS AMA `precomputed_provider_result`
+    VERILMEMISSE, bu bir PROGRAMLAMA HATASIDIR (`ValueError`) -- bu
+    fonksiyon KENDISI ASLA gercek bir Jira kontrolunu fabrike ETMEZ."""
     if incident_id is None:
         return LegitimacyResult(status=STATUS_SKIPPED, reasons=["incident_id saglanmadi -- pilot on-kontrolu atlandi"])
 
@@ -111,7 +137,17 @@ def evaluate_legitimacy(
     if not format_ok:
         return LegitimacyResult(status=STATUS_FAIL, reasons=reasons)
 
-    provider_result = run_provider_check(incident_id, provider=provider)
+    if precomputed_provider_result is not None:
+        provider_result = precomputed_provider_result
+    elif provider == PROVIDER_JIRA:
+        raise ValueError(
+            "provider='jira' icin GERCEK bir kontrol ONCEDEN yapilip 'precomputed_provider_result' "
+            "olarak GECIRILMELIDIR -- bu fonksiyon KENDISI asla gercek bir ag cagrisi yapmaz "
+            "(bkz. check_emergency_legitimacy.py)"
+        )
+    else:
+        provider_result = run_provider_check(incident_id, provider=provider)
+
     reasons.append(provider_result.detail)
     if provider_result.checked and not provider_result.found:
         return LegitimacyResult(status=STATUS_FAIL, reasons=reasons)
@@ -125,7 +161,8 @@ def evaluate_legitimacy(
 
 
 def render_legitimacy_report_md(
-    result: LegitimacyResult, *, generated_at: str, incident_id: str | None, provider: str
+    result: LegitimacyResult, *, generated_at: str, incident_id: str | None, provider: str,
+    provider_evidence: dict[str, Any] | None = None,
 ) -> str:
     lines = [
         "# Acil Durum Mesruiyet On-Kontrolu (PILOT, non-blocking)",
@@ -140,6 +177,17 @@ def render_legitimacy_report_md(
     ]
     for r in result.reasons:
         lines.append(f"- {r}")
+    if provider_evidence is not None:
+        lines += [
+            "",
+            "## Saglayici kaniti (provider_evidence -- GERCEK kontrol)",
+            "",
+            f"- checked: {provider_evidence.get('checked')}",
+            f"- found: {provider_evidence.get('found')}",
+            f"- status_code: {provider_evidence.get('status_code')}",
+            f"- attempts: {provider_evidence.get('attempts')}",
+            f"- detail: {provider_evidence.get('detail')} (kimlik bilgisi degerleri ASLA burada gorunmez)",
+        ]
     lines += [
         "",
         "**NOT (PILOT):** Bu kontrol HENUZ hicbir apply akisini ENGELLEMEZ "
@@ -152,11 +200,14 @@ def render_legitimacy_report_md(
 
 
 def write_legitimacy_report(
-    result: LegitimacyResult, out_dir: Path, *, generated_at: str, incident_id: str | None, provider: str
+    result: LegitimacyResult, out_dir: Path, *, generated_at: str, incident_id: str | None, provider: str,
+    provider_evidence: dict[str, Any] | None = None,
 ) -> dict[str, Path]:
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    md = render_legitimacy_report_md(result, generated_at=generated_at, incident_id=incident_id, provider=provider)
+    md = render_legitimacy_report_md(
+        result, generated_at=generated_at, incident_id=incident_id, provider=provider, provider_evidence=provider_evidence
+    )
     md_path = out_dir / "legitimacy_report.md"
     md_path.write_text(md, encoding="utf-8")
 
@@ -167,6 +218,7 @@ def write_legitimacy_report(
         "provider": provider,
         "legitimacy_status": result.status,
         "reasons": result.reasons,
+        "provider_evidence": provider_evidence,
     }
     json_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
     return {"md": md_path, "json": json_path}

@@ -343,6 +343,24 @@ def test_scan_repo_for_secrets_finds_genuine_pattern(tmp_path):
     assert findings[0].pattern_name == "aws_access_key_id"
 
 
+def test_scan_repo_for_secrets_real_repo_and_real_config_finds_nothing():
+    """Regresyon (2026-08-13, Commit AB sirasinda kesfedildi): gercek
+    repo + gercek `secret_scan_patterns_v1.json` ile taranirsa,
+    `tests/test_secret_scan_core.py`/`tests/test_evaluate_pilot_promotion.py`'nin
+    KENDI sentetik-sir test fixture'lari (sahte-ama-desene-uyan
+    degerler) 'secrets_committed'i YANLISLIKLA tetikliyordu -- bu,
+    evaluator'i HER ZAMAN REJECT'e zorluyordu. Dosya-bazli allowlist
+    istisnalari (bkz. `secret_scan_patterns_v1.json`'daki
+    `$allowlist_paths_note`) bunu duzeltti; bu test bir regresyonu
+    KALICI olarak yakalar."""
+    from evaluate_pilot_promotion import scan_repo_for_secrets
+
+    findings = scan_repo_for_secrets(
+        REPO_ROOT_DEFAULT, REPO_ROOT_DEFAULT / "infra" / "monitoring" / "governance" / "secret_scan_patterns_v1.json"
+    )
+    assert findings == []
+
+
 def test_check_classify_contract_drift_matches_real_repo_baseline():
     result, reason = check_classify_contract_drift(
         REPO_ROOT_DEFAULT, REPO_ROOT_DEFAULT / "infra" / "contracts" / "classify_contract_checksum_v1.txt"
