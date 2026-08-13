@@ -338,6 +338,128 @@ def test_find_latest_weekly_review_json_none_when_missing(tmp_path):
     assert _find_latest_weekly_review_json(tmp_path) is None
 
 
+def test_find_latest_observation_window_report_picks_most_recent(tmp_path):
+    from evaluate_pilot_promotion import _find_latest_observation_window_report
+
+    _write_json(
+        tmp_path / "reports/pilot_promotion_A/observation_window_report.json",
+        {"generated_at": "2026-08-01T00:00:00+00:00", "windows": [{"feature": "x", "remaining_runs": 5}]},
+    )
+    _write_json(
+        tmp_path / "reports/pilot_promotion_B/observation_window_report.json",
+        {"generated_at": "2026-08-13T00:00:00+00:00", "windows": [{"feature": "x", "remaining_runs": 0}]},
+    )
+    result = _find_latest_observation_window_report(tmp_path)
+    assert result["windows"][0]["remaining_runs"] == 0
+
+
+def test_find_latest_observation_window_report_none_when_missing(tmp_path):
+    from evaluate_pilot_promotion import _find_latest_observation_window_report
+
+    assert _find_latest_observation_window_report(tmp_path) is None
+
+
+def test_main_references_observation_window_report_when_present(tmp_path, monkeypatch):
+    """`evaluate_pilot_promotion.py` (normal mod), EN SON gozlem
+    penceresi raporunu bulursa `observation_window_context.json` olarak
+    kendi cikti dizinine kopyalamalidir (gorev kisiti: "Evaluator/
+    rehearsal should reference this report when present")."""
+    criteria_path = tmp_path / "criteria.json"
+    criteria_path.write_text(
+        json.dumps(
+            {
+                "features": {
+                    name: {
+                        "observation_min_days": 1, "min_runs": 1, "max_false_positive_rate": 0.1,
+                        "max_unresolved_critical": 0, "required_evidence_paths": ["reports/does_not_exist_*/x.json"],
+                        "blocker_conditions": [],
+                    }
+                    for name in ["emergency_chain_matching", "auto_rollback_on_verify_fail", "emergency_legitimacy_required"]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    _write_json(
+        tmp_path / "reports/pilot_promotion_PRIOR/observation_window_report.json",
+        {"generated_at": "2026-08-13T00:00:00+00:00", "windows": [{"feature": "x", "remaining_runs": 3}]},
+    )
+    out_dir = tmp_path / "out"
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "evaluate_pilot_promotion.py", "--repo-root", str(tmp_path), "--criteria-path", str(criteria_path),
+            "--skip-secret-scan", "--output-dir", str(out_dir),
+        ],
+    )
+    main()
+    payload = json.loads((out_dir / "observation_window_context.json").read_text(encoding="utf-8"))
+    assert payload["windows"][0]["remaining_runs"] == 3
+
+
+def test_main_rehearsal_also_references_observation_window_report(tmp_path, monkeypatch):
+    criteria_path = tmp_path / "criteria.json"
+    criteria_path.write_text(
+        json.dumps(
+            {
+                "features": {
+                    name: {
+                        "observation_min_days": 1, "min_runs": 1, "max_false_positive_rate": 0.1,
+                        "max_unresolved_critical": 0, "required_evidence_paths": ["reports/does_not_exist_*/x.json"],
+                        "blocker_conditions": [],
+                    }
+                    for name in ["emergency_chain_matching", "auto_rollback_on_verify_fail", "emergency_legitimacy_required"]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    _write_json(
+        tmp_path / "reports/pilot_promotion_PRIOR/observation_window_report.json",
+        {"generated_at": "2026-08-13T00:00:00+00:00", "windows": [{"feature": "x", "remaining_runs": 7}]},
+    )
+    out_dir = tmp_path / "out"
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "evaluate_pilot_promotion.py", "--repo-root", str(tmp_path), "--criteria-path", str(criteria_path),
+            "--skip-secret-scan", "--rehearsal", "--output-dir", str(out_dir),
+        ],
+    )
+    main()
+    payload = json.loads((out_dir / "observation_window_context.json").read_text(encoding="utf-8"))
+    assert payload["windows"][0]["remaining_runs"] == 7
+
+
+def test_main_no_observation_window_context_written_when_absent(tmp_path, monkeypatch):
+    criteria_path = tmp_path / "criteria.json"
+    criteria_path.write_text(
+        json.dumps(
+            {
+                "features": {
+                    name: {
+                        "observation_min_days": 1, "min_runs": 1, "max_false_positive_rate": 0.1,
+                        "max_unresolved_critical": 0, "required_evidence_paths": ["reports/does_not_exist_*/x.json"],
+                        "blocker_conditions": [],
+                    }
+                    for name in ["emergency_chain_matching", "auto_rollback_on_verify_fail", "emergency_legitimacy_required"]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    out_dir = tmp_path / "out"
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "evaluate_pilot_promotion.py", "--repo-root", str(tmp_path), "--criteria-path", str(criteria_path),
+            "--skip-secret-scan", "--output-dir", str(out_dir),
+        ],
+    )
+    main()
+    assert not (out_dir / "observation_window_context.json").exists()
+
+
 # --- v1.2 evidence maturity: gercek blocker kontrolleri -------------------------
 
 

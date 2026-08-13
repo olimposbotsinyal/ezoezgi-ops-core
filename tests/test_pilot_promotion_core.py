@@ -20,6 +20,7 @@ from pilot_promotion_core import (
     EvidenceSummary,
     PromotionDecision,
     apply_promotions_to_state,
+    compute_observation_window,
     compute_rehearsal_detail,
     default_pilot_flags_state,
     evaluate_feature,
@@ -29,6 +30,7 @@ from pilot_promotion_core import (
     load_pilot_flags_state,
     overall_exit_code,
     render_flag_apply_report_md,
+    render_observation_window_md,
     render_promotion_report_md,
     render_rehearsal_report_md,
     restore_previous_state,
@@ -37,6 +39,7 @@ from pilot_promotion_core import (
     validate_legitimacy_report_schema,
     validate_weekly_review_schema,
     write_flag_apply_report,
+    write_observation_window_report,
     write_pilot_flags_state,
     write_promotion_report,
     write_rehearsal_report,
@@ -558,3 +561,72 @@ def test_write_rehearsal_report_creates_md_and_json_with_rehearsal_flag(tmp_path
     payload = json.loads(paths["json"].read_text(encoding="utf-8"))
     assert payload["rehearsal"] is True
     assert payload["details"][0]["feature"] == "x"
+
+
+# --- Gozlem penceresi (observation window) hesaplayicisi -------------------------
+
+
+def test_compute_observation_window_reports_remaining_runs_and_days():
+    criteria = _criteria(min_runs=5, observation_min_days=14)
+    evidence = _evidence(runs=2, observation_days=3.0)
+    window = compute_observation_window("x", criteria, evidence)
+    assert window["run_count"] == 2
+    assert window["observed_days"] == 3.0
+    assert window["remaining_runs"] == 3
+    assert window["remaining_days"] == 11.0
+    assert window["window_satisfied"] is False
+
+
+def test_compute_observation_window_satisfied_when_criteria_met():
+    criteria = _criteria(min_runs=3, observation_min_days=14)
+    evidence = _evidence(runs=5, observation_days=20.0)
+    window = compute_observation_window("x", criteria, evidence)
+    assert window["remaining_runs"] == 0
+    assert window["remaining_days"] == 0.0
+    assert window["window_satisfied"] is True
+
+
+def test_compute_observation_window_never_reports_negative_remaining():
+    """Kanit gerekenden FAZLA olsa bile (`runs > min_runs`), eksik
+    sayilar ASLA NEGATIF olmamalidir -- `max(0, ...)` garantisi."""
+    criteria = _criteria(min_runs=1, observation_min_days=1)
+    evidence = _evidence(runs=100, observation_days=100.0)
+    window = compute_observation_window("x", criteria, evidence)
+    assert window["remaining_runs"] == 0
+    assert window["remaining_days"] == 0.0
+
+
+def test_compute_observation_window_includes_skipped_evidence_count():
+    criteria = _criteria()
+    evidence = _evidence(skipped_evidence_count=4)
+    window = compute_observation_window("x", criteria, evidence)
+    assert window["skipped_evidence_count"] == 4
+
+
+def test_render_observation_window_md_includes_table_and_status():
+    criteria = _criteria(min_runs=5, observation_min_days=14)
+    evidence = _evidence(runs=2, observation_days=3.0)
+    window = compute_observation_window("emergency_chain_matching", criteria, evidence)
+    md = render_observation_window_md([window], generated_at="2026-08-13T00:00:00+00:00")
+    assert "emergency_chain_matching" in md
+    assert "hayir" in md  # window_satisfied=False
+
+
+def test_render_observation_window_md_shows_evet_when_satisfied():
+    criteria = _criteria(min_runs=1, observation_min_days=1)
+    evidence = _evidence(runs=5, observation_days=20.0)
+    window = compute_observation_window("x", criteria, evidence)
+    md = render_observation_window_md([window], generated_at="2026-08-13T00:00:00+00:00")
+    assert "EVET" in md
+
+
+def test_write_observation_window_report_creates_md_and_json(tmp_path):
+    criteria = _criteria(min_runs=5, observation_min_days=14)
+    evidence = _evidence(runs=2, observation_days=3.0)
+    window = compute_observation_window("x", criteria, evidence)
+    paths = write_observation_window_report([window], tmp_path / "out", generated_at="2026-08-13T00:00:00+00:00")
+    assert paths["md"].exists()
+    assert paths["json"].exists()
+    payload = json.loads(paths["json"].read_text(encoding="utf-8"))
+    assert payload["windows"][0]["feature"] == "x"
+    assert payload["windows"][0]["remaining_runs"] == 3

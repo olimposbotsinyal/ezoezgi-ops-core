@@ -543,6 +543,76 @@ def write_rehearsal_report(details: list[dict[str, Any]], out_dir: Path, *, gene
     return {"md": md_path, "json": json_path}
 
 
+# ---------------------------------------------------------------------------
+# Gozlem penceresi (observation window) kontrolu -- `check_pilot_observation_window.py`
+# icin saf mantik. `compute_rehearsal_detail` ile AYNI matematigi
+# (runs_needed/days_needed) kullanir, ama DAR/ODAKLI bir cikti sekli
+# sunar (karar/blocker/FPR baglamini KARISTIRMAZ) -- gorev kisiti: "per
+# feature: observed_days, run_count, remaining_days, remaining_runs".
+# ---------------------------------------------------------------------------
+
+
+def compute_observation_window(feature_name: str, criteria: dict[str, Any], evidence: EvidenceSummary) -> dict[str, Any]:
+    """SAF -- dosya G/C YAPMAZ. Yalnizca gozlem penceresi (calistirma
+    sayisi + gun) hesaplar, karar/blocker/FPR mantigina KARISMAZ (bkz.
+    `compute_rehearsal_detail` -- daha genis kapsamli, karar-odakli
+    surum, AYNI temel matematigi paylasir)."""
+    remaining_runs = max(0, criteria["min_runs"] - evidence.runs)
+    remaining_days = max(0.0, criteria["observation_min_days"] - evidence.observation_days)
+    return {
+        "feature": feature_name,
+        "observed_days": round(evidence.observation_days, 1),
+        "run_count": evidence.runs,
+        "remaining_days": round(remaining_days, 1),
+        "remaining_runs": remaining_runs,
+        "min_runs_required": criteria["min_runs"],
+        "observation_min_days_required": criteria["observation_min_days"],
+        "skipped_evidence_count": evidence.skipped_evidence_count,
+        "window_satisfied": remaining_runs == 0 and remaining_days == 0.0,
+    }
+
+
+def render_observation_window_md(windows: list[dict[str, Any]], *, generated_at: str) -> str:
+    lines = [
+        "# v1.2 Pilot Gozlem Penceresi (Observation Window) Raporu",
+        "",
+        f"Uretildi (UTC): {generated_at}",
+        "",
+        "| Ozellik | Gozlemlenen gun | Calistirma sayisi | Eksik gun | Eksik calistirma | Pencere karsilandi mi? |",
+        "|---|---|---|---|---|---|",
+    ]
+    for w in windows:
+        lines.append(
+            f"| {w['feature']} | {w['observed_days']:.1f}/{w['observation_min_days_required']} "
+            f"| {w['run_count']}/{w['min_runs_required']} | {w['remaining_days']:.1f} "
+            f"| {w['remaining_runs']} | {'EVET' if w['window_satisfied'] else 'hayir'} |"
+        )
+    lines.append("")
+    lines.append(
+        "NOT: Bu rapor YALNIZCA gozlem penceresini (calistirma sayisi + gun) "
+        "raporlar -- blocker/FPR/karar mantigina KARISMAZ (bkz. "
+        "`evaluate_pilot_promotion.py`/`--rehearsal` icin tam karar). "
+        "`skipped_evidence_count > 0` olan bir ozellik icin, o kadar kanit "
+        "girdisi 'kontrol edilmedi' oldugu icin sayimlara DAHIL EDILMEMISTIR "
+        "(bkz. docs/ops/MONITORING_STACK_RUNBOOK.md 'Legitimacy status "
+        "semantics')."
+    )
+    return "\n".join(lines) + "\n"
+
+
+def write_observation_window_report(windows: list[dict[str, Any]], out_dir: Path, *, generated_at: str) -> dict[str, Path]:
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    md = render_observation_window_md(windows, generated_at=generated_at)
+    md_path = out_dir / "observation_window_report.md"
+    md_path.write_text(md, encoding="utf-8")
+
+    json_path = out_dir / "observation_window_report.json"
+    payload = {"generated_at": generated_at, "windows": windows}
+    json_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+    return {"md": md_path, "json": json_path}
+
+
 def render_flag_apply_report_md(
     decisions_by_feature: dict[str, str], applied: dict[str, bool], *, generated_at: str, dry_run: bool
 ) -> str:

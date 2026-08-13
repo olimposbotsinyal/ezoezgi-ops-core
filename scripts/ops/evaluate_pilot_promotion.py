@@ -236,6 +236,30 @@ def _find_latest_weekly_review_json(repo_root: Path) -> dict[str, Any] | None:
     return latest_entry
 
 
+def _find_latest_observation_window_report(repo_root: Path) -> dict[str, Any] | None:
+    """En son `reports/pilot_promotion_*/observation_window_report.json`'i
+    (`check_pilot_observation_window.py`'nin ciktisi) bulur -- BILGI
+    AMACLIDIR, karar mantigina KARISMAZ (evaluator kendi observation_days/
+    runs'ini zaten BAGIMSIZ olarak hesaplar) -- yalnizca operator/rehearsal
+    ciktisina "en son gozlem penceresi kontrolu ne zamandi/ne durumdaydi"
+    baglamini eklemek icin REFERANS verilir (gorev kisiti: "Evaluator/
+    rehearsal should reference this report when present")."""
+    candidates = sorted(repo_root.glob("reports/pilot_promotion_*/observation_window_report.json"))
+    latest_payload = None
+    latest_dt = None
+    for c in candidates:
+        payload = _load_json_safely(c)
+        if payload is None:
+            continue
+        dt = _extract_generated_at(payload)
+        if dt is None:
+            continue
+        if latest_dt is None or dt > latest_dt:
+            latest_dt = dt
+            latest_payload = payload
+    return latest_payload
+
+
 def collect_evidence_schema_errors(
     repo_root: Path, *, fpr_summary: dict[str, Any] | None, weekly_context: dict[str, Any] | None
 ) -> list[str]:
@@ -435,6 +459,10 @@ def main() -> int:
     if weekly_context:
         print(f"En son yapisal haftalik kanit bulundu: durum={weekly_context.get('status')}")
 
+    observation_window_report = _find_latest_observation_window_report(repo_root)
+    if observation_window_report:
+        print(f"En son gozlem penceresi raporu bulundu: {observation_window_report.get('generated_at')}")
+
     evidence_schema_errors = collect_evidence_schema_errors(repo_root, fpr_summary=fpr_summary, weekly_context=weekly_context)
     if evidence_schema_errors:
         print(f"UYARI: {len(evidence_schema_errors)} kanit semasi hatasi tespit edildi (invalid_evidence_schema blocker'ini etkiler).")
@@ -470,6 +498,10 @@ def main() -> int:
             for d in decisions
         ]
         write_rehearsal_report(details, out_dir, generated_at=generated_at)
+        if observation_window_report:
+            (out_dir / "observation_window_context.json").write_text(
+                json.dumps(observation_window_report, indent=2, ensure_ascii=False), encoding="utf-8"
+            )
         print("=== KARAR PROVASI (REHEARSAL) -- hicbir kalici durum degistirilmedi ===")
         for d in details:
             note = ""
@@ -490,6 +522,10 @@ def main() -> int:
     if weekly_context:
         (out_dir / "weekly_evidence_context.json").write_text(
             json.dumps(weekly_context, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+    if observation_window_report:
+        (out_dir / "observation_window_context.json").write_text(
+            json.dumps(observation_window_report, indent=2, ensure_ascii=False), encoding="utf-8"
         )
 
     for d in decisions:
