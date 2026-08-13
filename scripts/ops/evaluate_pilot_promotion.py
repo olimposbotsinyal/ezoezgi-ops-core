@@ -154,6 +154,7 @@ def _check_blockers(
     drift_report: dict[str, Any] | None,
     secrets_found: list,
     contract_changed: bool,
+    evidence_schema_invalid: bool = False,
 ) -> list[str]:
     tripped: list[str] = []
     for blocker in blocker_conditions:
@@ -171,10 +172,23 @@ def _check_blockers(
                 tripped.append(blocker)
         elif blocker == "provider_is_stub_only":
             if feature_name == "emergency_legitimacy_required" and evidence_payloads:
-                providers = {p.get("provider") for p in evidence_payloads if "provider" in p}
-                real_provider_used = bool(providers - {"mock", "jira_stub", "none", None})
+                # "GERCEK saglayici kullanildi" iddiasi, provider alaninin
+                # stub-disi olmasi TEK BASINA YETMEZ -- provider_evidence.checked
+                # de True olmalidir (SKIPPED/checked=False, provider='jira'
+                # YAPILANDIRILMAMIS OLSA BILE tripped'i yanlislikla
+                # temizleyebilirdi -- bkz. "no implicit pass on unchecked
+                # provider" gorev kisiti, AYNI ilke burada da gecerlidir).
+                real_provider_used = any(
+                    p.get("provider") not in ("mock", "jira_stub", "none", None)
+                    and isinstance(p.get("provider_evidence"), dict)
+                    and p["provider_evidence"].get("checked") is True
+                    for p in evidence_payloads
+                )
                 if not real_provider_used:
                     tripped.append(blocker)
+        elif blocker == "invalid_evidence_schema":
+            if evidence_schema_invalid:
+                tripped.append(blocker)
     return tripped
 
 
@@ -222,6 +236,42 @@ def _find_latest_weekly_review_json(repo_root: Path) -> dict[str, Any] | None:
     return latest_entry
 
 
+def collect_evidence_schema_errors(
+    repo_root: Path, *, fpr_summary: dict[str, Any] | None, weekly_context: dict[str, Any] | None
+) -> list[str]:
+    """ASGARI kanit sema kontrolleri (gorev kisiti: "Minimum data
+    contracts") -- `fpr_summary.json`/`review.json` (bulunduysa) VE HER
+    bulunan `legitimacy_report.json` dosyasi `pilot_promotion_core.py`'daki
+    saf `validate_*_schema()` fonksiyonlariyla dogrulanir. Hata BULUNURSA
+    (bos olmayan liste), `invalid_evidence_schema` blocker'i tetiklenir
+    (bkz. `_check_blockers`) -- REJECT'e zorlar, cunku SEMASI BOZUK bir
+    kanit dosyasina dayanarak PROMOTE etmek fabrike edilmis bir karar
+    riski tasir."""
+    from pilot_promotion_core import (
+        validate_fpr_summary_schema,
+        validate_legitimacy_report_schema,
+        validate_weekly_review_schema,
+    )
+
+    errors: list[str] = []
+    if fpr_summary is not None:
+        errors += [f"fpr_summary.json: {e}" for e in validate_fpr_summary_schema(fpr_summary)]
+    if weekly_context is not None:
+        errors += [f"review.json: {e}" for e in validate_weekly_review_schema(weekly_context)]
+
+    legitimacy_files, _ = _find_evidence_files(
+        repo_root,
+        ["reports/emergency_legitimacy_*/legitimacy_report.json", "reports/v1_2_pilot_*/**/legitimacy_report.json"],
+    )
+    for f in legitimacy_files:
+        payload = _load_json_safely(f)
+        if payload is None:
+            continue
+        errors += [f"{f}: {e}" for e in validate_legitimacy_report_schema(payload)]
+
+    return errors
+
+
 def compute_evidence_summary(
     feature_name: str,
     criteria: dict[str, Any],
@@ -231,20 +281,38 @@ def compute_evidence_summary(
     secrets_found: list,
     contract_changed: bool,
     fpr_summary: dict[str, Any] | None = None,
+    evidence_schema_invalid: bool = False,
 ):
     from pilot_promotion_core import EvidenceSummary
 
     patterns = criteria["required_evidence_paths"]
     files, missing_patterns = _find_evidence_files(repo_root, patterns)
 
+    # `payloads`: TUM basariyla yuklenen kanit dosyalari (blocker kontrolleri
+    # -- ornegin provider_is_stub_only -- BUNU gorur, SKIPPED dahil).
+    # `countable_payloads`: yalnizca GERCEKTEN tamamlanmis bir dogrulamayi
+    # TEMSIL EDEN girdiler -- `emergency_legitimacy_required` icin
+    # `legitimacy_status=SKIPPED` olan bir legitimacy_report.json "hic
+    # kontrol edilmedi" anlamina gelir, bu yuzden runs/observation_days/
+    # false_positive_rate hesaplamasina KATILMAZ (gorev kisiti: "evaluator
+    # treats SKIPPED as non-promotable evidence for legitimacy_required").
     payloads: list[dict[str, Any]] = []
+    countable_payloads: list[dict[str, Any]] = []
     generated_ats: list[datetime] = []
     fp_rates: list[float] = []
+    skipped_evidence_count = 0
     for f in files:
         payload = _load_json_safely(f)
         if payload is None:
             continue
         payloads.append(payload)
+        is_skipped_legitimacy = (
+            feature_name == "emergency_legitimacy_required" and payload.get("legitimacy_status") == "SKIPPED"
+        )
+        if is_skipped_legitimacy:
+            skipped_evidence_count += 1
+            continue
+        countable_payloads.append(payload)
         dt = _extract_generated_at(payload)
         if dt is not None:
             generated_ats.append(dt)
@@ -282,17 +350,18 @@ def compute_evidence_summary(
 
     blockers = _check_blockers(
         feature_name, criteria["blocker_conditions"], evidence_payloads=payloads, drift_report=drift_report,
-        secrets_found=secrets_found, contract_changed=contract_changed,
+        secrets_found=secrets_found, contract_changed=contract_changed, evidence_schema_invalid=evidence_schema_invalid,
     )
 
     return EvidenceSummary(
-        runs=len(payloads),
+        runs=len(countable_payloads),
         observation_days=observation_days,
         false_positive_rate=fp_rate,
         unresolved_critical=unresolved_critical,
         blockers_tripped=blockers,
         missing_evidence_patterns=missing_patterns,
         evidence_files=[str(f) for f in files],
+        skipped_evidence_count=skipped_evidence_count,
     )
 
 
@@ -305,6 +374,12 @@ def main() -> int:
     parser.add_argument(
         "--skip-secret-scan", action="store_true",
         help="Repo-genelinde secret taramasini ATLA (yavas olabilir -- test/gelistirme icin)",
+    )
+    parser.add_argument(
+        "--rehearsal", action="store_true",
+        help="Karar PROVASI (rehearsal) modu: AYNI karari hesaplar ama pilot_flags_state.json'a "
+        "veya baska hicbir kalici duruma DOKUNMAZ (zaten dokunmuyordu) -- 'kac calistirma/gun daha "
+        "gerekli' seklinde SOMUT bir rehearsal_report.md/json yazar, promotion_report.md/json YAZMAZ.",
     )
     parser.add_argument("--output-dir", default=None)
     args = parser.parse_args()
@@ -360,13 +435,25 @@ def main() -> int:
     if weekly_context:
         print(f"En son yapisal haftalik kanit bulundu: durum={weekly_context.get('status')}")
 
+    evidence_schema_errors = collect_evidence_schema_errors(repo_root, fpr_summary=fpr_summary, weekly_context=weekly_context)
+    if evidence_schema_errors:
+        print(f"UYARI: {len(evidence_schema_errors)} kanit semasi hatasi tespit edildi (invalid_evidence_schema blocker'ini etkiler).")
+        for e in evidence_schema_errors:
+            print(f"  - {e}")
+    evidence_schema_invalid = bool(evidence_schema_errors)
+
     decisions = []
+    evidence_by_feature: dict[str, Any] = {}
+    criteria_by_feature: dict[str, Any] = {}
     for feature_name in FEATURE_NAMES:
         criteria = get_feature_criteria(manifest, feature_name)
         evidence = compute_evidence_summary(
             feature_name, criteria, repo_root=repo_root, now=now,
             secrets_found=secrets_found, contract_changed=contract_changed, fpr_summary=fpr_summary,
+            evidence_schema_invalid=evidence_schema_invalid,
         )
+        criteria_by_feature[feature_name] = criteria
+        evidence_by_feature[feature_name] = evidence
         decisions.append(evaluate_feature(feature_name, criteria, evidence))
 
     if args.output_dir:
@@ -374,6 +461,30 @@ def main() -> int:
     else:
         ts = now.strftime("%Y%m%dT%H%M%SZ")
         out_dir = repo_root / "reports" / f"pilot_promotion_{ts}"
+
+    if args.rehearsal:
+        from pilot_promotion_core import compute_rehearsal_detail, write_rehearsal_report
+
+        details = [
+            compute_rehearsal_detail(d.feature, criteria_by_feature[d.feature], evidence_by_feature[d.feature], d)
+            for d in decisions
+        ]
+        write_rehearsal_report(details, out_dir, generated_at=generated_at)
+        print("=== KARAR PROVASI (REHEARSAL) -- hicbir kalici durum degistirilmedi ===")
+        for d in details:
+            note = ""
+            if d["decision"] == "REJECT":
+                note = f"blocker(lar): {', '.join(d['blockers_tripped'])}"
+            else:
+                parts = []
+                if d["runs_needed"] > 0:
+                    parts.append(f"{d['runs_needed']} calistirma daha")
+                if d["days_needed"] > 0:
+                    parts.append(f"{d['days_needed']:.1f} gun daha")
+                note = ", ".join(parts) if parts else "tum kriterler karsilandi"
+            print(f"{d['feature']}: {d['decision']} -- {note}")
+        print(f"evidence_dir={out_dir}")
+        return overall_exit_code(decisions)
 
     write_promotion_report(decisions, out_dir, generated_at=generated_at)
     if weekly_context:

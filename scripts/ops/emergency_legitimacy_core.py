@@ -120,7 +120,26 @@ def evaluate_legitimacy(
       (`SKIPPED`) -- bu bir on-kontroldur, henuz ZORUNLU degildir.
     - `incident_id` verilmisse: ONCE format kontrolu calisir (basarisizsa
       HEMEN `FAIL`, provider kontrolune GEREK KALMAZ), SONRA (format
-      gectiyse) provider kontrolu calisir -- ikisi de gecerse `PASS`.
+      gectiyse) provider kontrolu calisir.
+
+    **Durum semantigi (KESIN, 3 durum -- gorev kisiti: "no implicit
+    pass on unchecked provider"):**
+      - `PASS`: format gecerli VE provider GERCEKTEN kontrol edildi
+        (`checked=True`) VE bulundu (`found=True`).
+      - `FAIL`: format GECERSIZ, VEYA provider GERCEKTEN kontrol edildi
+        (`checked=True`) AMA bulunamadi/gecersiz (`found=False`).
+      - `SKIPPED`: `incident_id` hic verilmemis, VEYA provider='jira'
+        icin kontrol calismadi (`checked=False` -- ortam/kimlik bilgisi
+        eksik/yapilandirilmamis). **`provider='jira'` icin `checked=False`
+        ASLA `PASS`'e DUSMEZ** -- eskiden (bu duzeltmeden ONCE) format
+        gecerliyse VE provider atlanmissa (checked=False) sonuc sessizce
+        `PASS` donuyordu, bu YANLIS-GUVEN veriyordu (bkz. docs/BACKLOG.md
+        "Kanit olgunlastirma sprinti" bilinen sinirlama notu). `none`/
+        `mock`/`jira_stub` modlarinin (checked=False/True, HER ZAMAN
+        "atlama, hicbir zaman GERCEK bir dogrulama iddia edilmiyor"
+        semantigiyle tasarlanmis PILOT stub'lari) davranisi GERIYE
+        UYUMLU olarak DEGISMEDI -- bu kisitlama YALNIZCA provider='jira'
+        (GERCEK saglayici) icin gecerlidir.
 
     `precomputed_provider_result` VERILMISSE (CLI, `legitimacy_provider_client.check_ticket_via_jira()`
     ile GERCEK bir ag cagrisi yaptiktan SONRA), bu fonksiyon KENDI
@@ -149,6 +168,10 @@ def evaluate_legitimacy(
         provider_result = run_provider_check(incident_id, provider=provider)
 
     reasons.append(provider_result.detail)
+
+    if provider == PROVIDER_JIRA and not provider_result.checked:
+        return LegitimacyResult(status=STATUS_SKIPPED, reasons=reasons)
+
     if provider_result.checked and not provider_result.found:
         return LegitimacyResult(status=STATUS_FAIL, reasons=reasons)
 

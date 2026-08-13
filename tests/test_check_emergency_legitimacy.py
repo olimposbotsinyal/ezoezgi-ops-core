@@ -127,16 +127,15 @@ def test_main_jira_provider_fail_when_ticket_not_found(tmp_path, monkeypatch):
     assert payload["provider_evidence"]["found"] is False
 
 
-def test_main_jira_provider_not_configured_skips_verification_without_failing(tmp_path, monkeypatch):
-    """`check_ticket_via_jira`'nin GERCEK govdesi cagirilir (mock'lanmaz);
-    kimlik bilgisi eksikken fonksiyonun kendi ic 'yapilandirilmadi'
-    korumasi devreye girer ve `checked=False` doner. `checked=False`,
-    `provider=none` ile AYNI semantige sahiptir: kontrol hic
-    calistirilmadigi icin bir BASARISIZLIK degil, bir ATLAMA'dir --
-    ticket formati gecerliyse sonuc yine de PASS'tir (fabrike bir
-    basari/basarisizlik ASLA uretilmez, ama yapilandirilmamis olmak da
-    kendi basina bir FAIL sebebi DEGILDIR). Gercek ag katmanina hic
-    inilmedigi `test_legitimacy_provider_client.py::test_check_ticket_via_jira_not_configured_makes_no_call`
+def test_main_jira_provider_not_configured_is_skipped_not_pass(tmp_path, monkeypatch):
+    """**Promotion-candidate sprint semantik duzeltmesi:** eskiden
+    (kimlik bilgisi eksikken) sonuc sessizce PASS donuyordu -- bu
+    YANLIS-GUVEN veriyordu ("hic kontrol edilmedi" ile "gercekten
+    dogrulandi" ayni gorunuyordu). Artik `checked=False` + `provider=jira`
+    HER ZAMAN SKIPPED doner, ASLA PASS degil ("no implicit pass on
+    unchecked provider"). Exit code yine de 0'dir (SKIPPED bir hata
+    DEGILDIR, yalnizca "henuz gercek kanit yok" anlamina gelir). Gercek
+    ag katmanina hic inilmedigi `test_legitimacy_provider_client.py::test_check_ticket_via_jira_not_configured_makes_no_call`
     ile ayrica dogrulanir."""
     monkeypatch.delenv("JIRA_BASE_URL", raising=False)
     monkeypatch.delenv("JIRA_EMAIL", raising=False)
@@ -149,7 +148,7 @@ def test_main_jira_provider_not_configured_skips_verification_without_failing(tm
     exit_code = main()
     assert exit_code == 0
     payload = json.loads((out_dir / "legitimacy_report.json").read_text(encoding="utf-8"))
-    assert payload["legitimacy_status"] == "PASS"
+    assert payload["legitimacy_status"] == "SKIPPED"
     assert payload["provider_evidence"]["checked"] is False
 
 

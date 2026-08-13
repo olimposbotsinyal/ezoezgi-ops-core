@@ -233,6 +233,38 @@ def test_evaluate_legitimacy_jira_with_precomputed_result_fail():
     assert result.status == STATUS_FAIL
 
 
+def test_evaluate_legitimacy_jira_precomputed_not_checked_is_skipped_not_pass():
+    """Kritik semantik duzeltme (Promotion-candidate sprint): provider='jira'
+    icin checked=False (ornegin ortam degiskenleri eksik oldugu icin
+    GERCEK ag cagrisi hic denenmedi) ASLA PASS'e DUSMEMELIDIR -- format
+    gecerli olsa BILE sonuc SKIPPED olmalidir ('no implicit pass on
+    unchecked provider')."""
+    result = evaluate_legitimacy(
+        incident_id="OPS-1234", provider=PROVIDER_JIRA,
+        precomputed_provider_result=ProviderCheckResult(
+            checked=False, found=False, detail="jira yapilandirilmadi -- kontrol atlandi"
+        ),
+    )
+    assert result.status == STATUS_SKIPPED
+
+
+def test_evaluate_legitimacy_jira_precomputed_not_checked_reason_is_preserved():
+    result = evaluate_legitimacy(
+        incident_id="OPS-1234", provider=PROVIDER_JIRA,
+        precomputed_provider_result=ProviderCheckResult(
+            checked=False, found=False, detail="jira yapilandirilmadi -- kontrol atlandi"
+        ),
+    )
+    assert any("yapilandirilmadi" in r for r in result.reasons)
+
+
+def test_evaluate_legitimacy_none_provider_still_pass_backward_compatible():
+    """provider='none'/'mock'/'jira_stub' icin davranis DEGISMEDI --
+    yeni SKIPPED kurali YALNIZCA provider='jira' icin gecerlidir."""
+    result = evaluate_legitimacy(incident_id="OPS-1234", provider=PROVIDER_NONE)
+    assert result.status == STATUS_PASS
+
+
 def test_evaluate_legitimacy_jira_bad_ticket_format_short_circuits_before_precomputed_check():
     """Format gecersizse, precomputed_provider_result hic verilmemis
     olsa bile ValueError DEGIL FAIL donmelidir (format kontrolu her

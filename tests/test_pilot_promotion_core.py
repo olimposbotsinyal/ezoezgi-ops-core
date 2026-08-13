@@ -20,6 +20,7 @@ from pilot_promotion_core import (
     EvidenceSummary,
     PromotionDecision,
     apply_promotions_to_state,
+    compute_rehearsal_detail,
     default_pilot_flags_state,
     evaluate_feature,
     get_feature_criteria,
@@ -29,11 +30,16 @@ from pilot_promotion_core import (
     overall_exit_code,
     render_flag_apply_report_md,
     render_promotion_report_md,
+    render_rehearsal_report_md,
     restore_previous_state,
     validate_criteria_manifest,
+    validate_fpr_summary_schema,
+    validate_legitimacy_report_schema,
+    validate_weekly_review_schema,
     write_flag_apply_report,
     write_pilot_flags_state,
     write_promotion_report,
+    write_rehearsal_report,
 )
 
 CRITERIA_PATH = Path("infra/monitoring/governance/pilot_promotion_criteria_v1.json")
@@ -354,3 +360,201 @@ def test_write_flag_apply_report_serializes_previous_and_new_state(tmp_path):
     payload = json.loads(paths["json"].read_text(encoding="utf-8"))
     assert payload["new_state"]["x"]["promoted"] is True
     assert payload["dry_run"] is False
+
+
+# --- Minimum kanit semasi kontrolleri (invalid_evidence_schema) ------------------
+
+
+def test_validate_fpr_summary_schema_accepts_valid_payload():
+    payload = {
+        "generated_at": "2026-08-13T00:00:00+00:00",
+        "features": {"x": {"total_signals": 1, "adjudicated_signals": 0, "confirmed_false_positives": 0, "false_positive_rate": None, "confidence_band": None, "status": "INSUFFICIENT_DATA"}},
+    }
+    assert validate_fpr_summary_schema(payload) == []
+
+
+def test_validate_fpr_summary_schema_rejects_non_dict():
+    assert validate_fpr_summary_schema("not a dict") != []
+
+
+def test_validate_fpr_summary_schema_rejects_missing_generated_at():
+    payload = {"features": {}}
+    errors = validate_fpr_summary_schema(payload)
+    assert any("generated_at" in e for e in errors)
+
+
+def test_validate_fpr_summary_schema_rejects_missing_features_key():
+    payload = {"generated_at": "2026-08-13T00:00:00+00:00"}
+    errors = validate_fpr_summary_schema(payload)
+    assert any("features" in e for e in errors)
+
+
+def test_validate_fpr_summary_schema_rejects_missing_required_feature_field():
+    payload = {"generated_at": "2026-08-13T00:00:00+00:00", "features": {"x": {"total_signals": 1}}}
+    errors = validate_fpr_summary_schema(payload)
+    assert any("adjudicated_signals" in e for e in errors)
+
+
+def test_validate_fpr_summary_schema_rejects_invalid_status():
+    payload = {
+        "generated_at": "2026-08-13T00:00:00+00:00",
+        "features": {"x": {"total_signals": 1, "adjudicated_signals": 0, "confirmed_false_positives": 0, "status": "BOGUS"}},
+    }
+    errors = validate_fpr_summary_schema(payload)
+    assert any("status" in e for e in errors)
+
+
+def test_validate_fpr_summary_schema_rejects_non_numeric_rate():
+    payload = {
+        "generated_at": "2026-08-13T00:00:00+00:00",
+        "features": {"x": {"total_signals": 1, "adjudicated_signals": 5, "confirmed_false_positives": 0, "status": "COMPUTED", "false_positive_rate": "not a number"}},
+    }
+    errors = validate_fpr_summary_schema(payload)
+    assert any("false_positive_rate" in e for e in errors)
+
+
+def test_validate_weekly_review_schema_accepts_valid_payload():
+    payload = {
+        "iso_week": "2026-W33", "generated_at": "2026-08-13T00:00:00+00:00", "status": "GREEN",
+        "reasons": [], "fallback_ratio": 0.01, "null_intent_ratio": None, "top_alerts": [],
+    }
+    assert validate_weekly_review_schema(payload) == []
+
+
+def test_validate_weekly_review_schema_rejects_non_dict():
+    assert validate_weekly_review_schema([1, 2, 3]) != []
+
+
+def test_validate_weekly_review_schema_rejects_missing_required_field():
+    payload = {"iso_week": "2026-W33", "generated_at": "2026-08-13T00:00:00+00:00"}
+    errors = validate_weekly_review_schema(payload)
+    assert any("status" in e for e in errors)
+    assert any("reasons" in e for e in errors)
+
+
+def test_validate_weekly_review_schema_rejects_non_list_reasons():
+    payload = {"iso_week": "x", "generated_at": "t", "status": "GREEN", "reasons": "not a list"}
+    errors = validate_weekly_review_schema(payload)
+    assert any("reasons" in e for e in errors)
+
+
+def test_validate_weekly_review_schema_rejects_non_numeric_ratio():
+    payload = {"iso_week": "x", "generated_at": "t", "status": "GREEN", "reasons": [], "fallback_ratio": "high"}
+    errors = validate_weekly_review_schema(payload)
+    assert any("fallback_ratio" in e for e in errors)
+
+
+def test_validate_legitimacy_report_schema_accepts_valid_pass_payload():
+    payload = {"legitimacy_status": "PASS", "provider_evidence": None}
+    assert validate_legitimacy_report_schema(payload) == []
+
+
+def test_validate_legitimacy_report_schema_accepts_valid_provider_evidence():
+    payload = {"legitimacy_status": "FAIL", "provider_evidence": {"checked": True, "found": False}}
+    assert validate_legitimacy_report_schema(payload) == []
+
+
+def test_validate_legitimacy_report_schema_rejects_non_dict():
+    assert validate_legitimacy_report_schema(42) != []
+
+
+def test_validate_legitimacy_report_schema_rejects_missing_status():
+    errors = validate_legitimacy_report_schema({})
+    assert any("legitimacy_status" in e for e in errors)
+
+
+def test_validate_legitimacy_report_schema_rejects_invalid_status():
+    errors = validate_legitimacy_report_schema({"legitimacy_status": "BOGUS"})
+    assert any("gecersiz legitimacy_status" in e for e in errors)
+
+
+def test_validate_legitimacy_report_schema_rejects_malformed_provider_evidence():
+    errors = validate_legitimacy_report_schema({"legitimacy_status": "PASS", "provider_evidence": "not a dict"})
+    assert any("provider_evidence" in e for e in errors)
+
+
+def test_validate_legitimacy_report_schema_rejects_provider_evidence_missing_fields():
+    errors = validate_legitimacy_report_schema({"legitimacy_status": "PASS", "provider_evidence": {}})
+    assert any("checked" in e for e in errors)
+    assert any("found" in e for e in errors)
+
+
+# --- Karar provasi (rehearsal) ----------------------------------------------------
+
+
+def test_compute_rehearsal_detail_reports_runs_and_days_needed():
+    criteria = _criteria(min_runs=5, observation_min_days=14)
+    evidence = _evidence(runs=2, observation_days=3.0)
+    decision = evaluate_feature("x", criteria, evidence)
+    detail = compute_rehearsal_detail("x", criteria, evidence, decision)
+    assert detail["runs_needed"] == 3
+    assert detail["days_needed"] == 11.0
+    assert detail["decision"] == DECISION_EXTEND_PILOT
+
+
+def test_compute_rehearsal_detail_zero_needed_when_criteria_met():
+    criteria = _criteria(min_runs=3, observation_min_days=14)
+    evidence = _evidence(runs=5, observation_days=20.0)
+    decision = evaluate_feature("x", criteria, evidence)
+    detail = compute_rehearsal_detail("x", criteria, evidence, decision)
+    assert detail["runs_needed"] == 0
+    assert detail["days_needed"] == 0.0
+    assert detail["decision"] == DECISION_PROMOTE
+
+
+def test_compute_rehearsal_detail_includes_blockers_on_reject():
+    criteria = _criteria(blocker_conditions=["secrets_committed"])
+    evidence = _evidence(blockers_tripped=["secrets_committed"])
+    decision = evaluate_feature("x", criteria, evidence)
+    detail = compute_rehearsal_detail("x", criteria, evidence, decision)
+    assert detail["decision"] == DECISION_REJECT
+    assert "secrets_committed" in detail["blockers_tripped"]
+
+
+def test_compute_rehearsal_detail_reports_fp_rate_missing():
+    criteria = _criteria()
+    evidence = _evidence(false_positive_rate=None)
+    decision = evaluate_feature("x", criteria, evidence)
+    detail = compute_rehearsal_detail("x", criteria, evidence, decision)
+    assert "veri yok" in detail["false_positive_rate_note"]
+
+
+def test_compute_rehearsal_detail_includes_skipped_evidence_count():
+    criteria = _criteria()
+    evidence = _evidence(skipped_evidence_count=2)
+    decision = evaluate_feature("x", criteria, evidence)
+    detail = compute_rehearsal_detail("x", criteria, evidence, decision)
+    assert detail["skipped_evidence_count"] == 2
+
+
+def test_render_rehearsal_report_md_mentions_no_mutation():
+    criteria = _criteria(min_runs=5)
+    evidence = _evidence(runs=1)
+    decision = evaluate_feature("x", criteria, evidence)
+    detail = compute_rehearsal_detail("x", criteria, evidence, decision)
+    md = render_rehearsal_report_md([detail], generated_at="2026-08-13T00:00:00+00:00")
+    assert "PROVA" in md
+    assert "DEGISTIRILMEDI" in md
+    assert "4" in md  # runs_needed
+
+
+def test_render_rehearsal_report_md_notes_skipped_evidence():
+    criteria = _criteria()
+    evidence = _evidence(skipped_evidence_count=3)
+    decision = evaluate_feature("x", criteria, evidence)
+    detail = compute_rehearsal_detail("x", criteria, evidence, decision)
+    md = render_rehearsal_report_md([detail], generated_at="2026-08-13T00:00:00+00:00")
+    assert "3 kanit girdisi SKIPPED" in md
+
+
+def test_write_rehearsal_report_creates_md_and_json_with_rehearsal_flag(tmp_path):
+    criteria = _criteria(min_runs=5)
+    evidence = _evidence(runs=1)
+    decision = evaluate_feature("x", criteria, evidence)
+    detail = compute_rehearsal_detail("x", criteria, evidence, decision)
+    paths = write_rehearsal_report([detail], tmp_path / "out", generated_at="2026-08-13T00:00:00+00:00")
+    assert paths["md"].exists()
+    assert paths["json"].exists()
+    payload = json.loads(paths["json"].read_text(encoding="utf-8"))
+    assert payload["rehearsal"] is True
+    assert payload["details"][0]["feature"] == "x"

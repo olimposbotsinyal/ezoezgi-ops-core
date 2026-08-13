@@ -14,7 +14,7 @@
         "reports/emergency_chain_trial_*/chain_eval.json",
         "reports/v1_2_pilot_*/**/chain_eval.json"
       ],
-      "blocker_conditions": ["remote_default_changed", "secrets_committed", "classify_contract_changed"]
+      "blocker_conditions": ["remote_default_changed", "secrets_committed", "classify_contract_changed", "invalid_evidence_schema"]
     },
     "auto_rollback_on_verify_fail": {
       "description": "VerifyReload FAIL durumunda opsiyonel otomatik geri alma (GOV_AUTO_ROLLBACK_ON_VERIFY_FAIL).",
@@ -27,7 +27,7 @@
         "reports/v1_2_pilot_*/**/apply_report.json",
         "reports/threshold_apply_*/apply_report.json"
       ],
-      "blocker_conditions": ["remote_default_changed", "secrets_committed", "classify_contract_changed"]
+      "blocker_conditions": ["remote_default_changed", "secrets_committed", "classify_contract_changed", "invalid_evidence_schema"]
     },
     "emergency_legitimacy_required": {
       "description": "Acil durum bilet-mesruiyet on-kontrolunun ZORUNLU (blocking) hale getirilmesi (GOV_EMERGENCY_LEGITIMACY_REQUIRED).",
@@ -44,15 +44,17 @@
         "remote_default_changed",
         "secrets_committed",
         "classify_contract_changed",
-        "provider_is_stub_only"
+        "provider_is_stub_only",
+        "invalid_evidence_schema"
       ]
     }
   },
   "blocker_condition_notes": {
     "remote_default_changed": "En son drift raporundaki 'remote_default' kategorisi CRITICAL ise tetiklenir -- MEKANIK olarak kontrol edilir.",
-    "secrets_committed": "Su an icin YAPISAL BIR YER TUTUCUDUR -- otomatik bir secret-scan calistirmaz (bilinen bir sizinti/olay kaydi yoksa hicbir zaman tetiklenmez). Gercek bir secret-tarama araci entegre edilene kadar bu blocker'in gercek kapsami sinirlidir (bkz. docs 'known limitations').",
-    "classify_contract_changed": "Su an icin YAPISAL BIR YER TUTUCUDUR -- ayni gerekce, otomatik bir API-sozlesme-degisikligi tespiti YAPILMAZ.",
-    "provider_is_stub_only": "YALNIZCA emergency_legitimacy_required icin gecerli -- TUM kanit girdileri provider='mock'/'jira_stub'/'none' ise (yani hicbir GERCEK saglayici entegrasyonu HIC kullanilmadiysa) tetiklenir. Gercek bir Jira/servis entegrasyonu OLMADAN bu ozelligin 'enforced' moda terfi etmesi ANLAMSIZDIR."
+    "secrets_committed": "GUNCELLENDI (Kanit olgunlastirma sprinti, Commit AA): artik GERCEK, deterministik bir kontroldur -- `scripts/ops/secret_scan_core.py` (desen-tabanli denylist + allowlist-marker/path, bkz. `infra/monitoring/governance/secret_scan_patterns_v1.json`) `git ls-files` ile izlenen TUM dosyalari tarar. Genel amacli bir urun (TruffleHog/GitLeaks) DEGILDIR -- kucuk, acik bir desen kumesidir (bkz. docs/ops/MONITORING_STACK_RUNBOOK.md 'Promotion blockers now auto-checked').",
+    "classify_contract_changed": "GUNCELLENDI (Kanit olgunlastirma sprinti, Commit AA): artik GERCEK bir kontroldur -- `scripts/ops/classify_contract_core.py` AST ile `classify()`'nin (services/tr-en-bridge/src/ollama_nlu.py) YALNIZCA arayuz yuzeyini (parametre adi/tipi/zorunlu-mu, donus tipi) cikarir, docstring/yorum/varsayilan-deger degisikliklerinden ETKILENMEZ, `infra/contracts/classify_contract_checksum_v1.txt` baseline'ina karsi checksum karsilastirir.",
+    "provider_is_stub_only": "YALNIZCA emergency_legitimacy_required icin gecerli -- TUM kanit girdileri provider='mock'/'jira_stub'/'none' ise VEYA GERCEK saglayici (jira) hic GERCEKTEN kontrol EDILMEMISSE (`provider_evidence.checked=false` -- ornegin ortam degiskenleri eksikken SKIPPED donen calistirmalar) tetiklenir. Yalnizca provider='jira' ILE checked=true olan (GERCEKTEN tamamlanmis bir Jira dogrulamasi) en az bir kanit girdisi bu blocker'i temizler (bkz. docs/ops/MONITORING_STACK_RUNBOOK.md 'Legitimacy status semantics').",
+    "invalid_evidence_schema": "GUNCELLENDI (Promotion-candidate sprint): `fpr_summary.json`/`review.json`/`legitimacy_report.json` icin ASGARI alan/tip sozlesmesi (bkz. `pilot_promotion_core.py::validate_*_schema`) ihlal edildiyse tetiklenir -- semasi bozuk bir kanit dosyasina dayanarak PROMOTE kararı vermek, fabrike edilmis/tutarsiz bir karar riski tasir."
   },
   "guncelleme_proseduru": "Bu dosyayi degistirmek (esik degerlerini gevsetmek/sikilastirmak) DAIMA acik bir docs/BACKLOG.md karar notu + AYNI commit'te bir gerekce gerektirir -- sessiz bir esik degisikligi commit'i ASLA olmamalidir (bkz. docs/ops/MONITORING_STACK_RUNBOOK.md 'Pilot Promotion Policy')."
 }

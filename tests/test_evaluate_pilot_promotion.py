@@ -135,10 +135,35 @@ def test_compute_evidence_summary_provider_stub_only_blocker_clears_with_real_pr
     criteria = {"required_evidence_paths": ["reports/x_*/e.json"], "blocker_conditions": ["provider_is_stub_only"]}
     now = datetime(2026, 8, 20, tzinfo=timezone.utc)
     _write_json(tmp_path / "reports/x_1/e.json", {"generated_at": "2026-08-01T00:00:00+00:00", "provider": "mock"})
-    _write_json(tmp_path / "reports/x_2/e.json", {"generated_at": "2026-08-02T00:00:00+00:00", "provider": "jira_real"})
+    _write_json(
+        tmp_path / "reports/x_2/e.json",
+        {
+            "generated_at": "2026-08-02T00:00:00+00:00", "provider": "jira_real",
+            "provider_evidence": {"checked": True, "found": True},
+        },
+    )
 
     summary = compute_evidence_summary("emergency_legitimacy_required", criteria, repo_root=tmp_path, now=now, secrets_found=[], contract_changed=False)
     assert "provider_is_stub_only" not in summary.blockers_tripped
+
+
+def test_compute_evidence_summary_provider_stub_only_blocker_trips_when_real_provider_unchecked(tmp_path):
+    """Kritik semantik duzeltme: provider alani stub-disi ('jira') olsa
+    BILE, provider_evidence.checked=false ise (ornegin ortam
+    yapilandirilmamis, SKIPPED donmus) bu blocker'i TEMIZLEMEMELIDIR --
+    'no implicit pass on unchecked provider' ilkesi burada da gecerlidir."""
+    criteria = {"required_evidence_paths": ["reports/x_*/e.json"], "blocker_conditions": ["provider_is_stub_only"]}
+    now = datetime(2026, 8, 20, tzinfo=timezone.utc)
+    _write_json(
+        tmp_path / "reports/x_1/e.json",
+        {
+            "generated_at": "2026-08-01T00:00:00+00:00", "provider": "jira",
+            "provider_evidence": {"checked": False, "found": False},
+        },
+    )
+
+    summary = compute_evidence_summary("emergency_legitimacy_required", criteria, repo_root=tmp_path, now=now, secrets_found=[], contract_changed=False)
+    assert "provider_is_stub_only" in summary.blockers_tripped
 
 
 # --- Uctan uca CLI --------------------------------------------------------------
@@ -431,3 +456,222 @@ def test_check_blockers_classify_contract_changed_trips():
         secrets_found=[], contract_changed=True,
     )
     assert "classify_contract_changed" in tripped
+
+
+# --- SKIPPED legitimacy kaniti: non-promotable ------------------------------------
+
+
+def test_compute_evidence_summary_excludes_skipped_legitimacy_from_runs(tmp_path):
+    """Kritik semantik duzeltme: `legitimacy_status=SKIPPED` olan bir
+    legitimacy_report.json, emergency_legitimacy_required icin bir
+    'run' olarak SAYILMAMALIDIR -- gercekten kontrol edilmedi."""
+    criteria = {
+        "required_evidence_paths": ["reports/emergency_legitimacy_*/legitimacy_report.json"],
+        "blocker_conditions": [],
+    }
+    now = datetime(2026, 8, 20, tzinfo=timezone.utc)
+    _write_json(
+        tmp_path / "reports/emergency_legitimacy_A/legitimacy_report.json",
+        {"generated_at": "2026-08-01T00:00:00+00:00", "legitimacy_status": "SKIPPED", "provider": "jira"},
+    )
+    _write_json(
+        tmp_path / "reports/emergency_legitimacy_B/legitimacy_report.json",
+        {"generated_at": "2026-08-02T00:00:00+00:00", "legitimacy_status": "PASS", "provider": "jira"},
+    )
+
+    summary = compute_evidence_summary(
+        "emergency_legitimacy_required", criteria, repo_root=tmp_path, now=now, secrets_found=[], contract_changed=False
+    )
+    assert summary.runs == 1
+    assert summary.skipped_evidence_count == 1
+
+
+def test_compute_evidence_summary_all_skipped_legitimacy_yields_zero_runs(tmp_path):
+    criteria = {
+        "required_evidence_paths": ["reports/emergency_legitimacy_*/legitimacy_report.json"],
+        "blocker_conditions": [],
+    }
+    now = datetime(2026, 8, 20, tzinfo=timezone.utc)
+    _write_json(
+        tmp_path / "reports/emergency_legitimacy_A/legitimacy_report.json",
+        {"generated_at": "2026-08-01T00:00:00+00:00", "legitimacy_status": "SKIPPED", "provider": "jira"},
+    )
+
+    summary = compute_evidence_summary(
+        "emergency_legitimacy_required", criteria, repo_root=tmp_path, now=now, secrets_found=[], contract_changed=False
+    )
+    assert summary.runs == 0
+    assert summary.skipped_evidence_count == 1
+    assert summary.observation_days == 0.0
+
+
+def test_compute_evidence_summary_skipped_exclusion_only_applies_to_legitimacy_feature(tmp_path):
+    """`legitimacy_status` alani BASKA bir ozelligin kanit dosyasinda
+    (ornegin chain_eval.json) GORULSE BILE (olasi degil ama), YALNIZCA
+    emergency_legitimacy_required icin ozel muamele gorur."""
+    criteria = {"required_evidence_paths": ["reports/x_*/e.json"], "blocker_conditions": []}
+    now = datetime(2026, 8, 20, tzinfo=timezone.utc)
+    _write_json(
+        tmp_path / "reports/x_1/e.json",
+        {"generated_at": "2026-08-01T00:00:00+00:00", "legitimacy_status": "SKIPPED"},
+    )
+
+    summary = compute_evidence_summary("emergency_chain_matching", criteria, repo_root=tmp_path, now=now, secrets_found=[], contract_changed=False)
+    assert summary.runs == 1
+    assert summary.skipped_evidence_count == 0
+
+
+# --- invalid_evidence_schema blocker + collect_evidence_schema_errors ------------
+
+
+def test_check_blockers_invalid_evidence_schema_trips():
+    from evaluate_pilot_promotion import _check_blockers
+
+    tripped = _check_blockers(
+        "x", ["invalid_evidence_schema"], evidence_payloads=[], drift_report=None,
+        secrets_found=[], contract_changed=False, evidence_schema_invalid=True,
+    )
+    assert "invalid_evidence_schema" in tripped
+
+
+def test_check_blockers_invalid_evidence_schema_clear_by_default():
+    from evaluate_pilot_promotion import _check_blockers
+
+    tripped = _check_blockers(
+        "x", ["invalid_evidence_schema"], evidence_payloads=[], drift_report=None,
+        secrets_found=[], contract_changed=False,
+    )
+    assert tripped == []
+
+
+def test_collect_evidence_schema_errors_none_when_all_absent(tmp_path):
+    from evaluate_pilot_promotion import collect_evidence_schema_errors
+
+    errors = collect_evidence_schema_errors(tmp_path, fpr_summary=None, weekly_context=None)
+    assert errors == []
+
+
+def test_collect_evidence_schema_errors_detects_invalid_fpr_summary(tmp_path):
+    from evaluate_pilot_promotion import collect_evidence_schema_errors
+
+    errors = collect_evidence_schema_errors(tmp_path, fpr_summary={"generated_at": "t"}, weekly_context=None)
+    assert any("fpr_summary.json" in e for e in errors)
+
+
+def test_collect_evidence_schema_errors_detects_invalid_weekly_context(tmp_path):
+    from evaluate_pilot_promotion import collect_evidence_schema_errors
+
+    errors = collect_evidence_schema_errors(tmp_path, fpr_summary=None, weekly_context={"iso_week": "x"})
+    assert any("review.json" in e for e in errors)
+
+
+def test_collect_evidence_schema_errors_detects_invalid_legitimacy_report_on_disk(tmp_path):
+    from evaluate_pilot_promotion import collect_evidence_schema_errors
+
+    _write_json(tmp_path / "reports/emergency_legitimacy_A/legitimacy_report.json", {"provider": "jira"})
+
+    errors = collect_evidence_schema_errors(tmp_path, fpr_summary=None, weekly_context=None)
+    assert any("legitimacy_status" in e for e in errors)
+
+
+def test_collect_evidence_schema_errors_valid_legitimacy_report_no_errors(tmp_path):
+    from evaluate_pilot_promotion import collect_evidence_schema_errors
+
+    _write_json(
+        tmp_path / "reports/emergency_legitimacy_A/legitimacy_report.json",
+        {"legitimacy_status": "PASS", "provider_evidence": None},
+    )
+
+    errors = collect_evidence_schema_errors(tmp_path, fpr_summary=None, weekly_context=None)
+    assert errors == []
+
+
+def test_real_repo_current_evidence_has_no_schema_errors():
+    """Gercek repo uzerinde calistirildiginda, MEVCUT kanit dosyalarinin
+    (varsa) hicbiri semayi ihlal etmemelidir -- bir regresyon testi."""
+    from evaluate_pilot_promotion import (
+        _find_latest_fpr_summary,
+        _find_latest_weekly_review_json,
+        collect_evidence_schema_errors,
+    )
+
+    fpr_summary = _find_latest_fpr_summary(REPO_ROOT_DEFAULT)
+    weekly_context = _find_latest_weekly_review_json(REPO_ROOT_DEFAULT)
+    errors = collect_evidence_schema_errors(REPO_ROOT_DEFAULT, fpr_summary=fpr_summary, weekly_context=weekly_context)
+    assert errors == []
+
+
+# --- --rehearsal CLI modu ----------------------------------------------------------
+
+
+def test_main_rehearsal_writes_rehearsal_report_not_promotion_report(tmp_path, monkeypatch):
+    criteria_path = tmp_path / "criteria.json"
+    criteria_path.write_text(
+        json.dumps(
+            {
+                "features": {
+                    name: {
+                        "observation_min_days": 1, "min_runs": 100, "max_false_positive_rate": 0.1,
+                        "max_unresolved_critical": 0, "required_evidence_paths": ["reports/does_not_exist_*/x.json"],
+                        "blocker_conditions": [],
+                    }
+                    for name in ["emergency_chain_matching", "auto_rollback_on_verify_fail", "emergency_legitimacy_required"]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    out_dir = tmp_path / "out"
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "evaluate_pilot_promotion.py", "--repo-root", str(tmp_path), "--criteria-path", str(criteria_path),
+            "--skip-secret-scan", "--rehearsal", "--output-dir", str(out_dir),
+        ],
+    )
+    exit_code = main()
+    assert exit_code == 1  # hepsi EXTEND_PILOT (min_runs=100 asla karsilanmaz), hicbiri REJECT degil
+    assert (out_dir / "rehearsal_report.md").exists()
+    assert (out_dir / "rehearsal_report.json").exists()
+    assert not (out_dir / "promotion_report.md").exists()
+    assert not (out_dir / "promotion_report.json").exists()
+
+    payload = json.loads((out_dir / "rehearsal_report.json").read_text(encoding="utf-8"))
+    assert payload["rehearsal"] is True
+    assert all(d["runs_needed"] == 100 for d in payload["details"])
+
+
+def test_main_rehearsal_does_not_mutate_pilot_flags_state(tmp_path, monkeypatch):
+    """Gorev kisiti: 'no flag/state mutation'. Rehearsal modu
+    `pilot_flags_state.json`'a ASLA yazmaz -- zaten normal modda da
+    yazmiyordu (yalnizca `promote_pilot_flags.ps1` yazar), ama bu test
+    bunu ACIKCA kilitler."""
+    state_path = tmp_path / "infra/monitoring/governance/pilot_flags_state.json"
+    state_path.parent.mkdir(parents=True, exist_ok=True)
+    state_path.write_text(json.dumps({"marker": "untouched"}), encoding="utf-8")
+
+    criteria_path = tmp_path / "criteria.json"
+    criteria_path.write_text(
+        json.dumps(
+            {
+                "features": {
+                    name: {
+                        "observation_min_days": 1, "min_runs": 1, "max_false_positive_rate": 0.1,
+                        "max_unresolved_critical": 0, "required_evidence_paths": ["reports/does_not_exist_*/x.json"],
+                        "blocker_conditions": [],
+                    }
+                    for name in ["emergency_chain_matching", "auto_rollback_on_verify_fail", "emergency_legitimacy_required"]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "evaluate_pilot_promotion.py", "--repo-root", str(tmp_path), "--criteria-path", str(criteria_path),
+            "--skip-secret-scan", "--rehearsal", "--output-dir", str(tmp_path / "out"),
+        ],
+    )
+    main()
+    assert json.loads(state_path.read_text(encoding="utf-8")) == {"marker": "untouched"}

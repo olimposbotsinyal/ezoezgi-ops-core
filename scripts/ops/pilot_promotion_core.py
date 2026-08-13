@@ -100,6 +100,91 @@ def get_feature_criteria(manifest: dict[str, Any], feature_name: str, *, observa
 
 
 # ---------------------------------------------------------------------------
+# Minimum kanit semasi kontrolleri -- "invalid_evidence_schema" blocker'i
+# icin kullanilir (bkz. evaluate_pilot_promotion.py). Hicbiri exception
+# FIRLATMAZ -- `validate_criteria_manifest`/`pilot_fpr_core.validate_adjudications_file`
+# ile AYNI "hata mesaji listesi doner, bos=gecerli" deseni.
+# ---------------------------------------------------------------------------
+
+# `pilot_fpr_core.py`'a bagimlilik EKLEMEMEK icin (dongusel import riski
+# + bu modulun "saf/bagimsiz" ilkesi), STATUS_COMPUTED/STATUS_INSUFFICIENT_DATA
+# degerleri burada SABIT DIZE olarak yinelenir -- `pilot_fpr_core.py`'daki
+# GERCEK sabitlerle senkron tutulmalidir (degisirse ikisi de guncellenmeli).
+STATUS_COMPUTED_LITERAL = "COMPUTED"
+STATUS_INSUFFICIENT_DATA_LITERAL = "INSUFFICIENT_DATA"
+
+
+def validate_fpr_summary_schema(payload: Any) -> list[str]:
+    """`compute_pilot_false_positive_rate.py::write_fpr_summary`'nin
+    urettigi `fpr_summary.json`'un ASGARI alan/tip sozlesmesini
+    dogrular."""
+    errors: list[str] = []
+    if not isinstance(payload, dict):
+        return [f"fpr_summary.json bir obje (dict) olmali, gozlenen tip: {type(payload).__name__}"]
+    if not isinstance(payload.get("generated_at"), str):
+        errors.append("'generated_at' eksik veya string degil")
+    features = payload.get("features")
+    if not isinstance(features, dict):
+        return errors + ["'features' eksik veya obje (dict) degil"]
+    for name, entry in features.items():
+        if not isinstance(entry, dict):
+            errors.append(f"features['{name}']: obje (dict) degil")
+            continue
+        for required in ("total_signals", "adjudicated_signals", "confirmed_false_positives", "status"):
+            if required not in entry:
+                errors.append(f"features['{name}']: zorunlu alan eksik: '{required}'")
+        if "status" in entry and entry["status"] not in (STATUS_COMPUTED_LITERAL, STATUS_INSUFFICIENT_DATA_LITERAL):
+            errors.append(f"features['{name}']: gecersiz status: {entry['status']!r}")
+        fp_rate = entry.get("false_positive_rate")
+        if fp_rate is not None and not isinstance(fp_rate, (int, float)):
+            errors.append(f"features['{name}']: false_positive_rate sayisal veya null olmali")
+    return errors
+
+
+def validate_weekly_review_schema(payload: Any) -> list[str]:
+    """`export_weekly_observability_json.py::export_review_json`'un
+    urettigi TEK bir `review.json` girdisinin ASGARI alan/tip
+    sozlesmesini dogrular."""
+    errors: list[str] = []
+    if not isinstance(payload, dict):
+        return [f"review.json girdisi bir obje (dict) olmali, gozlenen tip: {type(payload).__name__}"]
+    for required in ("iso_week", "generated_at", "status", "reasons"):
+        if required not in payload:
+            errors.append(f"zorunlu alan eksik: '{required}'")
+    if "reasons" in payload and not isinstance(payload["reasons"], list):
+        errors.append("'reasons' liste olmali")
+    if "top_alerts" in payload and not isinstance(payload["top_alerts"], list):
+        errors.append("'top_alerts' liste olmali")
+    for ratio_field in ("fallback_ratio", "null_intent_ratio"):
+        if ratio_field in payload and payload[ratio_field] is not None and not isinstance(payload[ratio_field], (int, float)):
+            errors.append(f"'{ratio_field}' sayisal veya null olmali")
+    return errors
+
+
+def validate_legitimacy_report_schema(payload: Any) -> list[str]:
+    """`emergency_legitimacy_core.py::write_legitimacy_report`'un
+    urettigi `legitimacy_report.json`'un ASGARI alan/tip sozlesmesini
+    dogrular -- ozellikle `legitimacy_status` (PASS/FAIL/SKIPPED) ve
+    (varsa) `provider_evidence` blogunun sekli."""
+    errors: list[str] = []
+    if not isinstance(payload, dict):
+        return [f"legitimacy_report.json bir obje (dict) olmali, gozlenen tip: {type(payload).__name__}"]
+    if "legitimacy_status" not in payload:
+        errors.append("zorunlu alan eksik: 'legitimacy_status'")
+    elif payload["legitimacy_status"] not in ("PASS", "FAIL", "SKIPPED"):
+        errors.append(f"gecersiz legitimacy_status: {payload['legitimacy_status']!r}")
+    provider_evidence = payload.get("provider_evidence")
+    if provider_evidence is not None:
+        if not isinstance(provider_evidence, dict):
+            errors.append("'provider_evidence' obje (dict) veya null olmali")
+        else:
+            for required in ("checked", "found"):
+                if required not in provider_evidence:
+                    errors.append(f"provider_evidence: zorunlu alan eksik: '{required}'")
+    return errors
+
+
+# ---------------------------------------------------------------------------
 # Kanit ozeti + karar mantigi
 # ---------------------------------------------------------------------------
 
@@ -113,6 +198,7 @@ class EvidenceSummary:
     blockers_tripped: list[str] = field(default_factory=list)
     missing_evidence_patterns: list[str] = field(default_factory=list)
     evidence_files: list[str] = field(default_factory=list)
+    skipped_evidence_count: int = 0
 
 
 @dataclass
@@ -353,6 +439,106 @@ def write_promotion_report(decisions: list[PromotionDecision], out_dir: Path, *,
             for d in decisions
         ],
     }
+    json_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+    return {"md": md_path, "json": json_path}
+
+
+# ---------------------------------------------------------------------------
+# Karar provasi (rehearsal) modu -- durum/bayrak MUTASYONU YAPMAZ, yalnizca
+# `evaluate_feature()`'in ZATEN urettigi karari + kanit ozetini "kac
+# calistirma/gun daha gerekli" seklinde SOMUT bir bicimde sunar.
+# ---------------------------------------------------------------------------
+
+
+def compute_rehearsal_detail(
+    feature_name: str, criteria: dict[str, Any], evidence: EvidenceSummary, decision: PromotionDecision
+) -> dict[str, Any]:
+    """SAF -- dosya/durum G/C YAPMAZ. `evaluate_feature()`'in ZATEN
+    hesapladigi karari DEGISTIRMEZ, yalnizca eksik kriterleri SOMUT
+    sayilara (kac calistirma/gun daha gerekli) cevirir."""
+    runs_needed = max(0, criteria["min_runs"] - evidence.runs)
+    days_needed = max(0.0, criteria["observation_min_days"] - evidence.observation_days)
+
+    max_fp = criteria["max_false_positive_rate"]
+    if evidence.false_positive_rate is None:
+        fp_note = "veri yok (once FPR hesaplanmali -- bkz. compute_pilot_false_positive_rate.py)"
+    elif evidence.false_positive_rate > max_fp:
+        fp_note = f"{evidence.false_positive_rate:.3f} > {max_fp} (esik asildi)"
+    else:
+        fp_note = f"{evidence.false_positive_rate:.3f} <= {max_fp} (OK)"
+
+    return {
+        "feature": feature_name,
+        "decision": decision.decision,
+        "rationale": decision.rationale,
+        "runs_so_far": evidence.runs,
+        "min_runs_required": criteria["min_runs"],
+        "runs_needed": runs_needed,
+        "observation_days_so_far": round(evidence.observation_days, 1),
+        "observation_min_days_required": criteria["observation_min_days"],
+        "days_needed": round(days_needed, 1),
+        "false_positive_rate_note": fp_note,
+        "unresolved_critical": evidence.unresolved_critical,
+        "max_unresolved_critical": criteria["max_unresolved_critical"],
+        "blockers_tripped": list(evidence.blockers_tripped),
+        "skipped_evidence_count": evidence.skipped_evidence_count,
+    }
+
+
+def render_rehearsal_report_md(details: list[dict[str, Any]], *, generated_at: str) -> str:
+    lines = [
+        "# v1.2 Pilot Terfi -- Karar Provasi (Rehearsal, salt-okunur)",
+        "",
+        f"Uretildi (UTC): {generated_at}",
+        "",
+        "**BU BIR PROVA'DIR** -- `pilot_flags_state.json` VEYA baska hicbir "
+        "kalici durum DEGISTIRILMEDI. Gercek bir terfi icin normal (rehearsal "
+        "OLMAYAN) bir `evaluate_pilot_promotion.py` calistirmasi + "
+        "`promote_pilot_flags.ps1 -Apply` GEREKIR.",
+        "",
+        "| Ozellik | Karar | Eksik calistirma | Eksik gun | FPR durumu |",
+        "|---|---|---|---|---|",
+    ]
+    for d in details:
+        lines.append(
+            f"| {d['feature']} | **{d['decision']}** | {d['runs_needed']} "
+            f"({d['runs_so_far']}/{d['min_runs_required']}) | {d['days_needed']:.1f} "
+            f"({d['observation_days_so_far']:.1f}/{d['observation_min_days_required']}) "
+            f"| {d['false_positive_rate_note']} |"
+        )
+    lines.append("")
+
+    for d in details:
+        lines.append(f"## {d['feature']} -- {d['decision']}")
+        lines.append("")
+        lines.append(f"- {d['rationale']}")
+        if d["decision"] == "REJECT":
+            lines.append(f"- Blocker(lar) tetiklendi: {', '.join(d['blockers_tripped'])} -- sayisal kriterlerden BAGIMSIZ, eksik calistirma/gun bunu GERI ALAMAZ")
+        else:
+            if d["runs_needed"] > 0:
+                lines.append(f"- **{d['runs_needed']} calistirma daha gerekli** ({d['runs_so_far']}/{d['min_runs_required']})")
+            if d["days_needed"] > 0:
+                lines.append(f"- **{d['days_needed']:.1f} gun daha gozlem gerekli** ({d['observation_days_so_far']:.1f}/{d['observation_min_days_required']})")
+            lines.append(f"- max_false_positive_rate: {d['false_positive_rate_note']}")
+            lines.append(f"- unresolved_critical: {d['unresolved_critical']} (esik: {d['max_unresolved_critical']})")
+        if d["skipped_evidence_count"]:
+            lines.append(
+                f"- NOT: {d['skipped_evidence_count']} kanit girdisi SKIPPED (checked=false) oldugu icin "
+                "yukaridaki sayimlara DAHIL EDILMEDI -- bunlar 'kontrol edilmedi', promosyona 'katkida bulunan' kanit DEGILDIR."
+            )
+        lines.append("")
+    return "\n".join(lines) + "\n"
+
+
+def write_rehearsal_report(details: list[dict[str, Any]], out_dir: Path, *, generated_at: str) -> dict[str, Path]:
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    md = render_rehearsal_report_md(details, generated_at=generated_at)
+    md_path = out_dir / "rehearsal_report.md"
+    md_path.write_text(md, encoding="utf-8")
+
+    json_path = out_dir / "rehearsal_report.json"
+    payload = {"generated_at": generated_at, "rehearsal": True, "details": details}
     json_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
     return {"md": md_path, "json": json_path}
 
