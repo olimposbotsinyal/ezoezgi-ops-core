@@ -18,3 +18,5 @@ data/audit/*
 !data/audit/.gitkeep
 
 .claude/
+# Runtime incident watch evidence
+!reports/runtime_incident_20260813T004855Z/watch_runs/**/*.log
