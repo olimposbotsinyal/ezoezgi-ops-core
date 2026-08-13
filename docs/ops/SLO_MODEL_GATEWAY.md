@@ -1,18 +1,20 @@
 # SLO — Model Gateway
 
-> **Durum notu (dürüstçe belirtilmeli):** Bu belgedeki SLO hedefleri ve
-> burn-rate formülleri **tanımlanmıştır**, ama şu an canlı bir
-> Prometheus/Alertmanager kurulumu **yoktur** (`infra/monitoring/` hâlâ
-> boş iskelet, bkz. `docs/BACKLOG.md` B015). Metrikler
-> `services/model-gateway/src/model_gateway/metrics.py` tarafından
-> **süreç-içi (in-process)** olarak biriktirilir ve
-> `scripts/ops/daily_gateway_smoke.ps1` ile düzenli aralıklarla dosyaya
-> (`reports/daily_smoke_<UTC>/metrics_snapshot.json`) yazılır. Bu belge,
-> bir izleme yığını eklendiğinde doğrudan kullanılabilecek şekilde
-> yazıldı — ama şu an **otomatik sayfalama (paging) yapan gerçek bir
-> alert altyapısı yok**, yalnızca günlük smoke script'inin çıkış kodu
-> (bkz. "Daily Smoke" bölümü) ve manuel `metrics_snapshot.json` incelemesi
-> var.
+> **Durum notu (dürüstçe belirtilmeli, güncellendi):** `scripts/ops/serve_metrics.py`
+> artık gerçek, bağımsız bir `/metrics` HTTP endpoint'i sunuyor (stdlib
+> `http.server`, harici bağımlılık yok — bkz.
+> `docs/ops/MONITORING_STACK_RUNBOOK.md`). **Ama bu makinede Prometheus/
+> Alertmanager kurulu değil** (Docker da yok) — endpoint gerçek ve
+> test edildi, canlı scrape/alert-firing/routing pipeline'ı ise
+> **doğrulanmadı** (altyapı eksikliği nedeniyle, "başarılı" iddia
+> edilmedi). Ayrıca **kritik bir mimari sınırlama**: bu endpoint yalnızca
+> KENDİ sürecinde biriken metrikleri gösterir — bu projede `classify()`
+> çağrıları kısa ömürlü, ayrı süreçlerden yapıldığından (kalıcı bir
+> servis süreci yok), gerçek üretim trafiğinin metrikleri bu endpoint'te
+> **görünmeyebilir**. Ayrıntı: `docs/ops/MONITORING_STACK_RUNBOOK.md`
+> "Bilinen sınırlamalar". Alternatif/tamamlayıcı: `scripts/ops/daily_gateway_smoke.ps1`
+> ile düzenli aralıklarla dosyaya (`reports/daily_smoke_<UTC>/metrics_snapshot.json`)
+> yazma yolu hâlâ geçerli ve gerçek üretim çağrılarını yakalar.
 
 ## Kapsam
 

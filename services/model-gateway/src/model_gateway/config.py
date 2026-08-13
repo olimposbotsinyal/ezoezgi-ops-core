@@ -78,6 +78,10 @@ class GatewayConfig:
     # Metrik kaydi ASLA yonlendirme davranisini etkilemez -- yalnizca gozlem.
     metrics_enabled: bool = True
     metrics_exporter: str = "noop"  # "noop" | "prometheus"
+    # `scripts/ops/serve_metrics.py`'nin dinleyecegi adres -- yalnizca o
+    # STANDALONE surec tarafindan kullanilir, router/compat'i etkilemez.
+    metrics_http_host: str = "127.0.0.1"
+    metrics_http_port: int = 9108
     slo_window_days: int = 7
     alert_null_intent_warn: float = 0.01
     alert_null_intent_crit: float = 0.02
@@ -193,6 +197,8 @@ def load_config(yaml_path: Path | None = None) -> GatewayConfig:
         ),
         metrics_enabled=_get_bool("METRICS_ENABLED", overrides, "metrics_enabled", True),
         metrics_exporter=_get_str("METRICS_EXPORTER", overrides, "metrics_exporter", "noop"),
+        metrics_http_host=_get_str("METRICS_HTTP_HOST", overrides, "metrics_http_host", "127.0.0.1"),
+        metrics_http_port=_get_int("METRICS_HTTP_PORT", overrides, "metrics_http_port", 9108),
         slo_window_days=_get_int("SLO_WINDOW_DAYS", overrides, "slo_window_days", 7),
         alert_null_intent_warn=_get_float(
             "ALERT_NULL_INTENT_WARN", overrides, "alert_null_intent_warn", 0.01

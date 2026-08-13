@@ -1,0 +1,42 @@
+# Prometheus scrape config -- Model Gateway.
+#
+# DURUM: Bu makinede kurulu bir Prometheus yok (bkz.
+# docs/ops/MONITORING_STACK_RUNBOOK.md). Bu dosya, `prometheus.exe --config.file=prometheus.yml`
+# ile veya bir Docker/binary kurulumuyla dogrudan kullanilabilecek gercek,
+# gecerli bir config -- ama su an hicbir surec bunu okumuyor.
+#
+# Hedef: scripts/ops/serve_metrics.py'nin actigi /metrics endpoint'i
+# (varsayilan http://127.0.0.1:9108/metrics). KRITIK SINIRLAMA: bu
+# endpoint yalnizca KENDI surecinde biriken metrikleri gosterir (bkz.
+# serve_metrics.py docstring'i) -- bu proje kalici bir servis sureci
+# calistirmadigindan, gercek uretim trafiginin metriklerini
+# YAKALAMAYABILIR. E2E dogrulama icin bkz.
+# scripts/ops/emit_synthetic_gateway_signals.py (ayni surece sentetik
+# ornekler enjekte eder).
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    env: local-dev
+    service: ezoezgi-model-gateway
+
+rule_files:
+  - "model_gateway_alerts.yaml"
+
+scrape_configs:
+  - job_name: "ezoezgi_model_gateway"
+    scrape_interval: 15s
+    scrape_timeout: 5s
+    metrics_path: "/metrics"
+    static_configs:
+      - targets: ["127.0.0.1:9108"]
+        labels:
+          env: local-dev
+          service: model-gateway
+          instance: "serve_metrics-local"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["127.0.0.1:9093"]  # bkz. infra/monitoring/alertmanager/alertmanager.yml
