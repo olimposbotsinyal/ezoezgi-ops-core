@@ -631,6 +631,40 @@ powershell -File scripts\run_watch_b036.ps1
   Bir tetikleyici tespit edilirse, gerçek doğrulama koşusu hâlâ
   `validation_on_trigger.md`'ye göre **manuel** olarak başlatılır.
 
+## Model Gateway (B036 resilience layer)
+
+> Tam operasyonel kılavuz: `docs/ops/MODEL_FALLBACK_RUNBOOK.md` (startup
+> checklist, healthcheck komutları, incident aksiyonları, rollback).
+
+Ollama'nın Windows/Vulkan çalışma zamanı kararsızlığına (B036) karşı,
+`services/model-gateway/src/model_gateway/` altında sıralı, açık-loglu
+fallback uygulayan bir katman eklendi. **Bu B036'yı çözmez** — yalnızca
+tek bir sağlayıcının çökmesiyle sistemin tamamen durmasını önler ve her
+geçişi denetlenebilir kılar.
+
+- **Varsayılan davranış değişmedi:** `MODEL_PROVIDER_ORDER` varsayılanı
+  yalnızca `ollama` — çok saglayıcılı fallback etkinleştirilmediği sürece
+  önceki davranışla birebir aynı.
+- **Sağlayıcı sırası:** `ollama` (birincil, açık) → `local_alt` (ikincil,
+  varsayılan kapalı) → `remote` (üçüncül, varsayılan kapalı **ve**
+  politika kapılı — `policies/risk/tool_risk_policy.yaml` `remote_model_policy`).
+- **`OLLAMA_VULKAN=false` zorlaması:** `OllamaProvider`, bu değeri kendi
+  sürecinin ortamına yazar — ancak `ollama serve` bu kod tarafından
+  başlatılmadığından (harici süreç), zaten çalışan bir sunucuyu
+  **etkilemez**. Gerçek zorlama hâlâ operatörün sunucuyu doğru env ile
+  başlatmasına bağlı (bkz. `docs/ops/OLLAMA_WORKAROUND_CPU_ONLY.md`).
+- **Sessiz fallback yok:** her geçiş (`FALLBACK`/`SKIPPED`/`SUCCESS`)
+  hem log'a hem `data/audit/audit.log.jsonl`'e (`task=MODEL_GATEWAY_GENERATE`)
+  yapısal olarak yazılır — `reason_code` alanı: `PRIMARY_UNHEALTHY`,
+  `TIMEOUT`, `RUNTIME_CRASH`, `POLICY_BLOCK`, `DISABLED`, `CIRCUIT_OPEN`.
+- **Entegrasyon:** `services/tr-en-bridge/src/ollama_nlu.py::classify()`,
+  varsayılan (test-enjeksiyonu olmayan) durumda artık
+  `model_gateway.compat.RouterBackedClient` üzerinden router'a bağlı —
+  `classify()`'in dış sözleşmesi (`intent`/`entities`/`confidence`/`raw`)
+  ve mevcut `client=` test enjeksiyon noktası **değişmedi**.
+- **Rollback:** `docs/ops/MODEL_FALLBACK_RUNBOOK.md` "Geri alma" bölümüne
+  bakın — config ile ollama-only CPU moduna dönüş, kod revert'i gerekmez.
+
 ## Onay Gerektiren Aksiyonlar (Faz 4+ ile aktif olacak)
 
 - Risk seviyesi `high` veya `irreversible` olan her aksiyon, kullanıcı onayı

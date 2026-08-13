@@ -13,3 +13,12 @@ tasks:
 # tasks altinda tanimsiz bir task_en gelirse bu seviye kullanilir.
 # Bilerek "low" degil -- taniniyor olmak, guvenli olmak anlamina gelmez.
 default_risk_level: medium
+
+# Model gateway -- remote (uzak) LLM saglayici politikasi (B036 resilience
+# layer, bkz. services/model-gateway/src/model_gateway/policy.py).
+# `allowed: false` VARSAYILAN ve bilinclidir -- local-first ilkesi
+# (MASTER_ROADMAP.md §1) geregi, remote saglayici acikca onaylanmadan
+# router bu saglayiciyi asla denemez (REMOTE_BLOCKED_BY_POLICY).
+remote_model_policy:
+  allowed: false
+  reason: "Local-first ilkesi -- remote LLM kullanimi henuz onaylanmadi"

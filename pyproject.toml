@@ -4,6 +4,7 @@ addopts = "--basetemp=.pytest_tmp"
 pythonpath = [
     "apps/orchestrator/src",
     "services/tr-en-bridge/src",
+    "services/model-gateway/src",
     "tools/cli-runner/src",
     "scripts",
     "tools",
