@@ -40,3 +40,11 @@ reports/monitoring_stack/
 # ciktisi, repoya birikmesin. Sayilar docs/ops/MONITORING_STACK_RUNBOOK.md'de
 # ozetlenir; gerekirse `git add -f` ile belirli bir kosunun kaniti eklenebilir.
 reports/metrics_perf_*/
+
+# Go-live gate/kalibrasyon/sign-off/rollback ciktilari -- ayni gerekce:
+# rutin, tekrar-uretilebilir kanit paketleri, repoya birikmesin. Gercek
+# bir go-live kararinin kaniti olarak gerekiyorsa `git add -f` ile eklenebilir.
+reports/go_live_gates_*/
+reports/alert_calibration_*/
+reports/observability_signoff_*/
+reports/rollback_drill_*/

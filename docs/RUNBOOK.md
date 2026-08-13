@@ -719,7 +719,27 @@ geçişi denetlenebilir kılar.
   `scripts/ops/emit_synthetic_gateway_signals.py` +
   `scripts/ops/verify_alert_pipeline.ps1` (E2E doğrulama, bu makinede
   dürüstçe exit code 1/kısmi döner). Tam kılavuz + kademeli rollout
-  aşamaları + Gate A-D: `docs/ops/MONITORING_STACK_RUNBOOK.md`.
+  aşamaları + eski (manuel) Gate A-D: `docs/ops/MONITORING_STACK_RUNBOOK.md`.
+- **Go-live paketi (gate otomasyonu, kalibrasyon, sign-off, rollback):**
+  `scripts/ops/run_observability_gates.ps1` (otomatik Gate A-E — metrics
+  availability, scrape success, 4 sentetik alert modunun görünürlüğü,
+  Alertmanager alma yolu, classify regresyon smoke — `gate_report.md` +
+  `gate_results.json` üretir, exit code 0/1/2). Bu makinede gerçek
+  sonuç: **FAIL** (A/B/C PASS, D SKIPPED altyapı yokluğundan, E FAIL —
+  kök neden `tools/cli-runner/src/runner.py`'nin PowerShell PATH'inde
+  `echo` bulamaması, classify/fallback sözleşmesiyle İLGİSİZ, bkz.
+  `docs/ops/MONITORING_STACK_RUNBOOK.md`). `scripts/ops/calibrate_alert_thresholds.py`
+  (son N saatlik gerçek veriden WARN/CRIT önerisi — bu makinede
+  `INSUFFICIENT_DATA`, mevcut varsayılanlar korunuyor).
+  `scripts/ops/build_observability_signoff.py` (git SHA + tam test
+  özeti + en son gate sonucu + GO/CONDITIONAL-GO/NO-GO kararı,
+  `SIGNOFF.md`/`SIGNOFF.json`). `scripts/ops/rollback_observability.ps1`
+  (varsayılan **dry-run**, `-Apply` ile gerçek uygulama — yalnızca
+  Alertmanager route receiver'larını Aşama 1'e döndürür, `/metrics`'i
+  ASLA kapatmaz, audit/metrics verisine ASLA dokunmaz; hem dry-run hem
+  apply, hem "zaten güvenli" hem "gerçek escalate durumunu düzeltme"
+  senaryolarında elle doğrulandı). Kanonik "Go/No-Go checklist":
+  `docs/ops/MONITORING_STACK_RUNBOOK.md`.
 
 ## Onay Gerektiren Aksiyonlar (Faz 4+ ile aktif olacak)
 

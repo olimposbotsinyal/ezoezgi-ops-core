@@ -35,6 +35,10 @@ bu ayrımı her bölümde açıkça belirtir.
 | Alertmanager routing | `infra/monitoring/alertmanager/alertmanager.yml` | Geçerli YAML, ASAMA 1 (observe-only), hiçbir Alertmanager süreci okumuyor |
 | Sentetik sinyal üreticisi | `scripts/ops/emit_synthetic_gateway_signals.py` | **Gerçek, elle test edildi** — hem yerel registry'ye hem HTTP üzerinden çalışan bir sürece enjeksiyon doğrulandı |
 | E2E doğrulama | `scripts/ops/verify_alert_pipeline.ps1` | **Gerçek, elle çalıştırıldı** — bu makinede exit code **1** (kısmi) üretti, çünkü Prometheus/Alertmanager yok. **0 fabrike edilmedi.** |
+| Go-live gate otomasyonu (A-E) | `scripts/ops/run_observability_gates.ps1` + `scripts/ops/observability_gates_core.py` | **Gerçek, elle çalıştırıldı** — bu makinede exit code **2** (FAIL) üretti: A/B/C PASS, D SKIPPED (Alertmanager yok), E FAIL (bkz. "Go/No-Go checklist" altındaki not). **0 fabrike edilmedi.** |
+| Alert eşik kalibrasyonu | `scripts/ops/calibrate_alert_thresholds.py` | **Gerçek, elle çalıştırıldı** — bu makinede `INSUFFICIENT_DATA` (gerçek trafik yok), mevcut varsayılanlar korundu |
+| Sign-off paketi | `scripts/ops/build_observability_signoff.py` | **Gerçek, elle çalıştırıldı** — git SHA + gerçek tam test suite sonucu + gate sonucu (varsa) toplanıp GO/NO-GO kararı üretiliyor |
+| Rollback drill | `scripts/ops/rollback_observability.ps1` | **Gerçek, elle çalıştırıldı** — hem dry-run hem apply modunda, hem "zaten güvenli" hem "gerçek değişiklik gerekiyor" senaryolarında test edildi (bkz. "Go/No-Go checklist") |
 
 ## ÇÖZÜLDÜ (büyük ölçüde): süreç-içi metrik izolasyonu → cross-process JSONL sink
 
@@ -173,11 +177,19 @@ kaybına yol AÇMAZ, yalnızca ertelenir/loglanır/öz-metriklere yansır).
 - `severity: critical` route'u `critical-sink`'e bağlanır.
 - Yalnızca **Gate A, B, C, D'nin tümü** sağlandıktan sonra (bkz. aşağıda).
 
-## Rollout güvenlik kapıları (Gate A-D)
+## Rollout güvenlik kapıları (ilk, manuel değerlendirme — bkz. GÜNCELLEME)
 
-| Kapı | Kriter | Bu görev sırasında durum |
+> **GÜNCELLEME:** Bu bölümdeki A-D kapıları, bu alt-sistemin İLK
+> tanıtımı sırasında ELLE değerlendirilmişti. Artık bunların OTOMATİK,
+> tekrar-çalıştırılabilir, kanıt-üreten karşılığı var:
+> `scripts/ops/run_observability_gates.ps1` (Gate A-E, farklı/daha
+> kapsamlı harf şeması — karıştırmayın) — bkz. aşağıdaki
+> "Go-live gate otomasyonu" bölümü ve "Go/No-Go checklist". Bu eski
+> tablo yalnızca TARİHSEL bağlam için korunuyor.
+
+| Kapı (eski, manuel) | Kriter | O görev sırasındaki durum |
 |---|---|---|
-| A | `/metrics` 24 saat sağlıklı | **Doğrulanmadı** — yalnızca kısa süreli elle test edildi, 24 saatlik gözlem bu görevin kapsamında değil |
+| A | `/metrics` 24 saat sağlıklı | **Doğrulanmadı** — yalnızca kısa süreli elle test edildi, 24 saatlik gözlem o görevin kapsamında değildi |
 | B | Scrape başarı oranı ≥ %99 | **Doğrulanamaz** — bu makinede Prometheus yok |
 | C | Her alert tipinden bir sentetik alarm doğrulandı | **Kısmen** — sentetik sinyal üretimi ve `/metrics`'te görünürlüğü doğrulandı; Prometheus'un bunu gerçekten `firing`/`pending`'e çevirmesi ve Alertmanager'a iletmesi **doğrulanamadı** (altyapı yok) |
 | D | classify() sözleşmesinde regresyon yok | **Doğrulandı** — tam regresyon 194/194 yeşil, `classify()` dış sözleşmesi değişmedi |
@@ -186,6 +198,91 @@ kaybına yol AÇMAZ, yalnızca ertelenir/loglanır/öz-metriklere yansır).
 routing AÇILMADI.** `alertmanager.yml` bilerek Aşama 1'de (observe-only,
 `null-receiver`) bırakıldı. Bu görev, Aşama 2/3'e geçiş için gereken
 ALTYAPIYI (config, script'ler) hazırlar ama gerçek geçişi YAPMAZ.
+
+## Go-live gate otomasyonu (Gate A-E, otomatik)
+
+`scripts/ops/run_observability_gates.ps1`, yukarıdaki manuel
+değerlendirmenin OTOMATİK, kanıt-üreten (`gate_report.md` +
+`gate_results.json`) karşılığıdır:
+
+| Gate | Ne kontrol eder | Bu makinede gerçek sonuç (elle çalıştırıldı) |
+|---|---|---|
+| A_metrics_availability | `/metrics` kullanılabilirliği (varsayılan: SIMULASYON, kısa örnek pencere — `-Real24h` ile gerçek pencere için etiketlenir, gerçek 24s gözlem TEK bir script çalıştırmasında YAPILAMAZ) | **PASS** (10/10 örnek) |
+| B_scrape_success_rate | Scrape başarı oranı ≥ %99 (Prometheus yoksa endpoint'in kendisine tekrar istek PROXY'si) | **PASS** (20/20 örnek) |
+| C_synthetic_alerts_visible | 4 sentetik alert modunun (fallback-spike, null-intent-spike, preflight-unknown, circuit-open-stuck) `/metrics`'te görünürlüğü | **PASS** (4/4 mod) |
+| D_alertmanager_receive_path | Alertmanager alma yolu | **SKIPPED** — Alertmanager bu makinede kurulu değil (fabrike edilmiş bir PASS değil) |
+| E_classify_regression_smoke | classify/fallback ile ilgili pytest dosyaları | **FAIL** (bu makinede) — bkz. aşağıdaki "Bilinen, bu görevden bağımsız ortam notu" |
+
+**Genel sonuç bu makinede: FAIL (exit code 2)** — bir Gate FAIL olduğu
+için (yalnızca D SKIPPED olsaydı sonuç PARTIAL/exit 1 olurdu). **0
+fabrike edilmedi.**
+
+### Bilinen, bu görevden bağımsız ortam notu (Gate E)
+
+Gate E'nin gerçek makinedeki FAIL'i, `tools/cli-runner/src/runner.py`'nin
+`shutil.which("echo")` ile çalışmasından kaynaklanıyor: Git Bash'in
+PATH'inde gerçek bir `echo.exe` var, ama SAF bir PowerShell sürecinin
+PATH'inde `echo` yalnızca bir dil anahtar kelimesi/alias'tır, gerçek
+bir yürütülebilir DEĞİLDİR — bu yüzden `test_nlu_provider_flag.py`'nin
+3 orchestrator-smoke alt-testi `EXECUTABLE_NOT_FOUND` ile başarısız
+olur. Bu, **classify/fallback sözleşmesinde bir regresyon DEĞİLDİR** —
+`run_observability_gates.ps1` bunu PowerShell PATH'inde gerçek bir
+`echo` olup olmadığını önceden kontrol ederek TANI notuyla
+zenginleştirir (gate durumu yine de gerçek pytest sonucuna göre FAIL
+kalır — bu tanı, sonucu asla PASS'e çevirmez). Aynı test dosyaları
+Bash üzerinden (bu depodaki standart geliştirme/CI akışı) çalıştırılınca
+**sorunsuz geçer** (265/265 tam suite yeşil, bkz. bu görevin final
+raporu). Takip: `docs/BACKLOG.md`.
+
+## Performans ayar rehberi tablosu (hatırlatma)
+
+Yukarıdaki (Commit K/L, incremental aggregator + cache) ayar rehberi
+tablosu için bkz. "Performans ayar rehberi" bölümü (yukarıda) — go-live
+öncesi bu değerlerin trafik hacmine göre kalibre edilmesi önerilir.
+
+## Go/No-Go checklist
+
+Bu, bir go-live kararı vermeden önce (veya periyodik sağlık
+denetiminde) sırayla çalıştırılması/kontrol edilmesi gereken adımların
+KANONİK listesidir. `scripts/ops/build_observability_signoff.py` bu
+listenin çoğunu OTOMATİK olarak toplar (bkz. aşağıda).
+
+- [ ] `./.venv/Scripts/python.exe -m pytest` — tam suite yeşil mi?
+      (Bash üzerinden çalıştırın — bkz. yukarıdaki Gate E notu)
+- [ ] `powershell -ExecutionPolicy Bypass -File scripts\ops\run_observability_gates.ps1`
+      — Gate A-E sonucu nedir? (`gate_results.json`'daki `overall_status`)
+      Gerçek altyapı (Prometheus/Alertmanager) varsa `-Real24h` ile
+      gerçek bir 24 saatlik pencere sonrası tekrar çalıştırın.
+- [ ] `python scripts/ops/calibrate_alert_thresholds.py --hours 24` —
+      eşikler gerçek trafikle kalibre edilmiş mi, yoksa hâlâ
+      `INSUFFICIENT_DATA` mı? (İkincisi go-live'ı ENGELLEMEZ ama
+      go-live SONRASI ilk fırsatta yeniden çalıştırılmalı.)
+- [ ] `alertmanager.yml`'in route receiver'ları amaçlanan aşamada mı
+      (Aşama 1: hepsi `null-receiver`)? `powershell -File
+      scripts\ops\rollback_observability.ps1` (dry-run) ile doğrulayın.
+- [ ] `python scripts/ops/build_observability_signoff.py` — nihai
+      GO / CONDITIONAL-GO / NO-GO kararı nedir, gerekçesi nedir?
+- [ ] Karar **NO-GO** ise: `docs/BACKLOG.md`'ye bir madde düşün, kök
+      nedeni giderin, checklist'i baştan çalıştırın.
+- [ ] Karar **CONDITIONAL-GO** ise (genellikle eksik Prometheus/
+      Alertmanager altyapısından): kısıtlamaları ilgili paydaşlara
+      açıkça iletin, `docs/ops/MONITORING_STACK_RUNBOOK.md`'deki
+      "Kurulum" adımlarını ne zaman tamamlayacağınızı planlayın.
+- [ ] Karar **GO** ise: `reports/observability_signoff_<UTC>/SIGNOFF.md`'yi
+      arşivleyin/paylaşın, rollout'u başlatın, `docs/ops/ALERT_PLAYBOOK_MODEL_GATEWAY.md`
+      "İlk 10 dakika kontrol listesi"nin on-call ekibine iletildiğinden
+      emin olun.
+
+**Rollback (her zaman kullanılabilir, geri dönüşü kolay):**
+`powershell -ExecutionPolicy Bypass -File scripts\ops\rollback_observability.ps1`
+(varsayılan: dry-run, yalnızca ne değişeceğini raporlar) — gerçekten
+uygulamak için `-Apply`. `/metrics` endpoint'ini ASLA kapatmaz,
+`data/audit/`/`data/metrics/` içeriğine ASLA dokunmaz, yalnızca
+Alertmanager route receiver'larını Aşama 1'e (observe-only) döndürür.
+Bu makinede hem dry-run hem apply modu, hem "zaten güvenli" hem
+"gerçek escalate edilmiş durumu düzeltme" senaryolarında elle test
+edildi (dosyadaki tüm açıklama satırları korunarak, yalnızca
+`receiver:` değerleri değiştirilir).
 
 ## Kurulum (Aşama 2/3'e geçmeden önce gerekli)
 

@@ -14,6 +14,111 @@
 > bu eşiklerin bir alt kümesini `metrics_snapshot.json` üzerinden kendisi
 > değerlendirip exit code (0/1/2) ile "aksiyon gerekiyor mu" sinyali
 > verir — bkz. altta her alert'in "Daily smoke karşılığı" satırı.
+>
+> **Go-live paketi eklendi:** `scripts/ops/run_observability_gates.ps1`
+> (5 gate: metrics availability, scrape success, sentetik alert
+> görünürlüğü, Alertmanager alma yolu, classify regresyon smoke),
+> `scripts/ops/calibrate_alert_thresholds.py` (eşik kalibrasyonu),
+> `scripts/ops/build_observability_signoff.py` (GO/NO-GO imza paketi),
+> `scripts/ops/rollback_observability.ps1` (varsayılan dry-run rollback
+> drill). Ayrıntı + "Go/No-Go checklist": `docs/ops/MONITORING_STACK_RUNBOOK.md`.
+
+## Triaj karar ağacı
+
+```
+Alert geldi
+  │
+  ├─ /metrics erişilebilir mi? (curl http://127.0.0.1:9108/metrics)
+  │    │
+  │    ├─ HAYIR → serve_metrics.py çalışmıyor/çökmüş olabilir.
+  │    │           Süreci yeniden başlat, PID/loglara bak.
+  │    │           BU DURUMDA TÜM ALERT'LER "kör" olabilir → ESCALATE.
+  │    │
+  │    └─ EVET → aşağı devam et
+  │
+  ├─ Alert `synthetic="true"` etiketli mi (test/kalibrasyon kaynaklı)?
+  │    │
+  │    ├─ EVET → GERÇEK bir olay değil. Silence uygun (bkz. "Sustur vs
+  │    │          Yükselt"). Sentetik testin kim/ne zaman çalıştırdığını
+  │    │          doğrula (verify_alert_pipeline.ps1 / run_observability_gates.ps1).
+  │    │
+  │    └─ HAYIR → gerçek sinyal, aşağı devam et
+  │
+  ├─ `data/audit/audit.log.jsonl`'de son ilgili kayıtların `reason_code`'u ne?
+  │    │
+  │    ├─ RUNTIME_CRASH → B036 bilinen deseni (Vulkan çöküşü).
+  │    │                   docs/ops/OLLAMA_WORKAROUND_CPU_ONLY.md'ye bak,
+  │    │                   CPU-only workaround'ı değerlendir.
+  │    │
+  │    ├─ PRIMARY_RESTRICTED_CPU_UNVERIFIED → marker dosyası eksik/eski
+  │    │                   VEYA STRICT modda kasıtlı davranış. Operatör
+  │    │                   kontrol listesine bak (MODEL_FALLBACK_RUNBOOK.md).
+  │    │
+  │    ├─ POLICY_BLOCK / DISABLED → beklenen/kasıtlı config durumu,
+  │    │                   genellikle gerçek bir olay DEĞİL.
+  │    │
+  │    └─ FALLBACK_EXHAUSTED → TÜM sağlayıcılar başarısız → CIDDI,
+  │                       hemen ESCALATE (kullanıcı etkisi aktif).
+  │
+  └─ Şiddet neydi (bkz. her alert bölümündeki "Şiddet")?
+       ├─ bilet → bilet aç, iş saatinde takip yeterli
+       └─ sayfala (critical) → ESCALATE (bkz. aşağıdaki bölüm)
+```
+
+## Sustur (silence) vs Yükselt (escalate)
+
+| Durum | Aksiyon | Gerekçe |
+|---|---|---|
+| Alert `synthetic="true"` etiketli | **Sustur** | Test/kalibrasyon sinyali, gerçek kullanıcı etkisi yok |
+| Bilinen, zaten takip edilen bir olayın (ör. B036) devamı, yeni bulgu yok | **Sustur** (mevcut olay bileti altında not düş) | Aynı kök nedenin tekrar sayfalanması gürültü yaratır — `inhibit_rules` (alertmanager.yml) bunu kısmen otomatikleştirir |
+| `PREFLIGHT_UNKNOWN_PERSISTENT`, `OLLAMA_CPU_VERIFY_STRICT=false` kasıtlı seçilmişken | **Sustur** | Belgelenmiş, kasıtlı bir config durumu (bkz. bu alert'in bölümü) |
+| `FALLBACK_EXHAUSTED` reason_code'u audit'te görünüyor | **Yükselt (hemen)** | Tüm sağlayıcılar başarısız — kullanıcı etkisi aktif |
+| `HIGH_NULL_INTENT_RATE` kritik eşiği aşan, yeni/bilinmeyen bir `reason_code` dağılımı | **Yükselt** | Bilinen desenlerden (B036, marker eksikliği) biri değilse kök neden bilinmiyor demektir |
+| `CIRCUIT_OPEN_STUCK` 30dk+ | **Yükselt** | Kendiliğinden yarı-açılması gereken bir mekanizma çalışmıyor demektir — kod/config sorunu şüphesi |
+| `/metrics` kendisi erişilemez | **Yükselt (hemen)** | Gözlemlenebilirlik körleşmiş — diğer TÜM alert'lerin güvenilirliği şüpheli |
+
+## İlk 10 dakika kontrol listesi (her alert için ortak)
+
+1. **Doğrula:** `curl http://127.0.0.1:9108/metrics | Select-String <ilgili_metrik>` (veya tarayıcıda aç) ile alert'in dayandığı metriğin GERÇEKTEN o değeri gösterdiğini doğrula — Prometheus/Alertmanager arasında bir gecikme/senkronizasyon sorunu olabilir.
+2. **Etiketle:** Alert `synthetic="true"` mü? (yukarıdaki karar ağacına bak) — evetse dur, sentetik kaynağı doğrula, sustur.
+3. **Bağlamla:** `data/audit/audit.log.jsonl`'in SON 15 dakikasını incele (`Get-Content data\audit\audit.log.jsonl -Tail 50 | ConvertFrom-Json` veya `package_gateway_incident.ps1` ile otomatik dilim al) — `reason_code`/`trace_id` dağılımına bak.
+4. **Kapsamı ölç:** Kaç istek etkilendi? (`model_gateway_requests_total` toplamına oranla) — tek bir istek mi, sürekli bir desen mi?
+5. **Bilinen desen mi?:** Yukarıdaki triaj karar ağacındaki bilinen `reason_code`'lardan biri mi (RUNTIME_CRASH/B036, marker eksikliği)? Öyleyse ilgili runbook bölümüne geç.
+6. **Kanıt topla (şüpheliyse):** `scripts/ops/package_gateway_incident.ps1` çalıştır (aşağıdaki komut örneklerine bak) — sonraki adımlardan BAĞIMSIZ olarak kanıtı ERKEN topla (durum değişmeden önce).
+7. **Karar ver:** Sustur mu, yükselt mi? (yukarıdaki tablo) — belirsizsen VARSAYILAN olarak yükselt (sessizce görmezden gelmek her zaman daha risklidir).
+
+## Kanıt paketi (evidence bundle) komut örnekleri
+
+```powershell
+# Olay kanıt paketi (audit dilimi + config parmak izi + git SHA) -- secret'lar maskeli
+powershell -ExecutionPolicy Bypass -File scripts\ops\package_gateway_incident.ps1
+
+# Go-live gate'lerini yeniden çalıştır (bir olay SONRASI "hala sağlıklı mı" doğrulaması için)
+powershell -ExecutionPolicy Bypass -File scripts\ops\run_observability_gates.ps1
+
+# Sign-off/durum dosyası (git SHA + test özeti + en son gate sonucu + rollback referansı)
+.venv\Scripts\python.exe scripts\ops\build_observability_signoff.py
+
+# Alert eşiklerini son 24 saatlik gerçek veriyle yeniden kalibre et (olay sonrası eşik gözden geçirme)
+.venv\Scripts\python.exe scripts\ops\calibrate_alert_thresholds.py --hours 24
+```
+
+## Olay sonrası not şablonu (post-incident note)
+
+Her ESCALATE edilen (veya tekrarlayan/gürültülü) alert için, olay bileti/BACKLOG.md'ye şu şablonla bir not düşülmeli:
+
+```markdown
+### <Alert adı> -- <UTC zaman damgası>
+
+- **Tetikleyen metrik/eşik:** <metrik adı + gözlenen değer vs eşik>
+- **Gerçek mi/sentetik mi:** <synthetic="true" etiketi var mıydı?>
+- **Kök neden (reason_code / audit bulgusu):** <ör. RUNTIME_CRASH, FALLBACK_EXHAUSTED>
+- **Kapsam:** <kaç istek/kullanıcı etkilendi, ne kadar sürdü>
+- **Aksiyon alındı:** <sustur / escalate / workaround uygulandı / kod değişikliği>
+- **Kanıt paketi:** <reports/incidents/gateway_<timestamp>/ yolu>
+- **Kalıcı düzeltme gerekiyor mu:** <EVET/HAYIR -- gerekiyorsa BACKLOG.md'ye madde ekle>
+- **Eşik kalibrasyonu gerekiyor mu:** <bu olay eşiklerin çok hassas/çok gevşek olduğunu mu gösterdi?>
+```
 
 ## Operatör hızlı aksiyonlar (özet)
 
@@ -107,6 +212,29 @@
 
 ---
 
+## İlk vs kalibre edilmiş eşikler
+
+`scripts/ops/calibrate_alert_thresholds.py`, son N saatlik (varsayılan
+24) GERÇEK (sentetik `synthetic="true"` etiketli olanlar hariç) metrik
+olaylarından WARN/CRIT önerileri üretir — bkz. `reports/alert_calibration_<UTC>/calibration.md`.
+Bu makinede (gerçek üretim trafiği yok) çalıştırıldığında sonuç
+`INSUFFICIENT_DATA` olur ve mevcut varsayılanlar KORUNUR — bu, kalibre
+edilmemiş bir eksiklik değil, dürüst bir "henüz yeterli veri yok"
+bulgusudur:
+
+| Alert | İlk (kod-içi) varsayılan | Kalibre edilmiş (bu makinede) | Not |
+|---|---|---|---|
+| HIGH_NULL_INTENT_RATE | WARN=0.01, CRIT=0.02 | `INSUFFICIENT_DATA` — ilk varsayılan korunuyor | Gerçek trafik birikince yeniden çalıştırın |
+| FALLBACK_SPIKE | multiplier=3.0x | `INSUFFICIENT_DATA` — ilk varsayılan korunuyor | Kısa-pencereli (15dk) tespit, canlı Prometheus gerektirir |
+| PRIMARY_RESTRICTED_PERSISTENT | tüm kontroller (oran=1.0) | `INSUFFICIENT_DATA` — ilk varsayılan korunuyor | — |
+| PREFLIGHT_UNKNOWN_PERSISTENT | tüm kontroller (oran=1.0) | `INSUFFICIENT_DATA` — ilk varsayılan korunuyor | — |
+
+Go-live SONRASI, ilk gerçek trafik penceresi biriktiğinde bu tablo
+`calibrate_alert_thresholds.py`'nin GERÇEK çıktısıyla güncellenmelidir
+— bu script tek seferlik bir kurulum adımı değildir, periyodik olarak
+(ör. her 2 haftada bir, veya her önemli trafik-desen değişikliğinden
+sonra) yeniden çalıştırılması önerilir.
+
 ## Bilinen sınırlamalar
 
 - Hiçbir alert şu an gerçekten **sayfalamıyor** — canlı bir
@@ -118,10 +246,21 @@
   yakalayamaz; yalnızca canlı bir metrik toplama/alerting pipeline'ı ile
   anlamlı olur.
 - Eşikler (`ALERT_NULL_INTENT_WARN/CRIT`, `ALERT_FALLBACK_SPIKE_MULTIPLIER`)
-  ilk tahminlerdir (bkz. `docs/ops/SLO_MODEL_GATEWAY.md`) — gerçek
-  üretim verisi biriktikçe kalibre edilmesi beklenir.
-- `/metrics` endpoint'i (`scripts/ops/serve_metrics.py`) süreç-içi bir
-  singleton'a dayanır — gerçek üretim `classify()` trafiği ayrı kısa
-  ömürlü süreçlerden geldiğinden bu endpoint'te varsayılan olarak
-  **görünmeyebilir**. Ayrıntı: `docs/ops/MONITORING_STACK_RUNBOOK.md`
-  "KRİTİK mimari sınırlama".
+  ilk tahminlerdir (yukarıdaki "İlk vs kalibre edilmiş eşikler" tablosuna
+  bakın) — gerçek üretim verisi biriktikçe `calibrate_alert_thresholds.py`
+  ile kalibre edilmesi beklenir.
+- **GÜNCELLENDİ:** `/metrics` endpoint'i artık süreç-içi bir singleton'a
+  BAĞIMLI DEĞİL — `METRICS_SINK=jsonl_append` (varsayılan) ile
+  cross-process görünürlük sağlanıyor (bkz.
+  `docs/ops/MONITORING_STACK_RUNBOOK.md` "ÇÖZÜLDÜ (büyük ölçüde):
+  süreç-içi metrik izolasyonu"). Kalan gerçek ödünleşim eventual-consistency
+  penceresidir (gerçek zamanlı push değil), kritik bir sınırlama değildir.
+- Go-live Gate D (Alertmanager alma yolu), bu makinede Alertmanager
+  kurulu olmadığından **SKIPPED** döner — fabrike edilmiş bir PASS
+  değildir, bkz. `docs/ops/MONITORING_STACK_RUNBOOK.md` "Go/No-Go checklist".
+- `tools/cli-runner/src/runner.py`, `shutil.which("echo")` ile çalışır
+  — saf bir PowerShell sürecinin PATH'inde bu bulunamayabilir
+  (`EXECUTABLE_NOT_FOUND`), bu Model Gateway classify/fallback
+  sözleşmesiyle İLGİSİZ, önceden var olan bir ortam sınırlamasıdır
+  (go-live Gate E çalıştırılırken keşfedildi, bkz.
+  `docs/ops/MONITORING_STACK_RUNBOOK.md`).
