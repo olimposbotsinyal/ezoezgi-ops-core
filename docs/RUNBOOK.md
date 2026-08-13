@@ -686,13 +686,24 @@ geçişi denetlenebilir kılar.
   gerekmez.
 - **Gözlemlenebilirlik (SLI/SLO/alert/ops otomasyonu):**
   `services/model-gateway/src/model_gateway/metrics.py` (bellek-içi
-  metrikler, canlı `/metrics` endpoint'i yok), `docs/ops/SLO_MODEL_GATEWAY.md`,
+  metrikler), `docs/ops/SLO_MODEL_GATEWAY.md`,
   `docs/ops/ALERT_PLAYBOOK_MODEL_GATEWAY.md`,
   `scripts/ops/daily_gateway_smoke.ps1` (günlük sağlık kontrolü, exit
   code 0/1/2), `scripts/ops/package_gateway_incident.ps1` (olay kanıt
   paketleyici, secret'lar maskeli). Tam kılavuz:
   `docs/ops/MODEL_FALLBACK_RUNBOOK.md` "Gözlemlenebilirlik ve Ops
   Otomasyonu".
+- **Canlı `/metrics` + izleme yığını:** `scripts/ops/serve_metrics.py`
+  (gerçek, test edilmiş `GET /metrics` endpoint'i — stdlib
+  `http.server`, harici bağımlılık yok),
+  `infra/monitoring/prometheus/prometheus.yml` +
+  `infra/monitoring/alertmanager/alertmanager.yml` (geçerli config,
+  Aşama 1/observe-only, bu makinede Prometheus/Alertmanager kurulu
+  DEĞİL — hiçbiri gerçekten okumuyor),
+  `scripts/ops/emit_synthetic_gateway_signals.py` +
+  `scripts/ops/verify_alert_pipeline.ps1` (E2E doğrulama, bu makinede
+  dürüstçe exit code 1/kısmi döner). Tam kılavuz + kademeli rollout
+  aşamaları + Gate A-D: `docs/ops/MONITORING_STACK_RUNBOOK.md`.
 
 ## Onay Gerektiren Aksiyonlar (Faz 4+ ile aktif olacak)
 

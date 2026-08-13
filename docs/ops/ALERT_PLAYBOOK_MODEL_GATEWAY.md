@@ -1,11 +1,17 @@
 # Alert Playbook — Model Gateway
 
-> **Durum notu:** Bu belgedeki alert'ler `infra/monitoring/prometheus/model_gateway_alerts.yaml`'da
-> örnek Prometheus alerting-rule formatında tanımlı, ama şu an bunları
-> **gerçekten değerlendiren canlı bir Prometheus/Alertmanager kurulumu
-> yok** (bkz. `docs/ops/SLO_MODEL_GATEWAY.md` durum notu). Bugün fiilen
-> çalışan mekanizma: `scripts/ops/daily_gateway_smoke.ps1`, bu
-> eşiklerin bir alt kümesini `metrics_snapshot.json` üzerinden kendisi
+> **Durum notu (güncellendi):** `scripts/ops/serve_metrics.py` artık
+> gerçek, test edilmiş bir `/metrics` endpoint'i sunuyor ve
+> `scripts/ops/verify_alert_pipeline.ps1` E2E pipeline'ı gerçekten
+> çalıştırıyor — ama bu makinede Prometheus/Alertmanager **kurulu değil**
+> (Docker da yok, keşifle doğrulandı). E2E script bu makinede dürüstçe
+> **exit code 1 (kısmi)** döner: metrics endpoint çalışıyor ve sentetik
+> sinyal görünür durumda, ama Prometheus'un alert'i `firing`/`pending`'e
+> çevirip Alertmanager'a iletmesi **doğrulanamadı** çünkü ikisi de kurulu
+> değil. Rollout Aşama 1'de (observe-only) kalıyor — bkz.
+> `docs/ops/MONITORING_STACK_RUNBOOK.md` "Rollout güvenlik kapıları".
+> Alternatif/tamamlayıcı mekanizma: `scripts/ops/daily_gateway_smoke.ps1`,
+> bu eşiklerin bir alt kümesini `metrics_snapshot.json` üzerinden kendisi
 > değerlendirip exit code (0/1/2) ile "aksiyon gerekiyor mu" sinyali
 > verir — bkz. altta her alert'in "Daily smoke karşılığı" satırı.
 
@@ -114,3 +120,8 @@
 - Eşikler (`ALERT_NULL_INTENT_WARN/CRIT`, `ALERT_FALLBACK_SPIKE_MULTIPLIER`)
   ilk tahminlerdir (bkz. `docs/ops/SLO_MODEL_GATEWAY.md`) — gerçek
   üretim verisi biriktikçe kalibre edilmesi beklenir.
+- `/metrics` endpoint'i (`scripts/ops/serve_metrics.py`) süreç-içi bir
+  singleton'a dayanır — gerçek üretim `classify()` trafiği ayrı kısa
+  ömürlü süreçlerden geldiğinden bu endpoint'te varsayılan olarak
+  **görünmeyebilir**. Ayrıntı: `docs/ops/MONITORING_STACK_RUNBOOK.md`
+  "KRİTİK mimari sınırlama".

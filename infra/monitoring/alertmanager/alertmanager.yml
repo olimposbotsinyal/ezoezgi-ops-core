@@ -1,0 +1,66 @@
+# Alertmanager routing -- Model Gateway (STAGED, gorev talimatinca asama 1).
+#
+# DURUM: Bu makinede kurulu bir Alertmanager yok (bkz.
+# docs/ops/MONITORING_STACK_RUNBOOK.md). Bu dosya gecerli, kullanilabilir
+# bir config -- ama su an hicbir surec bunu okumuyor, hicbir alert
+# gercekten yonlendirilmiyor/sayfalanmiyor.
+#
+# ROLLOUT AŞAMASI: 1 (observe-only). Varsayilan route BILEREK `null`
+# receiver'a gidiyor -- hicbir alert disari cikmiyor. Asama 2/3'e gecis
+# icin bkz. docs/ops/MONITORING_STACK_RUNBOOK.md "Kademeli rollout
+# asamalari" ve Gate A-D kriterleri. HICBIR GERCEK SECRET/TOKEN
+# ICERMEZ -- webhook URL'leri ortam degiskeni placeholder'lari.
+
+global:
+  resolve_timeout: 5m
+
+route:
+  # ASAMA 1 (observe-only): varsayilan route hicbir yere gitmiyor.
+  receiver: "null-receiver"
+  group_by: ["alertname", "provider"]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+
+  routes:
+    # ASAMA 2 (warning-on) icin hazir, ama route'un kendisi devre disi
+    # birakilmasin diye burada TANIMLI -- gercekten aktif olup olmamasi
+    # `route.receiver`'in `null-receiver` olarak kalmasiyla kontrol
+    # ediliyor (bkz. yukaridaki not). Asama 2'ye gecince bu alt-route'un
+    # receiver'i `warning-sink`'e degistirilecek/route zincirine
+    # tasinacak.
+    - match:
+        severity: warning
+      receiver: "null-receiver"  # ASAMA 2'de: warning-sink
+      continue: false
+
+    # ASAMA 3 (critical-on) icin hazir, ayni sekilde su an null.
+    - match:
+        severity: critical
+      receiver: "null-receiver"  # ASAMA 3'te: critical-sink
+      continue: false
+
+receivers:
+  - name: "null-receiver"
+    # Kasitli olarak bos -- hicbir bildirim kanali yok, tum alert'ler
+    # burada "yutulur". ASAMA 1'in tanimi budur.
+
+  - name: "warning-sink"
+    webhook_configs:
+      - url: "${ALERTMANAGER_WARNING_WEBHOOK_URL}"  # ortam degiskeni placeholder -- GERCEK URL BURAYA YAZILMAZ
+        send_resolved: true
+
+  - name: "critical-sink"
+    webhook_configs:
+      - url: "${ALERTMANAGER_CRITICAL_WEBHOOK_URL}"  # ortam degiskeni placeholder -- GERCEK URL BURAYA YAZILMAZ
+        send_resolved: true
+
+inhibit_rules:
+  # Kritik bir circuit-open-stuck alarmi varken, ayni provider icin
+  # daha dusuk onemli fallback/restriction alert'lerini bastir --
+  # gurultu azaltma (bkz. docs/ops/ALERT_PLAYBOOK_MODEL_GATEWAY.md).
+  - source_match:
+      alertname: "ModelGatewayCircuitOpenStuck"
+    target_match_re:
+      alertname: "ModelGateway(FallbackSpike|PrimaryRestrictedPersistent)"
+    equal: ["provider"]

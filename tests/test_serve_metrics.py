@@ -8,6 +8,7 @@ HTTP istegi yapilir, sonra kapatilir -- dis ag erisimi gerektirmez.
 
 from __future__ import annotations
 
+import json
 import threading
 import urllib.error
 import urllib.request
@@ -15,8 +16,10 @@ import urllib.request
 from serve_metrics import build_server
 
 
-def _start_test_server(*, metrics_enabled_fn, render_fn):
-    server = build_server("127.0.0.1", 0, metrics_enabled_fn=metrics_enabled_fn, render_fn=render_fn)
+def _start_test_server(*, metrics_enabled_fn, render_fn, inject_fn=None):
+    server = build_server(
+        "127.0.0.1", 0, metrics_enabled_fn=metrics_enabled_fn, render_fn=render_fn, inject_fn=inject_fn
+    )
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     port = server.server_address[1]
@@ -86,3 +89,52 @@ def test_metrics_endpoint_unknown_path_returns_404():
         _stop_test_server(server, thread)
 
     assert status == 404
+
+
+def test_debug_injection_endpoint_closed_by_default():
+    """`inject_fn=None` (varsayilan) iken /debug/inject_synthetic 404
+    donmeli -- production/varsayilan modda mutasyon endpoint'i kapali."""
+    server, thread, port = _start_test_server(metrics_enabled_fn=lambda: True, render_fn=lambda: "x")
+    try:
+        body = json.dumps({"mode": "fallback-spike", "count": 5}).encode("utf-8")
+        req = urllib.request.Request(
+            f"http://127.0.0.1:{port}/debug/inject_synthetic", data=body, method="POST"
+        )
+        try:
+            urllib.request.urlopen(req, timeout=5)
+            status = None
+        except urllib.error.HTTPError as exc:
+            status = exc.code
+    finally:
+        _stop_test_server(server, thread)
+
+    assert status == 404
+
+
+def test_debug_injection_endpoint_calls_inject_fn_when_enabled():
+    """Enjeksiyon acikken, POST body'sindeki mode/count inject_fn'e
+    dogru sekilde iletilmeli -- AYNI surecin registry'sine yazmayi
+    simule eder (E2E dogrulamanin dayandigi mekanizma)."""
+    calls = []
+
+    def fake_inject(mode, count):
+        calls.append((mode, count))
+        return {"mode": mode, "samples": count}
+
+    server, thread, port = _start_test_server(
+        metrics_enabled_fn=lambda: True, render_fn=lambda: "x", inject_fn=fake_inject
+    )
+    try:
+        body = json.dumps({"mode": "null-intent-spike", "count": 9}).encode("utf-8")
+        req = urllib.request.Request(
+            f"http://127.0.0.1:{port}/debug/inject_synthetic", data=body, method="POST"
+        )
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            status = resp.status
+            response_body = json.loads(resp.read().decode("utf-8"))
+    finally:
+        _stop_test_server(server, thread)
+
+    assert status == 200
+    assert calls == [("null-intent-spike", 9)]
+    assert response_body == {"mode": "null-intent-spike", "samples": 9}

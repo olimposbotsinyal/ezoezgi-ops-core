@@ -27,3 +27,8 @@ data/audit/*
 # ile eklenebilir (bkz. reports/runtime_incident_*/ icin ayni desen).
 reports/daily_smoke_*/
 reports/incidents/
+
+# E2E alert pipeline test/kanit ciktilari + izleme yigini PID/log kaydi --
+# ayni gerekce: rutin/tekrarlanan test ciktisi, repoya birikmesin.
+reports/alert_e2e_*/
+reports/monitoring_stack/
