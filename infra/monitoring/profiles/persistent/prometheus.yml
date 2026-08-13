@@ -1,0 +1,54 @@
+# Kalici (persistent) Prometheus profili -- Model Gateway.
+#
+# Bu, infra/monitoring/prometheus/prometheus.yml'nin (gelistirme/tek
+# seferlik dogrulama amacli) URETIM-GUVENLI (production-safe)
+# karsiligidir. Farklar: `env: production` etiketi, daha uzun
+# `scrape_timeout` (yavas disk/ag durumlariyla basa cikmak icin), ve
+# README.md'de acik saklama (retention)/restart politikasi rehberi.
+#
+# Alert KURALLARI bu profilde KOPYALANMAZ -- repo'daki TEK, KANONIK
+# dosyaya (infra/monitoring/prometheus/model_gateway_alerts.yaml)
+# ISARET EDER. Boylece "dev" ve "persistent" profilleri arasinda kural
+# ICERIGI asla birbirinden SAPMAZ (drift riski yapisal olarak yok --
+# bkz. infra/monitoring/baseline/alerts_checksum_v1.txt, tek dosyayi
+# izler).
+#
+# CALISTIRMA (herhangi bir CWD'den calistirilabilir -- Prometheus,
+# `rule_files` icindeki relatif yollari CWD'YE DEGIL, BU CONFIG
+# DOSYASININ KENDI DIZININE gore cozer; asagidaki `../../` bu yuzden
+# gerekli -- `promtool check config` ile GERCEKTEN dogrulandi,
+# varsayilmadi):
+#
+#   prometheus.exe --config.file=infra/monitoring/profiles/persistent/prometheus.yml \
+#     --storage.tsdb.path=data/monitoring/prometheus-tsdb \
+#     --storage.tsdb.retention.time=15d \
+#     --web.listen-address=127.0.0.1:9090
+#
+# Retention/restart rehberi icin bkz. README.md (bu dizinde).
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    env: production
+    service: ezoezgi-model-gateway
+
+rule_files:
+  - "../../prometheus/model_gateway_alerts.yaml"
+
+scrape_configs:
+  - job_name: "ezoezgi_model_gateway"
+    scrape_interval: 15s
+    scrape_timeout: 10s
+    metrics_path: "/metrics"
+    static_configs:
+      - targets: ["127.0.0.1:9108"]
+        labels:
+          env: production
+          service: model-gateway
+          instance: "model-gateway-primary"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["127.0.0.1:9093"]  # bkz. infra/monitoring/profiles/persistent/alertmanager.yml

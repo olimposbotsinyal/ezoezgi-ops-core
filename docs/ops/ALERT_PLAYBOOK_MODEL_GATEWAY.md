@@ -214,26 +214,71 @@ Her ESCALATE edilen (veya tekrarlayan/gürültülü) alert için, olay bileti/BA
 
 ## İlk vs kalibre edilmiş eşikler
 
-`scripts/ops/calibrate_alert_thresholds.py`, son N saatlik (varsayılan
-24) GERÇEK (sentetik `synthetic="true"` etiketli olanlar hariç) metrik
-olaylarından WARN/CRIT önerileri üretir — bkz. `reports/alert_calibration_<UTC>/calibration.md`.
-Bu makinede (gerçek üretim trafiği yok) çalıştırıldığında sonuç
-`INSUFFICIENT_DATA` olur ve mevcut varsayılanlar KORUNUR — bu, kalibre
-edilmemiş bir eksiklik değil, dürüst bir "henüz yeterli veri yok"
-bulgusudur:
+`scripts/ops/calibrate_alert_thresholds.py` **v1** (post-GO sertleştirmesi),
+24h/7d/14d pencerelerinden (sentetik `synthetic="true"` etiketli
+olanlar HARİÇ) WARN/CRIT önerileri + bir **GÜVEN SKORU** (LOW/MEDIUM/HIGH)
+üretir — bkz. `reports/alert_calibration_<UTC>/calibration_v1.md` +
+`calibration_v1.json`. Bu makinede (gerçek üretim trafiği yok)
+çalıştırıldığında sonuç `INSUFFICIENT_DATA`/`LOW` güven olur ve mevcut
+varsayılanlar KORUNUR — bu, kalibre edilmemiş bir eksiklik değil, dürüst
+bir "henüz yeterli veri yok" bulgusudur:
 
-| Alert | İlk (kod-içi) varsayılan | Kalibre edilmiş (bu makinede) | Not |
-|---|---|---|---|
-| HIGH_NULL_INTENT_RATE | WARN=0.01, CRIT=0.02 | `INSUFFICIENT_DATA` — ilk varsayılan korunuyor | Gerçek trafik birikince yeniden çalıştırın |
-| FALLBACK_SPIKE | multiplier=3.0x | `INSUFFICIENT_DATA` — ilk varsayılan korunuyor | Kısa-pencereli (15dk) tespit, canlı Prometheus gerektirir |
-| PRIMARY_RESTRICTED_PERSISTENT | tüm kontroller (oran=1.0) | `INSUFFICIENT_DATA` — ilk varsayılan korunuyor | — |
-| PREFLIGHT_UNKNOWN_PERSISTENT | tüm kontroller (oran=1.0) | `INSUFFICIENT_DATA` — ilk varsayılan korunuyor | — |
+| Alert | İlk (kod-içi) varsayılan | Kalibre edilmiş (bu makinede) | Güven | Not |
+|---|---|---|---|---|
+| HIGH_NULL_INTENT_RATE | WARN=0.01, CRIT=0.02 | `INSUFFICIENT_DATA` — ilk varsayılan korunuyor | LOW | Gerçek trafik birikince yeniden çalıştırın |
+| FALLBACK_SPIKE | multiplier=3.0x | `INSUFFICIENT_DATA` — ilk varsayılan korunuyor | LOW | Kısa-pencereli (15dk) tespit, canlı Prometheus gerektirir |
+| PRIMARY_RESTRICTED_PERSISTENT | tüm kontroller (oran=1.0) | `INSUFFICIENT_DATA` — ilk varsayılan korunuyor | LOW | Ayrı bir eşik ortam değişkeni yok |
+| PREFLIGHT_UNKNOWN_PERSISTENT | tüm kontroller (oran=1.0) | `INSUFFICIENT_DATA` — ilk varsayılan korunuyor | LOW | Ayrı bir eşik ortam değişkeni yok |
 
 Go-live SONRASI, ilk gerçek trafik penceresi biriktiğinde bu tablo
 `calibrate_alert_thresholds.py`'nin GERÇEK çıktısıyla güncellenmelidir
-— bu script tek seferlik bir kurulum adımı değildir, periyodik olarak
-(ör. her 2 haftada bir, veya her önemli trafik-desen değişikliğinden
-sonra) yeniden çalıştırılması önerilir.
+— bu script tek seferlik bir kurulum adımı değildir, **haftalık
+gözden geçirme ritüelinin** (bkz. `docs/ops/MONITORING_STACK_RUNBOOK.md`
+"Post-GO weekly ritual") bir parçası olarak periyodik yeniden
+çalıştırılması önerilir.
+
+## Eşik güncellemelerini nasıl onaylarım (approval SOP)
+
+**Politika koruması (yapısal, yalnızca belgesel değil):**
+`calibrate_alert_thresholds.py`'de config'i/ortam değişkenini
+OTOMATİK OLARAK değiştiren HİÇBİR kod yolu YOKTUR — script yalnızca bir
+`proposed_threshold_patch.yaml` **ÖNERİ dosyası** üretir
+(`policy: NEVER_AUTO_APPLY`, `status: PROPOSAL_ONLY_NOT_APPLIED`). Bir
+eşik güncellemesini UYGULAMAK her zaman aşağıdaki ELLE, insan onaylı
+adımlardır:
+
+1. **Çalıştırın:** `python scripts/ops/calibrate_alert_thresholds.py`
+   — `reports/alert_calibration_<UTC>/` altında üç dosya üretir:
+   `calibration_v1.md` (insan-okur özet + gerekçe + yanlış-pozitif
+   riski + değişiklik-etkisi notu), `calibration_v1.json` (ham veri),
+   `proposed_threshold_patch.yaml` (uygulanabilir öneri).
+2. **İnceleyin:** `calibration_v1.md`'deki her alert için:
+   - **Güven skoru HIGH mı?** (birden fazla pencerede yeterli VE
+     tutarlı veri) — değilse (LOW/MEDIUM), uygulamadan önce EK bir
+     gözlem penceresi (bir sonraki haftalık çalıştırma) bekleyin.
+   - **Örnek boyutu yeterliliği** "YETERLİ" mi, yoksa "SINIRDA" mı?
+   - **Değişiklik-etkisi notu**'nu okuyun — eşik gevşetiliyor mu
+     (daha az alarm) yoksa sıkılaştırılıyor mu (daha fazla alarm)?
+   - **Yanlış-pozitif riski** notunu okuyun.
+3. **Onaylayın:** Yukarıdaki 4 kriterin hepsi tatmin ediciyse
+   (özellikle güven=HIGH), `proposed_threshold_patch.yaml`'daki
+   `env_vars` değerlerini KENDİNİZ, ELLE uygulayın — `config/model_gateway.yaml`'a
+   ekleyin VEYA gerçek ortam değişkeni olarak ayarlayın. Onaylayan kişi
+   bu adımı GERÇEKLEŞTİREN kişi olmalıdır (bir script'in "otomatik
+   uygulama" yapması ASLA beklenmez/desteklenmez).
+4. **Kaydedin:** `docs/BACKLOG.md`'ye uygulanan değişikliği (eski
+   değer → yeni değer, gerekçe, hangi `calibration_v1.json` çalıştırmasına
+   dayandığı) not düşün.
+5. **Doğrulayın:** Bir sonraki haftalık gözden geçirmede (`weekly_observability_review.ps1`),
+   yeni eşiğin beklenen davranışı (daha az/çok alarm) gösterip
+   göstermediğini kontrol edin — beklenmedik bir sonuç varsa geri alın.
+
+**Reddetme kriterleri (uygulamayın):** güven LOW ise; örnek boyutu
+"YETERSİZ" ise; önerilen değer mevcut değerin ÇOK altındaysa (aşırı
+hassas eşik riski — script zaten bunu `max(gözlenen*çarpan, mevcut)`
+ile önler, ama yine de gözden geçirin); yakın zamanda (son 48 saat)
+büyük bir trafik-deseni değişikliği (ör. yeni bir entegrasyon,
+sağlayıcı değişikliği) olduysa.
 
 ## Bilinen sınırlamalar
 

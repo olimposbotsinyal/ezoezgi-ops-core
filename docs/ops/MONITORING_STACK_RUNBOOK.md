@@ -403,8 +403,93 @@ edildi (dosyadaki tüm açıklama satırları korunarak, yalnızca
 > (observe-only, mevcut varsayılan) altında risk yoktur çünkü hiçbir
 > alert hiçbir yere yönlendirilmiyor.
 
+## Post-GO weekly ritual
+
+GO kararı verildikten sonra gözlemlenebilirlik altyapısının sessizce
+bozulmaması ("gözlemlenebilirlik borcu") için, **haftalık olarak**
+(önerilen: her Pazartesi, veya Windows Task Scheduler ile otomatik):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\ops\weekly_observability_review.ps1
+```
+
+Bu script otomatik olarak:
+
+1. **Gate snapshot'ı** (hafif mod — `run_observability_gates.ps1 -Lightweight`,
+   Gate E/tam pytest suite atlanır, yalnızca operasyonel sinyaller
+   A/B/C/D kontrol edilir — hızlı, ~5 saniye).
+2. **Drift tespiti** (`scripts/ops/detect_observability_drift.py`) —
+   metrik şeması/alert kuralları/config varsayılanları onaylı durumdan
+   sapmış mı?
+3. **Son 7 günlük fallback + null-intent oranlarını** (sentetik hariç,
+   `calibrate_alert_thresholds.py` ile AYNI hesaplama mantığı).
+4. `reports/weekly_observability_<YYYY-WW>/review.md`'ye bir girdi
+   **EKLER** (var olanları silmez — kalıcı bir günlük/log oluşturur).
+   Diğer `reports/*` çıktılarının aksine bu dizin `.gitignore`'da
+   KASITLI olarak YOKTUR — normal `git add` ile (özel bir `-f` bayrağı
+   GEREKMEDEN) commit edilip uzun vadeli bir trend kaydı olarak
+   saklanması önerilir.
+5. **GREEN / YELLOW / RED** durumunu + gerekçelerini yazdırır, durumla
+   eşleşen exit code (0/1/2) ile çıkar.
+
+| Durum | Anlamı | Aksiyon |
+|---|---|---|
+| GREEN | Tüm kontroller sağlıklı | Yok — bir sonraki haftaya kadar bekleyin |
+| YELLOW | Gate PARTIAL, kritik olmayan drift, veya null-intent WARN eşiğini aşıyor | İnceleyin, `docs/BACKLOG.md`'ye not düşün, bir sonraki haftaya kadar izleyin (acil değil) |
+| RED | Gate FAIL, KRİTİK drift, veya null-intent CRIT eşiğini aşıyor | **HEMEN** inceleyin — bkz. aşağıdaki "Drift response SOP" ve `docs/ops/ALERT_PLAYBOOK_MODEL_GATEWAY.md` "Triaj karar ağacı" |
+
+## Drift response SOP
+
+`scripts/ops/detect_observability_drift.py`, `infra/monitoring/baseline/`
+altındaki ONAYLI durumla (metrik şeması + alert kuralları checksum'i +
+config varsayılanları) gerçek durumu karşılaştırır. Bir drift
+bulunduğunda:
+
+1. **Raporu oku:** `reports/drift_<UTC>/drift_report.md` — hangi
+   kategori (`metrics_schema`/`alert_rules`/`remote_default`/`strict_flag`),
+   hangi şiddet (WARN/CRITICAL), ham kanıt (`evidence`).
+2. **`remote_default` CRITICAL ise:** BU EN CİDDİ senaryodur — görev
+   kısıtlarının ("remote-default değişikliği yok") sessizce ihlal
+   edildiği anlamına gelir. `services/model-gateway/src/model_gateway/config.py`'de
+   `load_config()`'in `REMOTE_ENABLED`/`remote_enabled` için varsayılanının
+   `False`'tan `True`'ya değiştirilip değiştirilmediğini KONTROL EDİN —
+   kasıtsız/onaysız ise HEMEN geri alın (git revert), kasıtlıysa
+   `infra/monitoring/baseline/metrics_manifest_v1.json`'daki
+   `config_defaults.remote_enabled`'ı GÜNCELLEYİN (aynı commit'te, bkz.
+   o dosyanın "guncelleme_proseduru" notu) VE `docs/BACKLOG.md`'ye
+   AÇIKÇA bir ADR/karar notu düşün.
+3. **`alert_rules` CRITICAL ise:** `infra/monitoring/prometheus/model_gateway_alerts.yaml`
+   onay dışı değişmiş demektir. `git log -p -- infra/monitoring/prometheus/model_gateway_alerts.yaml`
+   ile SON değişikliği inceleyin — kasıtlı/incelenmiş bir değişiklikse
+   `infra/monitoring/baseline/alerts_checksum_v1.txt`'i YENİDEN hesaplayıp
+   güncelleyin (`sha256sum infra/monitoring/prometheus/model_gateway_alerts.yaml`);
+   değilse geri alın.
+4. **`metrics_schema` WARN ise:** Ya (a) gerçekten yeni bir metrik/etiket
+   eklendi (kasıtlı — `metrics_manifest_v1.json`'ı güncelleyin) ya da
+   (b) bir yazım hatası/kazara etiket sızıntısı var (kod tarafında
+   düzeltin). Hangisi olduğunu `evidence.metric`/`evidence.unexpected_labels`
+   alanlarından + ilgili kod yolundan (bkz. `metrics_manifest_v1.json`'daki
+   `source` alanı) belirleyin.
+5. **`strict_flag` WARN ise:** Genellikle kasıtlı bir operatör kararıdır
+   (bkz. `docs/ops/MODEL_FALLBACK_RUNBOOK.md`) — doğrulayın, kasıtlıysa
+   baseline'ı güncelleyin, değilse geri alın.
+6. **Her durumda:** Düzeltme/onay AYNI commit'te olmalı, "sessiz bir
+   baseline düzeltme commit'i" ASLA olmamalı — değişiklik code review'da
+   açıkça görülmelidir.
+
+## Kalıcı (persistent) izleme profili
+
+`infra/monitoring/profiles/persistent/` — `prometheus.yml` +
+`alertmanager.yml` + `README.md` (retention/restart politikası/etiket
+sözleşmesi rehberi). Bu, geliştirme/tek-seferlik-doğrulama profilinin
+(`infra/monitoring/prometheus/prometheus.yml` vb.) üretim-güvenli
+karşılığıdır — **bu makinede fiilen dağıtılmadı**, dosyalar hazır ve
+`promtool check config` ile gerçekten doğrulandı (bkz. README.md).
+
 ## İlgili dokümanlar
 
 - `docs/ops/SLO_MODEL_GATEWAY.md`
 - `docs/ops/ALERT_PLAYBOOK_MODEL_GATEWAY.md`
 - `docs/ops/MODEL_FALLBACK_RUNBOOK.md`
+- `infra/monitoring/baseline/` — drift tespiti onaylı durumu
+- `infra/monitoring/profiles/persistent/README.md` — kalıcı kurulum rehberi

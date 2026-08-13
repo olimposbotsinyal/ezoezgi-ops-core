@@ -1,0 +1,72 @@
+# Kalici (persistent) Alertmanager profili -- Model Gateway.
+#
+# infra/monitoring/alertmanager/alertmanager.yml (gelistirme/dogrulama
+# profili) ile AYNI routing yapisi/felsefesi -- Asama 1 (observe-only)
+# VARSAYILAN, receiver'lar KASITLI olarak "null-receiver". Bu dosya
+# KALICI/uzun-sureli calisan bir kurulum icin dusunulmustur (bkz.
+# README.md retention/restart rehberi).
+#
+# ONEMLI (2026-08-13 gercek dogrulamada kesfedildi, bkz.
+# docs/ops/MONITORING_STACK_RUNBOOK.md "Gate D gercek dogrulama"):
+# Alertmanager, `${VAR}` sozdizimini KENDISI COZMEZ (bazi araclarin
+# aksine) -- asagidaki iki webhook URL'si LITERAL birer placeholder
+# METNIDIR, gercek bir ortam degiskeni SUBSTITUTION'i DEGILDIR. Bu
+# dosyayi OLDUGU GIBI baslatirsaniz Alertmanager, gecersiz URL semasi
+# nedeniyle config-validation'da BASARISIZ OLUR (route hala
+# null-receiver'da olsa BILE -- Alertmanager TUM receiver'lari
+# baslangicta dogrular, yalnizca aktif rotali olanlari DEGIL). Gercekten
+# baslatmadan once: (1) Asama 1'de kalacaksaniz, bu iki url degerini
+# HERHANGI bir sozdizimsel olarak GECERLI (ama gercek olmayan) URL ile
+# degistirin (ornegin `http://127.0.0.1:1/unused`) -- hicbir yere asla
+# yonlendirilmeyecekler zaten; (2) Asama 2/3'e GECERSENIZ, gercek
+# webhook URL'lerini bir `envsubst` adimiyla veya dagitim araciniz
+# uzerinden (ASLA bu dosyaya commit ETMEDEN) enjekte edin.
+#
+# CALISTIRMA:
+#   alertmanager.exe --config.file=infra/monitoring/profiles/persistent/alertmanager.yml \
+#     --storage.path=data/monitoring/alertmanager-data \
+#     --data.retention=120h \
+#     --web.listen-address=127.0.0.1:9093
+
+global:
+  resolve_timeout: 5m
+
+route:
+  # ASAMA 1 (observe-only, VARSAYILAN): hicbir alert disari cikmiyor.
+  receiver: "null-receiver"
+  group_by: ["alertname", "provider"]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+
+  routes:
+    - match:
+        severity: warning
+      receiver: "null-receiver"  # ASAMA 2'de: warning-sink
+      continue: false
+
+    - match:
+        severity: critical
+      receiver: "null-receiver"  # ASAMA 3'te: critical-sink
+      continue: false
+
+receivers:
+  - name: "null-receiver"
+    # Kasitli olarak bos -- ASAMA 1'in tanimi budur.
+
+  - name: "warning-sink"
+    webhook_configs:
+      - url: "${ALERTMANAGER_WARNING_WEBHOOK_URL}"  # placeholder -- yukaridaki NOT'a bakin, GERCEK URL BURAYA COMMIT EDILMEZ
+        send_resolved: true
+
+  - name: "critical-sink"
+    webhook_configs:
+      - url: "${ALERTMANAGER_CRITICAL_WEBHOOK_URL}"  # placeholder -- yukaridaki NOT'a bakin, GERCEK URL BURAYA COMMIT EDILMEZ
+        send_resolved: true
+
+inhibit_rules:
+  - source_match:
+      alertname: "ModelGatewayCircuitOpenStuck"
+    target_match_re:
+      alertname: "ModelGateway(FallbackSpike|PrimaryRestrictedPersistent)"
+    equal: ["provider"]

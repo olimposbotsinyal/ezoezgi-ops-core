@@ -49,3 +49,11 @@ reports/alert_calibration_*/
 reports/observability_signoff_*/
 reports/rollback_drill_*/
 reports/gate_d_real_validation_*/
+reports/drift_*/
+
+# NOT: reports/weekly_observability_<YYYY-WW>/ KASITLI olarak burada
+# YOK -- bu, "Post-GO weekly ritual"in kalici governance gunlugudur
+# (her hafta EKLENIR, uzerine yazilmaz), diger raporlar gibi rutin/
+# tek-seferlik-atilabilir DEGILDIR. Normal `git add` ile izlenmesi
+# ONERILIR (bkz. docs/ops/MONITORING_STACK_RUNBOOK.md "Post-GO weekly
+# ritual").

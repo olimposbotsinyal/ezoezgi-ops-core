@@ -36,18 +36,31 @@ param(
     [double]$AvailabilityIntervalSec = 0.2,
     [int]$ScrapeSuccessSamples = 20,
     [int]$SyntheticCount = 5,
-    [switch]$Real24h
+    [switch]$Real24h,
+    [switch]$Lightweight
 )
 
 $ErrorActionPreference = "Stop"
 $env:PYTHONPATH = "$RepoRoot\services\model-gateway\src;$RepoRoot\services\tr-en-bridge\src;$RepoRoot\apps\orchestrator\src;$RepoRoot\scripts\ops"
 $env:METRICS_SINK = "in_memory"  # gecici gate sureci -- gercek data/metrics/*.jsonl'e YAZMAZ
 
+# -Lightweight: haftalik/periyodik saglik anlik goruntusu icin HIZLI mod
+# (bkz. scripts/ops/weekly_observability_review.ps1) -- ornek sayilari
+# kucultulur VE Gate E (tam pytest suite, en yavas adim) ATLANIR (SKIPPED
+# olarak raporlanir, FABRIKE bir PASS degil -- classify regresyonu zaten
+# normal gelistirme/CI akisinda ayrica kontrol ediliyor).
+if ($Lightweight) {
+    $AvailabilitySamples = 3
+    $ScrapeSuccessSamples = 5
+    $SyntheticCount = 2
+    $AvailabilityIntervalSec = 0.1
+}
+
 $ts = (Get-Date).ToUniversalTime().ToString("yyyyMMdd'T'HHmmss'Z'")
 $outDir = Join-Path $RepoRoot "reports\go_live_gates_$ts"
 New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 
-$mode = if ($Real24h) { "real_24h_claimed" } else { "simulation" }
+$mode = if ($Real24h) { "real_24h_claimed" } elseif ($Lightweight) { "lightweight" } else { "simulation" }
 
 Write-Output "=== Adim 1: gecici metrics+injection sureci baslatiliyor (izole, METRICS_SINK=in_memory) ==="
 $metricsProc = Start-Process -FilePath $PythonExe `
@@ -165,18 +178,36 @@ try {
         Write-Output "  ON-KONTROL: bu PowerShell surecinin PATH'inde gercek bir 'echo' yurutulebilir dosyasi YOK -- test_nlu_provider_flag.py'nin orchestrator-smoke alt-testleri EXECUTABLE_NOT_FOUND ile basarisiz olabilir (bkz. asagidaki tani notu)."
     }
 
-    Push-Location $RepoRoot
-    $pytestOutput = & $PythonExe -m pytest $gateETestFiles 2>&1
-    $gateEExitCode = $LASTEXITCODE
-    Pop-Location
-    $gateESummary = ($pytestOutput | Select-Object -Last 1) -join " "
+    if ($Lightweight) {
+        # -Lightweight: en yavas adim (tam pytest calistirmasi) atlanir --
+        # SKIPPED olarak raporlanir (FABRIKE bir PASS DEGIL). classify
+        # regresyonu zaten normal gelistirme/CI akisinda ayrica kontrol
+        # ediliyor -- haftalik/periyodik saglik anlik goruntusunun amaci
+        # bu degil, operasyonel (metrics/alert altyapisi) saglik.
+        Write-Output "  ATLANDI (-Lightweight): Gate E SKIPPED olarak raporlanacak."
+        # NOT: -1 yalnizca bir YER TUTUCUDUR -- asagidaki Python driver'da
+        # `gate_e_lightweight=True` oldugunda BU DEGER HIC OKUNMAZ (runtime'da
+        # kullanilmaz). Yine de `$null` KULLANILAMAZ: PowerShell here-string
+        # ictinde `$null`, BOS bir metne (`""`) enterpole olur, bu da
+        # `evaluate_gate_e_classify_regression(, ...)` gibi Python'da
+        # SOZDIZIMSEL olarak GECERSIZ bir kod dogurur -- Python, calismayan
+        # dal dahil TUM dosyayi once PARSE eder, bu yuzden her iki dal da
+        # HER ZAMAN sozdizimsel olarak gecerli olmalidir.
+        $gateEExitCode = -1
+        $gateESummary = "Lightweight modda atlandi -- tam pytest suite calistirilmadi."
+    } else {
+        Push-Location $RepoRoot
+        $pytestOutput = & $PythonExe -m pytest $gateETestFiles 2>&1
+        $gateEExitCode = $LASTEXITCODE
+        Pop-Location
+        $gateESummary = ($pytestOutput | Select-Object -Last 1) -join " "
 
-    if ($gateEExitCode -ne 0 -and -not $realEchoFound) {
-        $gateESummary += " [TANI: bu surecin PATH'inde gercek 'echo' yurutulebilir dosyasi bulunamadi -- basarisizlik(lar) muhtemelen echo_runner.py PATH cozumlemesinden kaynaklaniyor, classify/fallback sozlesmesiyle ILGISIZ, onceden var olan bir ortam sinirlamasi (bkz. docs/BACKLOG.md); yine de gate durumu GERCEK sonuca gore FAIL kaliyor]"
+        if ($gateEExitCode -ne 0 -and -not $realEchoFound) {
+            $gateESummary += " [TANI: bu surecin PATH'inde gercek 'echo' yurutulebilir dosyasi bulunamadi -- basarisizlik(lar) muhtemelen echo_runner.py PATH cozumlemesinden kaynaklaniyor, classify/fallback sozlesmesiyle ILGISIZ, onceden var olan bir ortam sinirlamasi (bkz. docs/BACKLOG.md); yine de gate durumu GERCEK sonuca gore FAIL kaliyor]"
+        }
+        Set-Content -Path "$outDir\gate_e_pytest_output.log" -Value ($pytestOutput -join "`n") -Encoding utf8
     }
-
     Write-Output "Gate E: exit_code=$gateEExitCode summary=$gateESummary"
-    Set-Content -Path "$outDir\gate_e_pytest_output.log" -Value ($pytestOutput -join "`n") -Encoding utf8
 
     Write-Output "=== Karar hesaplaniyor + rapor yaziliyor ==="
     $driverScript = @"
@@ -186,13 +217,23 @@ from observability_gates_core import (
     evaluate_gate_a_metrics_availability, evaluate_gate_b_scrape_success,
     evaluate_gate_c_synthetic_alerts, evaluate_gate_d_alertmanager_receive,
     evaluate_gate_e_classify_regression, overall_exit_code, overall_status,
-    render_gate_report_md, write_gate_results_json,
+    render_gate_report_md, write_gate_results_json, GateResult, STATUS_SKIPPED,
 )
 from pathlib import Path
 from datetime import datetime, timezone
 
 with open(r'$outDir\gate_c_mode_visibility.json', encoding='utf-8-sig') as f:
     mode_visibility = json.load(f)
+
+gate_e_lightweight = $(if ($Lightweight) { "True" } else { "False" })
+if gate_e_lightweight:
+    gate_e_result = GateResult(
+        'E_classify_regression_smoke', STATUS_SKIPPED,
+        r'''$gateESummary''',
+        evidence={'lightweight_mode': True},
+    )
+else:
+    gate_e_result = evaluate_gate_e_classify_regression($gateEExitCode, r'''$gateESummary''')
 
 results = [
     evaluate_gate_a_metrics_availability(
@@ -207,7 +248,7 @@ results = [
         alertmanager_reachable=$($amReachable.ToString()),
         alert_received=$($amAlertReceived.ToString()),
     ),
-    evaluate_gate_e_classify_regression($gateEExitCode, r'''$gateESummary'''),
+    gate_e_result,
 ]
 
 generated_at = datetime.now(timezone.utc).isoformat()

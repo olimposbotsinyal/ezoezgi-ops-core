@@ -733,9 +733,11 @@ geçişi denetlenebilir kılar.
   aldı, observe-only korunarak) sonrasında. Kanıt: `reports/go_live_gates_20260813T073109Z/`,
   `reports/gate_d_real_validation_20260813T072946Z/` (`git add -f` ile
   arşivlendi). Ayrıntı: `docs/ops/MONITORING_STACK_RUNBOOK.md` "Go-live
-  gate otomasyonu". `scripts/ops/calibrate_alert_thresholds.py`
-  (son N saatlik gerçek veriden WARN/CRIT önerisi — bu makinede
-  `INSUFFICIENT_DATA`, mevcut varsayılanlar korunuyor).
+  gate otomasyonu". `scripts/ops/calibrate_alert_thresholds.py` **v1**
+  (24h/7d/14d pencereleri + güven skoru LOW/MEDIUM/HIGH + örnek boyutu
+  yeterliliği + değişiklik-etkisi notu — bu makinede `INSUFFICIENT_DATA`/LOW,
+  mevcut varsayılanlar korunuyor; hiçbir kod yolu config'i otomatik
+  değiştirmez, yalnızca `proposed_threshold_patch.yaml` önerisi üretir).
   `scripts/ops/build_observability_signoff.py` (git SHA + tam test
   özeti + en son gate sonucu + GO/CONDITIONAL-GO/NO-GO kararı,
   `SIGNOFF.md`/`SIGNOFF.json`). `scripts/ops/rollback_observability.ps1`
@@ -745,6 +747,22 @@ geçişi denetlenebilir kılar.
   apply, hem "zaten güvenli" hem "gerçek escalate durumunu düzeltme"
   senaryolarında elle doğrulandı). Kanonik "Go/No-Go checklist":
   `docs/ops/MONITORING_STACK_RUNBOOK.md`.
+- **Post-GO sertleştirme (kalibrasyon v1, drift tespiti, haftalık
+  governance, kalıcı profil):** `scripts/ops/detect_observability_drift.py`
+  (metrik şeması/alert kuralları checksum'i/`remote_enabled` ve
+  `ollama_cpu_verify_strict` varsayılanları için drift tespiti,
+  `infra/monitoring/baseline/` onaylı duruma karşı; exit code 0/1/2,
+  `remote_enabled`'ın `True`'ya dönmesi her zaman CRITICAL/exit 2).
+  `scripts/ops/weekly_observability_review.ps1` (haftalık ritüel —
+  hafif gate snapshot + drift tespiti + 7 günlük fallback/null-intent
+  oranları, `reports/weekly_observability_<YYYY-WW>/review.md`'ye
+  EKLENEN bir girdi, GREEN/YELLOW/RED durumu + exit code 0/1/2).
+  `infra/monitoring/profiles/persistent/` (üretim-güvenli Prometheus/
+  Alertmanager profili — `promtool check config` ile gerçekten
+  doğrulandı; bu makinede fiilen dağıtılmadı, yalnızca hazır). Ayrıntı:
+  `docs/ops/MONITORING_STACK_RUNBOOK.md` "Post-GO weekly ritual",
+  "Drift response SOP"; `docs/ops/ALERT_PLAYBOOK_MODEL_GATEWAY.md`
+  "Eşik güncellemelerini nasıl onaylarım".
 
 ## Onay Gerektiren Aksiyonlar (Faz 4+ ile aktif olacak)
 
