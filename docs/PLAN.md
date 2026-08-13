@@ -388,6 +388,20 @@
     **hiçbir gerçek delegate YOK** (`delegates: []`) — mekanizma çalışır durumda ama
     henüz kimseye yetki devredilmedi.
 
+- [x] **T29. B042 — Ops Suite frontend yığın kararı (B038 ön koşulu)**
+  - Amaç: B038'i (animasyonlu 2D ofis sahnesi) başlatmadan ÖNCE, önceki
+    checkpoint'in NO-GO gerekçesindeki frontend-yığın belirsizliğini
+    kapatmak.
+  - Teknik çıktı: `docs/DECISIONS.md` ADR-020 — Vanilla JS + Canvas2D
+    seçildi (PixiJS değerlendirilip reddedildi), sunulan frontend'e
+    YENİ bağımlılık EKLENMEDİ.
+  - Kabul kriteri: Karar dokümante edildi (ADR) VE BACKLOG.md B042
+    durumu güncellendi.
+  - **Not (2026-08-14) — resmen kapatıldı:** ADR-020 yazıldı — 2 seçenek
+    (Vanilla JS+Canvas2D vs PixiJS-vendored) offline-first/test
+    edilebilirlik/performans/bakım kriterleriyle karşılaştırıldı,
+    Vanilla JS + Canvas2D seçildi. BACKLOG.md B042 → **Kapalı**.
+
 ---
 
 ## Daily Log
@@ -674,4 +688,21 @@ doğrulandı (uydurulmadı):
   henüz taşınmadı, P0 değil).
 - **Sonraki adım:** B038 (tam animasyonlu 2D ofis sahnesi) — B044'ün
   GO/NO-GO değerlendirmesi için bkz. bu checkpoint'in final raporu.
+
+**Ek (aynı gün, B038 ön koşulu #1 — T29/B042, git truth reconciliation #2):**
+- **Git truth (taze komutlar):** `git status` → `On branch main`, ahead
+  of origin by 1 commit, **"Changes to be committed"** — B044'ün 20
+  dosyası (`git add -A` ile) staged durumda, hiçbir şey commit
+  EDİLMEDİ. `git diff --name-only` (unstaged) → **boş**. `git diff
+  --cached --name-only` (staged) → aynı 20 dosya (identity.py,
+  approval_queue.py, app.py, server.py, frontend/*, config/ops_suite_identities.json,
+  5 docs, demo evidence 3 dosyası, 4 test dosyası). Sapma yok, önceki
+  raporla birebir eşleşiyor.
+- **Yapılanlar (B042):** `docs/DECISIONS.md` ADR-020 yazıldı — 2 seçenek
+  (Vanilla JS+Canvas2D vs PixiJS-vendored) offline-first/test edilebilirlik/
+  performans/bakım kriterleriyle karşılaştırıldı, **Vanilla JS+Canvas2D**
+  seçildi (bu ölçekte PixiJS'in ek bağımlılık/bakım yükü haklı çıkmıyor).
+  BACKLOG.md B042 **Kapalı**.
+- **Sorunlar:** Yok.
+- **Sonraki adım:** T30/B039 (tarayıcı E2E hazırlığı).
 

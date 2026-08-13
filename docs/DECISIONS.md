@@ -359,6 +359,48 @@
   UI'ı yok, rate limiting yok, tek kimlik doğrulama yöntemi
   (bearer-token).
 
+## ADR-020
+- **Tarih:** 2026-08-14
+- **Karar:** B038'in (tam animasyonlu 2D ofis sahnesi/ajan avatarları)
+  frontend yığın kararı — **Seçenek A: saf Vanilla JS + HTML5 Canvas2D**
+  (üçüncü bir kütüphane/framework/bundler EKLENMEDEN) — kabul edildi.
+  BACKLOG.md B042'yi kapatır.
+
+  **Değerlendirilen 2 seçenek:**
+
+  | Kriter | A) Vanilla JS + Canvas2D | B) PixiJS (vendored UMD, CDN yok) |
+  |---|---|---|
+  | Offline-first | Mükemmel — sıfır yeni bağımlılık, mevcut PWA/service-worker önbellekleme deseniyle (ADR-018) birebir uyumlu | İyi — tek bir local dosya olarak vendor edilebilir (CDN'e bağımlı DEĞİL), ama ~500KB üçüncü taraf kod repoya girer |
+  | Test edilebilirlik | Canvas pikselleri Playwright DOM sorgularıyla doğrudan görülemez (screenshot-diff veya `window.__debug_state__` köprüsü gerekir) — B039'un yeni Playwright altyapısıyla AYNI sınırlama, seçenekten BAĞIMSIZ | Aynı sınırlama (Canvas/WebGL tabanlı) — sahne grafiği (`displayObject` ağacı) test-zamanlı durum sorgusu için biraz daha yapılandırılmış bir yüzey sunar |
+  | Performans | Küçük sayıda ajan avatarı (şu an ≤9 ajan) için fazlasıyla yeterli — WebGL'in sunduğu batching avantajı bu ölçekte fark yaratmaz | Daha yüksek performans tavanı (WebGL) ama bu ölçekte gözlemlenebilir bir kazanç değil — over-engineering riski |
+  | Bakım yükü | Sprite/animasyon/hit-testing elle yazılır (daha fazla boilerplate) ama YENİ bağımlılık YOK — versiyon güncelleme/güvenlik takibi yükü sıfır | Sprite/animasyon yönetimi kütüphane tarafından sağlanır (daha az boilerplate) ama YENİ bir tedarik-zinciri yüzeyi (PixiJS sürüm takibi, güvenlik güncellemeleri, API kırılmaları) açar |
+
+- **Gerekçe:** ADR-018 (2026-08-14, Ops Suite v0), bilinçli olarak
+  npm/bundler/framework'ü ERTELEMİŞTİ — bu karar o kararı YENİDEN
+  AÇMIYOR, üzerine İNŞA EDİYOR. B038'in gerçek kapsamı (küçük sayıda
+  ajan avatarı + basit durum animasyonları — kalabalık bir oyun sahnesi
+  DEĞİL) performans/geliştirme-hızı avantajının PixiJS'i haklı
+  çıkaracağı bir eşiğin altında. MASTER_ROADMAP.md §6'nın offline-first
+  ilkesi ve projenin genelinde tekrarlanan "yeni bağımlılık = yeni bakım
+  yükü, yalnızca gerekliyse ekle" ilkesi (bkz. ADR-017'nin
+  `dependency-groups` izolasyon gerekçesi), sıfır-bağımlılık seçeneğini
+  destekliyor.
+- **Alternatif (reddedildi):** (a) PixiJS — yukarıdaki tabloda
+  gerekçelendirildiği gibi, bu ölçek için gereksiz karmaşıklık; B038'in
+  kapsamı büyür/performans GERÇEKTEN darboğaz olursa AYRI bir ADR ile
+  yeniden değerlendirilebilir. (b) React/Vue + bundler tam framework
+  pivotu — reddedildi, ADR-018'in gerekçesini (tek taraflı büyük mimari
+  karar, bu ortamda gerçek render doğrulaması YAPILAMAZDI) hâlâ
+  geçerli; **ancak** B039 artık gerçek bir tarayıcı test altyapısı
+  sağladığı için (bkz. ADR-021) bu itiraz kısmen zayıfladı — yine de
+  kapsam/fayda oranı bu kararı desteklemiyor.
+- **Sonuç:** Kabul edildi. B038'in gerçek uygulaması (sahne çizimi,
+  sprite/animasyon durumu, ajan state→görsel eşlemesi) henüz
+  YAPILMADI — bu ADR yalnızca YIĞIN kararını kilitliyor. Gelecekteki
+  B038 implementasyonu `apps/ops-suite/frontend/js/scene.js` (yeni
+  modül, mevcut `app.js`'i BOZMADAN) altında, mevcut `AgentPresence`
+  şemasını (`schemas.py`) tüketerek inşa edilmeli.
+
 ---
 
-*Yeni ADR eklerken yukarıdaki formatı koru ve numarayı sırayla artır (ADR-020, ...).*
+*Yeni ADR eklerken yukarıdaki formatı koru ve numarayı sırayla artır (ADR-021, ...).*
