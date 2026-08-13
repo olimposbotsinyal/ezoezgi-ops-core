@@ -380,3 +380,20 @@ düşüyor. B031 durumu **Partial / FAILED_THRESHOLDS** olarak güncellendi
 (önceki NOT_EVALUATED'den farklı — artık gerçek, olumsuz bir ölçüm var).
 Sayı uydurulmadı. Detay: `docs/RUNBOOK.md` "Değerlendirme koşu kayıtları",
 `reports/nlu_eval_20260813.md`.
+
+**Ek (aynı gün, timeout hotfix + ikinci canlı koşu):**
+`services/tr-en-bridge/src/model_client.py`'de `DEFAULT_TIMEOUT_SECONDS`
+2.0s'den 30.0s'ye çıkarıldı, `OLLAMA_TIMEOUT_SECONDS` env override eklendi
+(explicit arg > env > varsayılan önceliğiyle). 6 yeni test eklendi
+(`tests/test_model_client.py`, 12/12 yeşil), tam regresyon 142/142 yeşil.
+Preflight sonrası `tools/eval_nlu.py` yeniden çalıştırıldı: **timeout
+düzeltmesi doğru çalıştı** (istekler artık erken kesilmiyor) ama **yeni,
+farklı bir kök neden** ortaya çıktı — Ollama'nın `llama-server` alt süreci
+her istekte çöküyor (`HTTP 500`, Windows access violation `0xc0000005`,
+manuel `curl` ile doğrulandı). RAM yeterli (66.9GB/23GB boş), kaynak kısıtı
+değil. Sonuç sayısal olarak öncekiyle aynı (%30/%0/%100) ama nedeni
+tamamen farklı — B031 hâlâ **Partial / FAILED_THRESHOLDS**. Sayı
+uydurulmadı, yeni kök neden dürüstçe kaydedildi. Sonraki adım kullanıcıya
+soruldu (farklı/daha küçük model denemek mi, Ollama crash'ini ayrıca mı
+teşhis etmek). Detay: `docs/RUNBOOK.md` "Değerlendirme koşu kayıtları"
+(2026-08-13T00:13:05Z satırı), `reports/nlu_eval_20260813.md`.

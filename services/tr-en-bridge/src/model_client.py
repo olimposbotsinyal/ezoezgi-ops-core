@@ -21,7 +21,32 @@ logger = logging.getLogger("model_client")
 
 DEFAULT_BASE_URL = "http://localhost:11434"
 DEFAULT_MODEL = "llama3"
-DEFAULT_TIMEOUT_SECONDS = 2.0
+# 2026-08-13: 2.0s -> 30.0s. Canli B031 eval kosusunda (bkz.
+# reports/nlu_eval_20260813.md) yerel CPU inference gecikmesi (~6s p95)
+# eski 2.0s timeout'u asiyordu -- her istek erken zaman asimina ugrayip
+# mock fallback'e duşuyordu (fallback_rate=%100). 30s, gozlemlenen ~6s'nin
+# uzerinde guvenli bir pay birakir.
+DEFAULT_TIMEOUT_SECONDS = 30.0
+
+
+def _resolve_timeout(explicit_timeout: float | None) -> float:
+    """Timeout degerini oncelik sirasina gore cozer: explicit arg > env > varsayilan."""
+    if explicit_timeout is not None:
+        return explicit_timeout
+
+    raw = os.getenv("OLLAMA_TIMEOUT_SECONDS")
+    if raw is None:
+        return DEFAULT_TIMEOUT_SECONDS
+
+    try:
+        return float(raw)
+    except ValueError:
+        logger.warning(
+            "Geçersiz OLLAMA_TIMEOUT_SECONDS=%r, varsayılana (%s) dönülüyor.",
+            raw,
+            DEFAULT_TIMEOUT_SECONDS,
+        )
+        return DEFAULT_TIMEOUT_SECONDS
 
 
 class OllamaModelClient:
@@ -31,13 +56,13 @@ class OllamaModelClient:
         self,
         base_url: str | None = None,
         model: str | None = None,
-        timeout: float = DEFAULT_TIMEOUT_SECONDS,
+        timeout: float | None = None,
     ) -> None:
         self.base_url = (
             base_url or os.getenv("OLLAMA_BASE_URL", DEFAULT_BASE_URL)
         ).rstrip("/")
         self.model = model or os.getenv("OLLAMA_MODEL", DEFAULT_MODEL)
-        self.timeout = timeout
+        self.timeout = _resolve_timeout(timeout)
 
     def health_check(self) -> bool:
         """Ollama servisi ayakta mi? Hicbir zaman istisna firlatmaz."""
