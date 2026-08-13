@@ -599,6 +599,38 @@ tanımlandı:
 
 Canonical audit reference added for upstream comment: issue comment ID 5275320830.
 
+### B036 Watch Automation
+
+Manuel kontrol turlarına ek olarak, issue #17716'yı kontrol edip
+aktiviteyi sınıflandıran ve `upstream_watch_log.md`'ye satır ekleyen bir
+otomasyon eklendi:
+
+```bash
+python scripts/watch_b036_upstream.py
+powershell -File scripts\run_watch_b036.ps1
+```
+
+- `scripts/watch_b036_upstream.py`: GitHub API'sinden issue + yorumları
+  okur, bizim postaladığımız takip yorumundan (`comment id 5275320830`)
+  sonra gelen ve başka bir kullanıcıdan olan en yeni yorumu bulur, içeriğini
+  anahtar-kelime tabanlı olarak sınıflandırır (`NONE`,
+  `DIAGNOSTIC_REQUEST`, `PATCH_REFERENCE`, `NEW_RELEASE_HINT`), ve
+  `upstream_watch_log.md`'ye bir satır ekler. Ağ erişimi başarısız olursa
+  sahte bir sonuç uydurmaz — `CHECK_FAILED_NETWORK` yazdırır.
+- `scripts/run_watch_b036.ps1`: Python script'ini çalıştırır, çıktıyı
+  `reports/runtime_incident_20260813T004855Z/watch_runs/watch_<timestamp>.log`
+  dosyasına kaydeder. Yalnızca gerçek sert hatalarda (Python
+  çalıştırılamadı vb.) sıfır olmayan bir çıkış kodu döner —
+  `CHECK_FAILED_NETWORK` veya `NONE` sonucu bir hata sayılmaz.
+- **Tetikleyici eşlemesi:** sınıflandırma sonucu `DIAGNOSTIC_REQUEST` /
+  `PATCH_REFERENCE` / `NEW_RELEASE_HINT` çıkarsa, hangi ölçekte doğrulama
+  yapılacağı `reports/runtime_incident_20260813T004855Z/validation_on_trigger.md`'de
+  tanımlı (Trigger A/B/C).
+- **Önemli: bu script hiçbir runtime deneyi (ollama serve, /api/generate
+  vb.) çalıştırmaz** — yalnızca upstream issue'yu okur ve sınıflandırır.
+  Bir tetikleyici tespit edilirse, gerçek doğrulama koşusu hâlâ
+  `validation_on_trigger.md`'ye göre **manuel** olarak başlatılır.
+
 ## Onay Gerektiren Aksiyonlar (Faz 4+ ile aktif olacak)
 
 - Risk seviyesi `high` veya `irreversible` olan her aksiyon, kullanıcı onayı
