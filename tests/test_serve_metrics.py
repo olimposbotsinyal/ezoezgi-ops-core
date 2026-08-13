@@ -111,6 +111,45 @@ def test_debug_injection_endpoint_closed_by_default():
     assert status == 404
 
 
+def test_metrics_endpoint_returns_503_on_aggregator_hard_failure():
+    """`render_fn`, `aggregation_error_cls` icindeki bir turden exception
+    firlatirsa /metrics temiz bir 503 + tanilama nedeni donmeli (gorev
+    talimati: "aggregator read fails -> 503 + diagnostic reason")."""
+
+    class FakeAggregationError(Exception):
+        pass
+
+    def failing_render() -> str:
+        raise FakeAggregationError("jsonl dosyasi okunamadi (simulasyon)")
+
+    server = build_server(
+        "127.0.0.1",
+        0,
+        metrics_enabled_fn=lambda: True,
+        render_fn=failing_render,
+        aggregation_error_cls=(FakeAggregationError,),
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    port = server.server_address[1]
+    try:
+        try:
+            urllib.request.urlopen(f"http://127.0.0.1:{port}/metrics", timeout=5)
+            raised = False
+            status = None
+            body = ""
+        except urllib.error.HTTPError as exc:
+            raised = True
+            status = exc.code
+            body = exc.read().decode("utf-8")
+    finally:
+        _stop_test_server(server, thread)
+
+    assert raised is True
+    assert status == 503
+    assert "aggregation failed" in body.lower()
+
+
 def test_debug_injection_endpoint_calls_inject_fn_when_enabled():
     """Enjeksiyon acikken, POST body'sindeki mode/count inject_fn'e
     dogru sekilde iletilmeli -- AYNI surecin registry'sine yazmayi

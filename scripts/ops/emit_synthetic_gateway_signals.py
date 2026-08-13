@@ -144,7 +144,14 @@ def main() -> int:
         from model_gateway.metrics import configure_metrics, get_metrics
 
         config = load_config()
-        configure_metrics(config.metrics_enabled, config.metrics_exporter)
+        configure_metrics(
+            config.metrics_enabled,
+            config.metrics_exporter,
+            sink_type=config.metrics_sink,
+            jsonl_path=config.metrics_jsonl_path,
+            jsonl_max_mb=config.metrics_jsonl_max_mb,
+            jsonl_retention_days=config.metrics_jsonl_retention_days,
+        )
         metrics = get_metrics()
         result = run_mode(args.mode, metrics, args.count)
         result["via"] = "local"

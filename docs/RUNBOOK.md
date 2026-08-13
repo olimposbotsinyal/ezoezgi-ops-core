@@ -686,7 +686,9 @@ geçişi denetlenebilir kılar.
   gerekmez.
 - **Gözlemlenebilirlik (SLI/SLO/alert/ops otomasyonu):**
   `services/model-gateway/src/model_gateway/metrics.py` (bellek-içi
-  metrikler), `docs/ops/SLO_MODEL_GATEWAY.md`,
+  registry, `METRICS_SINK=jsonl_append` varsayılanıyla ayrıca paylaşılan
+  bir JSONL dosyasına yazar — bkz. `metrics_sink.py`/`metrics_aggregate.py`
+  ve aşağıdaki "Canlı `/metrics`" notu), `docs/ops/SLO_MODEL_GATEWAY.md`,
   `docs/ops/ALERT_PLAYBOOK_MODEL_GATEWAY.md`,
   `scripts/ops/daily_gateway_smoke.ps1` (günlük sağlık kontrolü, exit
   code 0/1/2), `scripts/ops/package_gateway_incident.ps1` (olay kanıt
@@ -695,7 +697,13 @@ geçişi denetlenebilir kılar.
   Otomasyonu".
 - **Canlı `/metrics` + izleme yığını:** `scripts/ops/serve_metrics.py`
   (gerçek, test edilmiş `GET /metrics` endpoint'i — stdlib
-  `http.server`, harici bağımlılık yok),
+  `http.server`, harici bağımlılık yok). `METRICS_SINK=jsonl_append`
+  (varsayılan) ile **cross-process görünürlük**: tüm süreçlerin
+  (kısa ömürlü `classify()` çağrıları dahil) metrikleri paylaşılan bir
+  JSONL dosyası üzerinden tek scrape'te birleşir — 2 gerçek ayrı OS
+  süreci ile elle doğrulandı, ayrıntı ve ödünleşimler:
+  `docs/ops/MONITORING_STACK_RUNBOOK.md` "Bilinen ödünleşimler".
+  Aggregator sert hatada `/metrics` 503 döner (`AggregationError`).
   `infra/monitoring/prometheus/prometheus.yml` +
   `infra/monitoring/alertmanager/alertmanager.yml` (geçerli config,
   Aşama 1/observe-only, bu makinede Prometheus/Alertmanager kurulu

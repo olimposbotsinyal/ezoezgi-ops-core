@@ -137,6 +137,21 @@ class MetricsRegistry:
         except Exception:
             pass
 
+    def sink_self_metrics(self) -> dict[str, float]:
+        """Bagli sink'in kendi oz-metriklerini (varsa) doner -- ornegin
+        `JsonlAppendSink.self_metrics()` (write_failures/events_dropped).
+        Sink yoksa veya oz-metrik desteklemiyorsa bos sozluk doner (bkz.
+        serve_metrics.py)."""
+        if self._sink is None:
+            return {}
+        method = getattr(self._sink, "self_metrics", None)
+        if method is None:
+            return {}
+        try:
+            return dict(method())
+        except Exception:
+            return {}
+
     def snapshot(self) -> dict[str, Any]:
         """JSON-serilestirilebilir bir anlik goruntu -- daily smoke gibi
         araclarin `metrics_snapshot.json`'a yazmasi icin."""

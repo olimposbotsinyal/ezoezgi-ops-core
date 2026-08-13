@@ -1,22 +1,33 @@
 """Model gateway `/metrics` HTTP endpoint -- bagimliliksiz (stdlib `http.server`).
 
-**KRITIK MIMARI SINIRLAMA (durustce belirtilmeli, bkz.
+**GUNCELLEME (cross-process metrik sink'i, bkz.
 docs/ops/MONITORING_STACK_RUNBOOK.md "Bilinen sinirlamalar"):**
-`model_gateway.metrics.get_metrics()` SUREC-ICI bir singleton'dur. Bu
-script AYRI, bagimsiz bir surec olarak calisir -- yalnizca KENDI
-surecinde biriken metrikleri gosterebilir. Bu projede `classify()`
-cagrilari kisa omurlu, ayri komut satiri calistirmalari/testler
-uzerinden yapiliyor (kalici bir "servis sureci" yok) -- bu yuzden bu
-endpoint VARSAYILAN OLARAK gercek uretim trafiginin metriklerini
-YAKALAMAZ. Gercekci kullanim alanlari:
-  (a) Bu surec icinde uretilen metriklerin (ornegin
-      `scripts/ops/emit_synthetic_gateway_signals.py` ile) canli
-      gozlemi/E2E alert pipeline dogrulamasi,
-  (b) Ileride kalici bir servis sureci eklendiginde (mimari genisleme,
-      bu gorevin kapsami disinda) dogrudan entegrasyon noktasi.
+Onceki tasarimin sinirlamasi -- `model_gateway.metrics.get_metrics()`
+SUREC-ICI bir singleton oldugu, `classify()` cagrilarinin ise kisa
+omurlu, AYRI sureclerde calistigi icin metriklerin asla birlesmedigi --
+`METRICS_SINK=jsonl_append` (yeni varsayilan) ile KAPATILDI: her surec
+kendi metrik olayini paylasilan bir JSONL dosyasina (bkz.
+`model_gateway.metrics_sink.JsonlAppendSink`) append eder, bu script de
+`/metrics` her cagrildiginda o dosyayi `model_gateway.metrics_aggregate`
+ile okuyup birlestirir (bkz. `main()` icindeki `render_fn` secimi).
 
-Lightweight: yalnizca bellek-ici registry'yi okur, inference yoluna
-DOKUNMAZ (zaten ayri bir surectir).
+Bu, GERCEK-ZAMANLI degil, GOZLEM-ANINDA (read-time) birlestirmedir --
+"bilinen odunlesimler" icin asagidaki + RUNBOOK'taki notlara bakin:
+  - Eventual consistency penceresi: bir surec `write()` cagirdiktan
+    sonra, o olay ancak BIR SONRAKI `/metrics` GET'inde (sonraki
+    okumada) gorunur -- gercek zamanli push degil, dosya-tabanli
+    "en son okundugunda birlestir" modelidir.
+  - Scrape gecikmesi: her `/metrics` istegi butun JSONL dosyasini (+
+    hala pencere icindeki rotasyon dosyalarini) yeniden okur/birlestirir
+    -- Prometheus scrape araligi (`scrape_interval`), dosya boyutu ve
+    disk G/Ç hizina bagli olarak gozlemlenebilir bir gecikme ekler.
+  - `METRICS_SINK=in_memory` (eski davranis, opt-in) hala desteklenir --
+    bu modda script yalnizca KENDI surecinde biriken metrikleri gosterir
+    (onceki sinirlama aynen gecerlidir).
+
+Lightweight: `jsonl_append` modunda dosya sistemini okur, `in_memory`
+modunda bellek-ici registry'yi okur -- HER IKI DURUMDA da inference
+yoluna DOKUNMAZ (zaten ayri bir surectir).
 """
 
 from __future__ import annotations
@@ -40,6 +51,7 @@ def make_handler(
     metrics_enabled_fn: Callable[[], bool],
     render_fn: Callable[[], str],
     inject_fn: Callable[[str, int], dict] | None = None,
+    aggregation_error_cls: tuple[type[BaseException], ...] = (),
 ):
     """Test edilebilirlik icin factory -- gercek config/registry yerine
     sahte fonksiyonlar enjekte edilebilir.
@@ -50,6 +62,12 @@ def make_handler(
     ornek enjekte edebilmesi icindir (bkz. E2E dogrulama akisi). `None`
     ise (varsayilan) bu yol tamamen KAPALI -- production/varsayilan
     calisma modunda mutasyon endpoint'i acik degildir.
+
+    `aggregation_error_cls`, verilirse `render_fn()` bu turden bir
+    exception firlattiginda `/metrics` temiz bir 503 + tanilama nedeni
+    doner (bkz. `model_gateway.metrics_aggregate.AggregationError`).
+    Varsayilan bos tuple -- eski davranis (hicbir ozel yakalama yok,
+    geriye donuk uyumlu) korunur.
     """
 
     class MetricsHandler(BaseHTTPRequestHandler):
@@ -65,7 +83,15 @@ def make_handler(
                 self._send(404, "metrics disabled (METRICS_ENABLED=false)\n")
                 return
 
-            body = render_fn()
+            try:
+                body = render_fn()
+            except aggregation_error_cls as exc:
+                self._send(
+                    503,
+                    f"metrics aggregation failed: {exc}\n",
+                    content_type="text/plain; charset=utf-8",
+                )
+                return
             self._send(200, body, content_type="text/plain; version=0.0.4; charset=utf-8")
 
         def do_POST(self) -> None:  # noqa: N802
@@ -105,8 +131,21 @@ def make_handler(
     return MetricsHandler
 
 
-def build_server(host: str, port: int, *, metrics_enabled_fn, render_fn, inject_fn=None) -> ThreadingHTTPServer:
-    handler = make_handler(metrics_enabled_fn=metrics_enabled_fn, render_fn=render_fn, inject_fn=inject_fn)
+def build_server(
+    host: str,
+    port: int,
+    *,
+    metrics_enabled_fn,
+    render_fn,
+    inject_fn=None,
+    aggregation_error_cls: tuple[type[BaseException], ...] = (),
+) -> ThreadingHTTPServer:
+    handler = make_handler(
+        metrics_enabled_fn=metrics_enabled_fn,
+        render_fn=render_fn,
+        inject_fn=inject_fn,
+        aggregation_error_cls=aggregation_error_cls,
+    )
     return ThreadingHTTPServer((host, port), handler)
 
 
@@ -130,7 +169,14 @@ def main() -> None:
     args = parser.parse_args()
 
     config = load_config()
-    configure_metrics(config.metrics_enabled, config.metrics_exporter)
+    configure_metrics(
+        config.metrics_enabled,
+        config.metrics_exporter,
+        sink_type=config.metrics_sink,
+        jsonl_path=config.metrics_jsonl_path,
+        jsonl_max_mb=config.metrics_jsonl_max_mb,
+        jsonl_retention_days=config.metrics_jsonl_retention_days,
+    )
     registry = get_metrics()
 
     inject_fn = None
@@ -144,24 +190,52 @@ def main() -> None:
             INJECT_PATH,
         )
 
+    aggregation_error_cls: tuple[type[BaseException], ...] = ()
+    if config.metrics_sink == "jsonl_append":
+        from pathlib import Path
+
+        from model_gateway import metrics_aggregate
+
+        jsonl_path = Path(config.metrics_jsonl_path)
+        agg_window_min = config.metrics_agg_window_min
+        aggregation_error_cls = (metrics_aggregate.AggregationError,)
+
+        def render_fn() -> str:
+            agg_registry = metrics_aggregate.aggregate(jsonl_path, agg_window_min)
+            self_values = {**registry.sink_self_metrics(), **metrics_aggregate.self_metrics()}
+            for metric_name, value in self_values.items():
+                agg_registry.set_counter_absolute(metric_name, {}, value)
+            return agg_registry.render_prometheus_text()
+
+        logger.info(
+            "Metrics kaynagi: JSONL aggregator (%s, pencere=%d dk) -- cross-process "
+            "gorunurluk aktif (eventual-consistency, bkz. docs/ops/MONITORING_STACK_RUNBOOK.md).",
+            jsonl_path,
+            agg_window_min,
+        )
+    else:
+        render_fn = registry.render_prometheus_text
+        logger.warning(
+            "Metrics kaynagi: surec-ici (in_memory) registry -- yalnizca BU surecte "
+            "biriken metrikler gorunur (METRICS_SINK=in_memory, opt-in eski davranis)."
+        )
+
     server = build_server(
         args.host,
         args.port,
         metrics_enabled_fn=lambda: config.metrics_enabled,
-        render_fn=registry.render_prometheus_text,
+        render_fn=render_fn,
         inject_fn=inject_fn,
+        aggregation_error_cls=aggregation_error_cls,
     )
 
     logger.info(
-        "Metrics endpoint dinliyor: http://%s:%d%s (metrics_enabled=%s)",
+        "Metrics endpoint dinliyor: http://%s:%d%s (metrics_enabled=%s, metrics_sink=%s)",
         args.host,
         args.port,
         METRICS_PATH,
         config.metrics_enabled,
-    )
-    logger.warning(
-        "ONEMLI: bu surec, yalnizca KENDI surecinde biriken metrikleri gosterir -- "
-        "gercek classify() trafigi ayri kisa-omurlu sureclerden geliyorsa burada GORUNMEZ."
+        config.metrics_sink,
     )
     try:
         server.serve_forever()

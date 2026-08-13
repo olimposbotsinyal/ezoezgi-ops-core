@@ -270,3 +270,11 @@ class JsonlAppendSink:
             except OSError:
                 continue
         return deleted
+
+    def self_metrics(self) -> dict[str, float]:
+        """`/metrics` yanitina eklenecek oz-metrikler (bkz. serve_metrics.py)."""
+        with self._local_lock:
+            return {
+                "metrics_sink_write_failures_total": float(self.write_failures),
+                "metrics_events_dropped_total": float(self.events_dropped),
+            }

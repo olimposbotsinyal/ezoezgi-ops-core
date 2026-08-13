@@ -125,3 +125,8 @@ def aggregate(path: Path, window_minutes: int) -> MetricsRegistry:
     yukari birakilir (caller 503'e cevirir)."""
     events = read_recent_events(path, window_minutes)
     return compact_to_registry(events)
+
+
+def self_metrics() -> dict[str, float]:
+    """`/metrics` yanitina eklenecek oz-metrikler (bkz. serve_metrics.py)."""
+    return {"metrics_aggregator_read_failures_total": float(read_failures.count)}

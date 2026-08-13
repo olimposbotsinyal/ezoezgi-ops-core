@@ -29,37 +29,80 @@ bu ayrımı her bölümde açıkça belirtir.
 
 | Bileşen | Dosya | Durum |
 |---|---|---|
-| `/metrics` HTTP endpoint | `scripts/ops/serve_metrics.py` | **Gerçek, elle test edildi** — başlatıldı, `curl`landı, 200/404 davranışları doğrulandı |
+| `/metrics` HTTP endpoint | `scripts/ops/serve_metrics.py` | **Gerçek, elle test edildi** — başlatıldı, `curl`landı, 200/404/503 davranışları doğrulandı; `METRICS_SINK=jsonl_append` (varsayılan) ile gerçek AYRI OS süreçlerinden gelen metrikler tek scrape'te birleştirildi |
+| Cross-process metrik sink'i | `model_gateway/metrics_sink.py`, `model_gateway/metrics_aggregate.py` | **Gerçek, elle test edildi** — 2 bağımsız yazıcı süreç + `serve_metrics.py` üçüncü süreç, `curl` ile doğrulandı |
 | Prometheus scrape config | `infra/monitoring/prometheus/prometheus.yml` | Geçerli YAML, ama hiçbir Prometheus süreci okumuyor |
 | Alertmanager routing | `infra/monitoring/alertmanager/alertmanager.yml` | Geçerli YAML, ASAMA 1 (observe-only), hiçbir Alertmanager süreci okumuyor |
 | Sentetik sinyal üreticisi | `scripts/ops/emit_synthetic_gateway_signals.py` | **Gerçek, elle test edildi** — hem yerel registry'ye hem HTTP üzerinden çalışan bir sürece enjeksiyon doğrulandı |
 | E2E doğrulama | `scripts/ops/verify_alert_pipeline.ps1` | **Gerçek, elle çalıştırıldı** — bu makinede exit code **1** (kısmi) üretti, çünkü Prometheus/Alertmanager yok. **0 fabrike edilmedi.** |
 
-## KRİTİK mimari sınırlama: süreç-içi metrik izolasyonu
+## ÇÖZÜLDÜ (büyük ölçüde): süreç-içi metrik izolasyonu → cross-process JSONL sink
 
-`model_gateway.metrics.get_metrics()` **süreç-içi bir singleton'dur.**
-`scripts/ops/serve_metrics.py`, kendi başına, ayrı bir süreç olarak
-çalışır. Bu projede `classify()` çağrıları (gerçek üretim kullanımı)
-kısa ömürlü, **ayrı** süreçlerden yapıldığından, `serve_metrics.py`'nin
-`/metrics` çıktısı **gerçek üretim trafiğini varsayılan olarak
-YAKALAMAZ.**
+> **Güncelleme:** Bu bölüm önceden "KRİTİK mimari sınırlama" başlığı
+> altındaydı. `METRICS_SINK=jsonl_append` (yeni varsayılan,
+> `model_gateway/metrics_sink.py` + `model_gateway/metrics_aggregate.py`)
+> ile bu sınırlama **kapatıldı** — aşağıda eski/yeni durum ve kalan
+> ödünleşimler açıkça ayrılıyor.
 
-Bu, geliştirme sırasında elle test edilirken keşfedildi: sentetik sinyal
-üreticisi başlangıçta ayrı bir alt-süreç olarak metrik enjekte ediyordu
-ve `/metrics` çıktısında **hiçbir zaman görünmüyordu** (boş kaldı).
-Düzeltme: `serve_metrics.py`'ye `--enable-debug-injection` ile açılan bir
-`POST /debug/inject_synthetic` yolu eklendi — `emit_synthetic_gateway_signals.py --target-url ...`
-artık AYNI sürece HTTP üzerinden yazıyor, böylece E2E test senaryosu
-kendi içinde tutarlı. **Bu, gerçek üretim trafiğinin görünürlüğü
-sorununu çözmez** — yalnızca E2E test/doğrulama senaryosunu düzeltir.
+**Eski davranış (hâlâ `METRICS_SINK=in_memory` ile opt-in olarak
+mevcut):** `model_gateway.metrics.get_metrics()` **süreç-içi bir
+singleton'dur.** `scripts/ops/serve_metrics.py`, ayrı bir süreç olarak
+çalıştığından, kısa ömürlü **ayrı** süreçlerden yapılan `classify()`
+çağrılarının metriklerini **hiç göremiyordu.**
 
-Gerçek üretim trafiğinin metriklerini görmek için iki gerçekçi yol var:
-1. `scripts/ops/daily_gateway_smoke.ps1` — her koşuda gerçek bir
-   `classify()` probu çalıştırır ve sonucu dosyaya yazar (zaten mevcut,
-   B036 görev serisinden).
-2. İleride kalıcı bir servis süreci eklenirse (mimari genişleme, bu
-   görevin kapsamı dışında), `serve_metrics.py`'nin mantığı o sürece
-   doğrudan entegre edilebilir.
+**Yeni davranış (varsayılan):** her süreç (`classify()` çağrısı yapan
+kısa ömürlü CLI/test çalıştırması dahil), `MetricsRegistry` üzerinden
+yaptığı her `inc_counter`/`observe_histogram`/`set_gauge` çağrısını, EK
+OLARAK, paylaşılan bir JSONL dosyasına (`METRICS_JSONL_PATH`, varsayılan
+`./data/metrics/model_gateway_metrics.jsonl`) append eder
+(`JsonlAppendSink`, kilit + rotasyon + retention + sınırlı-kardinalite
+korumalı). `serve_metrics.py`, `/metrics` her çağrıldığında bu dosyayı
+`metrics_aggregate.aggregate()` ile okuyup TEK bir Prometheus
+görüntüsüne birleştirir — böylece **tüm süreçlerin** katkısı tek bir
+scrape'te görünür.
+
+Bu, **gerçek ayrı OS süreçleriyle elle doğrulandı** (2 bağımsız yazıcı
+süreç + `serve_metrics.py` ayrı üçüncü/dördüncü bir süreç olarak
+çalıştırıldı, `curl /metrics` ile gerçek HTTP isteği yapıldı — sonuç:
+her iki yazıcının toplam katkısı tek bir counter değerinde doğru
+şekilde toplandı).
+
+`serve_metrics.py --enable-debug-injection` + `POST /debug/inject_synthetic`
+yolu (E2E test senaryosu için, önceki görev serisinden) hâlâ mevcut ve
+çalışıyor — artık debug-injection AYRICA JSONL sink'e de yazıyor (aynı
+registry üzerinden), yani hem "aynı sürece HTTP enjeksiyonu" hem de
+"paylaşılan dosya" yolu tutarlı.
+
+### Bilinen ödünleşimler (Known trade-offs)
+
+- **Eventual consistency penceresi:** Bir sürecin `write()` çağrısı ile
+  o olayın `/metrics` çıktısında görünmesi arasında gerçek-zamanlı bir
+  push YOKTUR — olay yalnızca dosyaya yazılmıştır; bir SONRAKI `/metrics`
+  GET'i o dosyayı yeniden okuyup birleştirdiğinde görünür hale gelir.
+  Pratikte bu pencere tipik olarak alt-saniye mertebesindedir (dosya
+  append + sonraki scrape arası), ama garanti edilen bir üst sınır
+  yoktur.
+- **Scrape gecikmesi:** Her `/metrics` isteği, ana JSONL dosyasını (+
+  hâlâ pencere içindeki rotasyon dosyalarını) **baştan sona yeniden
+  okur/birleştirir** — kalıcı bir bellek-içi toplama YOKTUR. Dosya
+  büyüdükçe (rotasyon/retention ile sınırlı olsa da) ve/veya disk G/Ç
+  yavaşladıkça scrape gecikmesi artar. Prometheus'un `scrape_timeout`
+  değeri bu maliyeti hesaba katmalıdır.
+- **`write_failures`/`events_dropped` yalnızca RAPORLAYAN sürece
+  özeldir:** `metrics_sink_write_failures_total` ve
+  `metrics_events_dropped_total`, `serve_metrics.py`'nin KENDİ
+  registry'sinin sink'inden okunur — başarısız bir yazma, tanım gereği
+  JSONL dosyasına hiç yazılamadığından, BAŞKA bir sürecin yazma
+  hatalarını bu sayaçlar üzerinden gözlemlemek mümkün DEĞİLDİR. Bu,
+  best-effort bir kendi-kendini-gözlem (self-observation) mekanizmasıdır,
+  global bir toplam değildir.
+- **`metrics_aggregator_read_failures_total`** ise `serve_metrics.py`
+  sürecinin kendi `aggregate()` çağrılarının sert-hata sayısını yansıtır
+  (süreç ömrü boyunca birikir) — bu, gerçekten global bir sağlık
+  göstergesidir çünkü aggregation her zaman aynı (serve) süreçte olur.
+- `METRICS_SINK=in_memory` (eski davranış) hâlâ desteklenir (opt-in,
+  `METRICS_SINK` ortam değişkeni ile) — bu modda önceki sınırlama
+  (yalnızca aynı süreç görünür) aynen geçerlidir.
 
 ## Kademeli rollout aşamaları
 
@@ -125,7 +168,8 @@ ALTYAPIYI (config, script'ler) hazırlar ama gerçek geçişi YAPMAZ.
 
 | Belirti | Olası neden | Düzeltme |
 |---|---|---|
-| `/metrics` boş dönüyor | Hiç metrik enjekte edilmedi (fresh süreç) VEYA sentetik sinyal AYRI bir süreçten enjekte edildi | `scripts/ops/emit_synthetic_gateway_signals.py --target-url` kullanın, yerel enjeksiyon değil |
+| `/metrics` boş dönüyor | Hiç metrik yazılmadı (fresh JSONL dosyası/temiz kurulum) VEYA `METRICS_SINK=in_memory` iken sentetik sinyal AYRI bir süreçten enjekte edildi | `METRICS_SINK=jsonl_append` (varsayılan) kullanın; `in_memory` modunda `scripts/ops/emit_synthetic_gateway_signals.py --target-url` kullanın |
+| `/metrics` 503 dönüyor | JSONL dosyası VAR ama okunamıyor (izin/disk hatası) — `AggregationError` | Yanıt gövdesindeki tanılama nedenine bakın; `METRICS_JSONL_PATH` yolunun bir dosya (dizin değil) olduğunu ve okunabilir olduğunu doğrulayın |
 | `verify_alert_pipeline.ps1` sürekli exit 1 dönüyor | Prometheus/Alertmanager kurulu değil (bu makinenin varsayılan durumu) | Beklenen — "Kurulum" bölümüne bakın |
 | Prometheus hedefi `down` gösteriyor | `serve_metrics.py` çalışmıyor veya port çakışması | `Test-NetConnection 127.0.0.1 -Port 9108` ile kontrol edin |
 | Alertmanager'da alert görünmüyor ama Prometheus'ta firing | `alertmanager.yml`'deki `alerting.alertmanagers` hedefi yanlış/Alertmanager farklı portta | `prometheus.yml`'deki `alerting` bölümünü kontrol edin |

@@ -49,7 +49,14 @@ from daily_gateway_smoke_core import run_daily_smoke, write_evidence_bundle
 from datetime import datetime, timezone
 
 config = load_config()
-configure_metrics(config.metrics_enabled, config.metrics_exporter)
+configure_metrics(
+    config.metrics_enabled,
+    config.metrics_exporter,
+    sink_type=config.metrics_sink,
+    jsonl_path=config.metrics_jsonl_path,
+    jsonl_max_mb=config.metrics_jsonl_max_mb,
+    jsonl_retention_days=config.metrics_jsonl_retention_days,
+)
 metrics = get_metrics()
 router = ModelGatewayRouter(config=config, metrics=metrics)
 

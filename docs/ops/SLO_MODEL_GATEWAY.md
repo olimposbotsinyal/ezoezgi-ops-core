@@ -7,13 +7,20 @@
 > Alertmanager kurulu değil** (Docker da yok) — endpoint gerçek ve
 > test edildi, canlı scrape/alert-firing/routing pipeline'ı ise
 > **doğrulanmadı** (altyapı eksikliği nedeniyle, "başarılı" iddia
-> edilmedi). Ayrıca **kritik bir mimari sınırlama**: bu endpoint yalnızca
-> KENDİ sürecinde biriken metrikleri gösterir — bu projede `classify()`
-> çağrıları kısa ömürlü, ayrı süreçlerden yapıldığından (kalıcı bir
-> servis süreci yok), gerçek üretim trafiğinin metrikleri bu endpoint'te
-> **görünmeyebilir**. Ayrıntı: `docs/ops/MONITORING_STACK_RUNBOOK.md`
-> "Bilinen sınırlamalar". Alternatif/tamamlayıcı: `scripts/ops/daily_gateway_smoke.ps1`
-> ile düzenli aralıklarla dosyaya (`reports/daily_smoke_<UTC>/metrics_snapshot.json`)
+> edilmedi).
+>
+> **Cross-process görünürlük (güncellendi):** önceden bu endpoint
+> yalnızca KENDİ sürecinde biriken metrikleri gösteriyordu (kritik bir
+> mimari sınırlama, çünkü `classify()` çağrıları kısa ömürlü, ayrı
+> süreçlerden yapılır). Bu artık `METRICS_SINK=jsonl_append`
+> (varsayılan) ile **çözüldü**: her süreç paylaşılan bir JSONL dosyasına
+> yazar, `/metrics` her çağrıda bu dosyayı okuyup birleştirir — 2 gerçek
+> ayrı OS süreci + `serve_metrics.py` ile elle doğrulandı. Kalan
+> ödünleşimler (eventual-consistency penceresi, scrape gecikmesi):
+> `docs/ops/MONITORING_STACK_RUNBOOK.md` "Bilinen ödünleşimler". Eski
+> davranış (`METRICS_SINK=in_memory`) hâlâ opt-in olarak mevcut.
+> Alternatif/tamamlayıcı: `scripts/ops/daily_gateway_smoke.ps1` ile
+> düzenli aralıklarla dosyaya (`reports/daily_smoke_<UTC>/metrics_snapshot.json`)
 > yazma yolu hâlâ geçerli ve gerçek üretim çağrılarını yakalar.
 
 ## Kapsam
