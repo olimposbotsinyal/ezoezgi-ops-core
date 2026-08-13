@@ -579,6 +579,24 @@ değil ve `GITHUB_TOKEN`/`GH_TOKEN` tanımlı değil — otomatik gönderim
 yapılmadı, sahte "gönderildi" iddiası yok. Kullanıcı taslağı manuel
 olarak issue'ya yorum ekleyerek gönderebilir.
 
+### B036 Upstream Watch Mode Enabled — 2026-08-13 ~05:47 (+03:00)
+
+Yukarıdaki takip yorumu kullanıcı tarafından manuel olarak issue #17716'ya
+eklendi (permalink:
+<https://github.com/ollama/ollama/issues/17716#issuecomment-5275320830>).
+Bu noktadan itibaren B036, **watch mode**'a geçti — protokol:
+`docs/ops/B036_UPSTREAM_WATCH_PROTOCOL.md` (kontrol sıklığı: günde 2×,
+09:30/17:30 Europe/Istanbul; kontrol geçmişi:
+`reports/runtime_incident_20260813T004855Z/upstream_watch_log.md`).
+
+**Maintainer'dan bir yanıt (tanı isteği, patch/commit veya sürüm ipucu)
+gelene kadar geniş kapsamlı yeni bir deney partisi çalıştırılmayacak.**
+Bir tetikleyici geldiğinde hangi ölçekte doğrulama yapılacağı önceden
+tanımlandı:
+`reports/runtime_incident_20260813T004855Z/validation_on_trigger.md`
+(Trigger A: 10 çağrı hedefli, Trigger B: 40 çağrı 3-senaryolu, Trigger C:
+100 çağrı tam matris).
+
 ## Onay Gerektiren Aksiyonlar (Faz 4+ ile aktif olacak)
 
 - Risk seviyesi `high` veya `irreversible` olan her aksiyon, kullanıcı onayı
