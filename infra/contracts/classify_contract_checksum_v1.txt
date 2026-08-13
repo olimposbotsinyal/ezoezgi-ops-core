@@ -1,0 +1,23 @@
+# classify() sozlesme (contract) checksum baseline'i -- v1
+#
+# Kaynak: services/tr-en-bridge/src/ollama_nlu.py :: classify()
+# Kapsam: YALNIZCA fonksiyon IMZASI (parametre adlari/tip-ipuclari/
+# opsiyonel-zorunlu durumu + donus tipi) -- docstring/yorum/ic
+# implementasyon degisiklikleri bu checksum'i ETKILEMEZ (bkz.
+# scripts/ops/classify_contract_core.py::extract_function_signature).
+#
+# Bu checksum, scripts/ops/evaluate_pilot_promotion.py'nin
+# "classify_contract_changed" blocker kontrolu tarafindan okunur --
+# gozlenen checksum bununla eslesmezse (classify()'in GERCEK arayuzu
+# degismisse) tum v1.2 pilot ozellikleri icin REJECT tetiklenir.
+#
+# Guncelleme proseduru: classify()'in imzasi KASITLI olarak
+# degistirilirse (ornegin yeni bir ZORUNLU parametre eklenirse), bu
+# dosya AYNI commit'te, ACIK bir docs/BACKLOG.md karar notuyla birlikte
+# yeniden hesaplanip guncellenmelidir -- sessiz bir checksum guncelleme
+# commit'i ASLA olmamalidir (rollback_observability.ps1/alerts_checksum_v1.txt
+# ile AYNI ilke).
+#
+# Yeniden hesaplama:
+#   python -c "from pathlib import Path; import sys; sys.path.insert(0, 'scripts/ops'); from classify_contract_core import extract_function_signature, compute_contract_checksum; print(compute_contract_checksum(extract_function_signature(Path('services/tr-en-bridge/src/ollama_nlu.py').read_text(encoding='utf-8'), 'classify')))"
+52641b374cd4aca622772d1d765685fe787e05b04d783e8444056f39a87cdae7

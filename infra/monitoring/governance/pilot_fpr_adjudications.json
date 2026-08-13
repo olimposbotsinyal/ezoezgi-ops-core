@@ -1,0 +1,5 @@
+{
+  "schema_version": 1,
+  "$note": "Insan tarafindan doldurulan, v1.2 pilot sinyallerinin (chain-matching BROKEN_CHAIN bulgulari, auto-rollback tetiklenmeleri, legitimacy FAIL'leri) GERCEKTEN yanlis-pozitif mi oldugunu kaydeden defter. scripts/ops/compute_pilot_false_positive_rate.py tarafindan okunur. BOS baslar -- her adjudikasyon ACIK bir insan kararidir, otomatik olusturulmaz.",
+  "adjudications": []
+}

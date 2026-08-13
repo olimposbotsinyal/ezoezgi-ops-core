@@ -73,6 +73,7 @@ reports/emergency_legitimacy_*/
 reports/v1_2_pilot_*/
 reports/pilot_promotion_*/
 reports/pilot_flag_rollback_*/
+reports/pilot_metrics_*/
 
 # NOT: reports/weekly_observability_<YYYY-WW>/ KASITLI olarak burada
 # YOK -- bu, "Post-GO weekly ritual"in kalici governance gunlugudur
