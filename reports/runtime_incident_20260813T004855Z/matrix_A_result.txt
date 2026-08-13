@@ -1,0 +1,4 @@
+﻿HTTP Status: 500
+Latency (s): 7.7232495
+Response body:
+{"error":"llama-server process has terminated: exit status 0xc0000005: The instruction at 0xp referenced memory at 0xp. The memory could not be s."}

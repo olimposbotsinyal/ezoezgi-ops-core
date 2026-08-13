@@ -1,0 +1,60 @@
+WARNING: [Loader Message] Code 0 : ReadDataFilesInRegistry: Registry lookup failed to get layer manifest files.
+==========
+VULKANINFO
+==========
+
+Vulkan Instance Version: 1.2.131
+
+
+Instance Extensions: count = 13
+====================
+	VK_EXT_debug_report                    : extension revision 9
+	VK_EXT_debug_utils                     : extension revision 1
+	VK_EXT_swapchain_colorspace            : extension revision 4
+	VK_KHR_device_group_creation           : extension revision 1
+	VK_KHR_external_fence_capabilities     : extension revision 1
+	VK_KHR_external_memory_capabilities    : extension revision 1
+	VK_KHR_external_semaphore_capabilities : extension revision 1
+	VK_KHR_get_physical_device_properties2 : extension revision 1
+	VK_KHR_get_surface_capabilities2       : extension revision 1
+	VK_KHR_surface                         : extension revision 25
+	VK_KHR_surface_protected_capabilities  : extension revision 1
+	VK_KHR_win32_surface                   : extension revision 6
+	VK_NV_external_memory_capabilities     : extension revision 1
+
+Layers: count = 2
+=======
+VK_LAYER_LUNARG_standard_validation (LunarG Standard Validation Layer) Vulkan version 1.0.131, layer version 1:
+	Layer Extensions: count = 0
+	Devices: count = 2
+		GPU id 	: 0 (Quadro RTX 3000)
+		Layer-Device Extensions: count = 0
+
+		GPU id 	: 1 (Intel(R) UHD Graphics)
+		Layer-Device Extensions: count = 0
+
+VK_LAYER_NV_optimus (NVIDIA Optimus layer) Vulkan version 1.1.119, layer version 1:
+	Layer Extensions: count = 0
+	Devices: count = 2
+		GPU id 	: 0 (Quadro RTX 3000)
+		Layer-Device Extensions: count = 0
+
+		GPU id 	: 1 (Intel(R) UHD Graphics)
+		Layer-Device Extensions: count = 0
+
+Presentable Surfaces:
+=====================
+GPU id : 0 (Quadro RTX 3000):
+	Surface types: count = 1
+		VK_KHR_win32_surface
+	Formats: count = 4
+		SurfaceFormat[0]:
+			format = FORMAT_B8G8R8A8_UNORM
+			colorSpace = COLOR_SPACE_SRGB_NONLINEAR_KHR
+		SurfaceFormat[1]:
+			format = FORMAT_B8G8R8A8_SRGB
+			colorSpace = COLOR_SPACE_SRGB_NONLINEAR_KHR
+		SurfaceFormat[2]:
+			format = FORMAT_R16G16B16A16_SFLOAT
+			colorSpace = COLOR_SPACE_EXTENDED_SRGB_LINEAR_EXT
+		SurfaceFormat[3]:

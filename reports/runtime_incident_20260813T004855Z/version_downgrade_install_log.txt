@@ -1,0 +1,9 @@
+﻿Found Ollama [Ollama.Ollama] Version 0.30.0
+This application is licensed to you by its owner.
+Microsoft is not responsible for, nor does it grant any licenses to, third-party packages.
+Downloading https://github.com/ollama/ollama/releases/download/v0.30.0/OllamaSetup.exe
+Successfully verified installer hash
+Starting package install...
+You cancelled the installation.
+Installer failed with exit code: 5
+Installer log is available at: C:\Users\Serkan\AppData\Local\Packages\Microsoft.DesktopAppInstaller_8wekyb3d8bbwe\LocalState\DiagOutputDir\Ollama.Ollama.0.30.0-26-08-13-04-03-33.log

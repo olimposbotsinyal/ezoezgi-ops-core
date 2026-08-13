@@ -1,0 +1,304 @@
+
+
+TimeCreated      : 13.08.2026 03:44:23
+Id               : 1000
+LevelDisplayName : Hata
+Message          : Hatalç uygulama adç: llama-server.exe, sÅrÅm: 0.0.0.0, zaman damgasç: 0x6a7ab07c
+                   Hatalç modÅl adç: unknown, sÅrÅm: 0.0.0.0, zaman damgasç: 0x00000000
+                   ôzel durum kodu: 0xc0000005
+                   Hata uzaklçßç 0x0000000000000000
+                   Hatalç iülem kimlißi: 0x0x13C70
+                   Uygulama baülangçá zamanç: 0x0x1DD2ABCE1955FFD
+                   Hatalç uygulama yolu: C:\Users\Serkan\AppData\Local\Programs\Ollama\lib\ollama\llama-server.exe
+                   Hatalç modÅl yolu: unknown
+                   Rapor kimlißi: f4734ce1-b38b-4a55-80c8-5f3e67d2ff21
+                   Hatalç paket tam adç: 
+                   Hatalç paketle ilgili uygulama kimlißi: 
+
+TimeCreated      : 13.08.2026 03:44:07
+Id               : 1000
+LevelDisplayName : Hata
+Message          : Hatalç uygulama adç: llama-server.exe, sÅrÅm: 0.0.0.0, zaman damgasç: 0x6a7ab07c
+                   Hatalç modÅl adç: unknown, sÅrÅm: 0.0.0.0, zaman damgasç: 0x00000000
+                   ôzel durum kodu: 0xc0000005
+                   Hata uzaklçßç 0x0000000000000000
+                   Hatalç iülem kimlißi: 0x0x14AC4
+                   Uygulama baülangçá zamanç: 0x0x1DD2ABCD801BF9C
+                   Hatalç uygulama yolu: C:\Users\Serkan\AppData\Local\Programs\Ollama\lib\ollama\llama-server.exe
+                   Hatalç modÅl yolu: unknown
+                   Rapor kimlißi: cc7af5bb-16e2-4f05-99cc-40bacac0cb30
+                   Hatalç paket tam adç: 
+                   Hatalç paketle ilgili uygulama kimlißi: 
+
+TimeCreated      : 13.08.2026 03:41:27
+Id               : 1000
+LevelDisplayName : Hata
+Message          : Hatalç uygulama adç: llama-server.exe, sÅrÅm: 0.0.0.0, zaman damgasç: 0x6a7ab07c
+                   Hatalç modÅl adç: unknown, sÅrÅm: 0.0.0.0, zaman damgasç: 0x00000000
+                   ôzel durum kodu: 0xc0000005
+                   Hata uzaklçßç 0x0000000000000000
+                   Hatalç iülem kimlißi: 0x0x1210
+                   Uygulama baülangçá zamanç: 0x0x1DD2ABC78D11567
+                   Hatalç uygulama yolu: C:\Users\Serkan\AppData\Local\Programs\Ollama\lib\ollama\llama-server.exe
+                   Hatalç modÅl yolu: unknown
+                   Rapor kimlißi: 71446f26-5b09-48a8-baf3-6916d0c31fe8
+                   Hatalç paket tam adç: 
+                   Hatalç paketle ilgili uygulama kimlißi: 
+
+TimeCreated      : 13.08.2026 03:40:29
+Id               : 1000
+LevelDisplayName : Hata
+Message          : Hatalç uygulama adç: llama-server.exe, sÅrÅm: 0.0.0.0, zaman damgasç: 0x6a7ab07c
+                   Hatalç modÅl adç: unknown, sÅrÅm: 0.0.0.0, zaman damgasç: 0x00000000
+                   ôzel durum kodu: 0xc0000005
+                   Hata uzaklçßç 0x0000000000000000
+                   Hatalç iülem kimlißi: 0x0x130FC
+                   Uygulama baülangçá zamanç: 0x0x1DD2ABC5601FD47
+                   Hatalç uygulama yolu: C:\Users\Serkan\AppData\Local\Programs\Ollama\lib\ollama\llama-server.exe
+                   Hatalç modÅl yolu: unknown
+                   Rapor kimlißi: d95d36d9-e1ee-417b-b75e-fbfff716bb92
+                   Hatalç paket tam adç: 
+                   Hatalç paketle ilgili uygulama kimlißi: 
+
+TimeCreated      : 13.08.2026 03:33:47
+Id               : 1000
+LevelDisplayName : Hata
+Message          : Hatalç uygulama adç: llama-server.exe, sÅrÅm: 0.0.0.0, zaman damgasç: 0x6a7ab07c
+                   Hatalç modÅl adç: unknown, sÅrÅm: 0.0.0.0, zaman damgasç: 0x00000000
+                   ôzel durum kodu: 0xc0000005
+                   Hata uzaklçßç 0x0000000000000000
+                   Hatalç iülem kimlißi: 0x0x146B8
+                   Uygulama baülangçá zamanç: 0x0x1DD2ABB6677D857
+                   Hatalç uygulama yolu: C:\Users\Serkan\AppData\Local\Programs\Ollama\lib\ollama\llama-server.exe
+                   Hatalç modÅl yolu: unknown
+                   Rapor kimlißi: 7d3fdfe1-5d04-4794-a441-9d85f3115fa2
+                   Hatalç paket tam adç: 
+                   Hatalç paketle ilgili uygulama kimlißi: 
+
+TimeCreated      : 13.08.2026 03:23:57
+Id               : 1000
+LevelDisplayName : Hata
+Message          : Hatalç uygulama adç: llama-server.exe, sÅrÅm: 0.0.0.0, zaman damgasç: 0x6a7ab07c
+                   Hatalç modÅl adç: unknown, sÅrÅm: 0.0.0.0, zaman damgasç: 0x00000000
+                   ôzel durum kodu: 0xc0000005
+                   Hata uzaklçßç 0x0000000000000000
+                   Hatalç iülem kimlißi: 0x0x13A14
+                   Uygulama baülangçá zamanç: 0x0x1DD2ABA06AC1CB2
+                   Hatalç uygulama yolu: C:\Users\Serkan\AppData\Local\Programs\Ollama\lib\ollama\llama-server.exe
+                   Hatalç modÅl yolu: unknown
+                   Rapor kimlißi: 1ce2c4e4-6325-49bd-81d6-c33545beef77
+                   Hatalç paket tam adç: 
+                   Hatalç paketle ilgili uygulama kimlißi: 
+
+TimeCreated      : 13.08.2026 03:23:25
+Id               : 1000
+LevelDisplayName : Hata
+Message          : Hatalç uygulama adç: llama-server.exe, sÅrÅm: 0.0.0.0, zaman damgasç: 0x6a7ab07c
+                   Hatalç modÅl adç: unknown, sÅrÅm: 0.0.0.0, zaman damgasç: 0x00000000
+                   ôzel durum kodu: 0xc0000005
+                   Hata uzaklçßç 0x0000000000000000
+                   Hatalç iülem kimlißi: 0x0x140C8
+                   Uygulama baülangçá zamanç: 0x0x1DD2AB9F3827EEA
+                   Hatalç uygulama yolu: C:\Users\Serkan\AppData\Local\Programs\Ollama\lib\ollama\llama-server.exe
+                   Hatalç modÅl yolu: unknown
+                   Rapor kimlißi: 244e718d-327c-493e-a941-49756c23eff7
+                   Hatalç paket tam adç: 
+                   Hatalç paketle ilgili uygulama kimlißi: 
+
+TimeCreated      : 13.08.2026 03:23:12
+Id               : 1000
+LevelDisplayName : Hata
+Message          : Hatalç uygulama adç: llama-server.exe, sÅrÅm: 0.0.0.0, zaman damgasç: 0x6a7ab07c
+                   Hatalç modÅl adç: unknown, sÅrÅm: 0.0.0.0, zaman damgasç: 0x00000000
+                   ôzel durum kodu: 0xc0000005
+                   Hata uzaklçßç 0x0000000000000000
+                   Hatalç iülem kimlißi: 0x0x14BC0
+                   Uygulama baülangçá zamanç: 0x0x1DD2AB9EC2A31F9
+                   Hatalç uygulama yolu: C:\Users\Serkan\AppData\Local\Programs\Ollama\lib\ollama\llama-server.exe
+                   Hatalç modÅl yolu: unknown
+                   Rapor kimlißi: 850c7f6b-33d7-4fe0-b40b-331666a7134f
+                   Hatalç paket tam adç: 
+                   Hatalç paketle ilgili uygulama kimlißi: 
+
+TimeCreated      : 13.08.2026 03:23:00
+Id               : 1000
+LevelDisplayName : Hata
+Message          : Hatalç uygulama adç: llama-server.exe, sÅrÅm: 0.0.0.0, zaman damgasç: 0x6a7ab07c
+                   Hatalç modÅl adç: unknown, sÅrÅm: 0.0.0.0, zaman damgasç: 0x00000000
+                   ôzel durum kodu: 0xc0000005
+                   Hata uzaklçßç 0x0000000000000000
+                   Hatalç iülem kimlißi: 0x0x54B0
+                   Uygulama baülangçá zamanç: 0x0x1DD2AB9E4E457D4
+                   Hatalç uygulama yolu: C:\Users\Serkan\AppData\Local\Programs\Ollama\lib\ollama\llama-server.exe
+                   Hatalç modÅl yolu: unknown
+                   Rapor kimlißi: 111a4f63-2b9f-440e-bdaf-0554f803b7c6
+                   Hatalç paket tam adç: 
+                   Hatalç paketle ilgili uygulama kimlißi: 
+
+TimeCreated      : 13.08.2026 03:22:48
+Id               : 1000
+LevelDisplayName : Hata
+Message          : Hatalç uygulama adç: llama-server.exe, sÅrÅm: 0.0.0.0, zaman damgasç: 0x6a7ab07c
+                   Hatalç modÅl adç: unknown, sÅrÅm: 0.0.0.0, zaman damgasç: 0x00000000
+                   ôzel durum kodu: 0xc0000005
+                   Hata uzaklçßç 0x0000000000000000
+                   Hatalç iülem kimlißi: 0x0x148A8
+                   Uygulama baülangçá zamanç: 0x0x1DD2AB9DDA1F090
+                   Hatalç uygulama yolu: C:\Users\Serkan\AppData\Local\Programs\Ollama\lib\ollama\llama-server.exe
+                   Hatalç modÅl yolu: unknown
+                   Rapor kimlißi: 04ca4b61-d481-4ed7-bd35-0e8dddc3732f
+                   Hatalç paket tam adç: 
+                   Hatalç paketle ilgili uygulama kimlißi: 
+
+TimeCreated      : 13.08.2026 03:22:36
+Id               : 1000
+LevelDisplayName : Hata
+Message          : Hatalç uygulama adç: llama-server.exe, sÅrÅm: 0.0.0.0, zaman damgasç: 0x6a7ab07c
+                   Hatalç modÅl adç: unknown, sÅrÅm: 0.0.0.0, zaman damgasç: 0x00000000
+                   ôzel durum kodu: 0xc0000005
+                   Hata uzaklçßç 0x0000000000000000
+                   Hatalç iülem kimlißi: 0x0x149DC
+                   Uygulama baülangçá zamanç: 0x0x1DD2AB9D65148BE
+                   Hatalç uygulama yolu: C:\Users\Serkan\AppData\Local\Programs\Ollama\lib\ollama\llama-server.exe
+                   Hatalç modÅl yolu: unknown
+                   Rapor kimlißi: 164d5a96-8d99-4966-90f4-8d3310669309
+                   Hatalç paket tam adç: 
+                   Hatalç paketle ilgili uygulama kimlißi: 
+
+TimeCreated      : 13.08.2026 03:22:23
+Id               : 1000
+LevelDisplayName : Hata
+Message          : Hatalç uygulama adç: llama-server.exe, sÅrÅm: 0.0.0.0, zaman damgasç: 0x6a7ab07c
+                   Hatalç modÅl adç: unknown, sÅrÅm: 0.0.0.0, zaman damgasç: 0x00000000
+                   ôzel durum kodu: 0xc0000005
+                   Hata uzaklçßç 0x0000000000000000
+                   Hatalç iülem kimlißi: 0x0x13BA8
+                   Uygulama baülangçá zamanç: 0x0x1DD2AB9CEEE1243
+                   Hatalç uygulama yolu: C:\Users\Serkan\AppData\Local\Programs\Ollama\lib\ollama\llama-server.exe
+                   Hatalç modÅl yolu: unknown
+                   Rapor kimlißi: 0c801adf-c4cb-4f8f-bcc8-3dd7531ffa29
+                   Hatalç paket tam adç: 
+                   Hatalç paketle ilgili uygulama kimlißi: 
+
+TimeCreated      : 13.08.2026 03:22:11
+Id               : 1000
+LevelDisplayName : Hata
+Message          : Hatalç uygulama adç: llama-server.exe, sÅrÅm: 0.0.0.0, zaman damgasç: 0x6a7ab07c
+                   Hatalç modÅl adç: unknown, sÅrÅm: 0.0.0.0, zaman damgasç: 0x00000000
+                   ôzel durum kodu: 0xc0000005
+                   Hata uzaklçßç 0x0000000000000000
+                   Hatalç iülem kimlißi: 0x0x14408
+                   Uygulama baülangçá zamanç: 0x0x1DD2AB9C7A64D07
+                   Hatalç uygulama yolu: C:\Users\Serkan\AppData\Local\Programs\Ollama\lib\ollama\llama-server.exe
+                   Hatalç modÅl yolu: unknown
+                   Rapor kimlißi: 265ad25f-4f96-48a9-a5b6-2700d35cb219
+                   Hatalç paket tam adç: 
+                   Hatalç paketle ilgili uygulama kimlißi: 
+
+TimeCreated      : 13.08.2026 03:21:59
+Id               : 1000
+LevelDisplayName : Hata
+Message          : Hatalç uygulama adç: llama-server.exe, sÅrÅm: 0.0.0.0, zaman damgasç: 0x6a7ab07c
+                   Hatalç modÅl adç: unknown, sÅrÅm: 0.0.0.0, zaman damgasç: 0x00000000
+                   ôzel durum kodu: 0xc0000005
+                   Hata uzaklçßç 0x0000000000000000
+                   Hatalç iülem kimlißi: 0x0x4418
+                   Uygulama baülangçá zamanç: 0x0x1DD2AB9C0381642
+                   Hatalç uygulama yolu: C:\Users\Serkan\AppData\Local\Programs\Ollama\lib\ollama\llama-server.exe
+                   Hatalç modÅl yolu: unknown
+                   Rapor kimlißi: 136db0cc-9208-4b32-9a91-390bfe3bf8f8
+                   Hatalç paket tam adç: 
+                   Hatalç paketle ilgili uygulama kimlißi: 
+
+TimeCreated      : 13.08.2026 03:21:46
+Id               : 1000
+LevelDisplayName : Hata
+Message          : Hatalç uygulama adç: llama-server.exe, sÅrÅm: 0.0.0.0, zaman damgasç: 0x6a7ab07c
+                   Hatalç modÅl adç: unknown, sÅrÅm: 0.0.0.0, zaman damgasç: 0x00000000
+                   ôzel durum kodu: 0xc0000005
+                   Hata uzaklçßç 0x0000000000000000
+                   Hatalç iülem kimlißi: 0x0x106F4
+                   Uygulama baülangçá zamanç: 0x0x1DD2AB9B8C3975F
+                   Hatalç uygulama yolu: C:\Users\Serkan\AppData\Local\Programs\Ollama\lib\ollama\llama-server.exe
+                   Hatalç modÅl yolu: unknown
+                   Rapor kimlißi: 13e65e88-ca4a-4753-82a6-2c521a07d5f9
+                   Hatalç paket tam adç: 
+                   Hatalç paketle ilgili uygulama kimlißi: 
+
+TimeCreated      : 13.08.2026 03:21:34
+Id               : 1000
+LevelDisplayName : Hata
+Message          : Hatalç uygulama adç: llama-server.exe, sÅrÅm: 0.0.0.0, zaman damgasç: 0x6a7ab07c
+                   Hatalç modÅl adç: unknown, sÅrÅm: 0.0.0.0, zaman damgasç: 0x00000000
+                   ôzel durum kodu: 0xc0000005
+                   Hata uzaklçßç 0x0000000000000000
+                   Hatalç iülem kimlißi: 0x0x14A24
+                   Uygulama baülangçá zamanç: 0x0x1DD2AB9B1575BAE
+                   Hatalç uygulama yolu: C:\Users\Serkan\AppData\Local\Programs\Ollama\lib\ollama\llama-server.exe
+                   Hatalç modÅl yolu: unknown
+                   Rapor kimlißi: 32039318-8428-477e-9c01-853f770204ae
+                   Hatalç paket tam adç: 
+                   Hatalç paketle ilgili uygulama kimlißi: 
+
+TimeCreated      : 13.08.2026 03:21:21
+Id               : 1000
+LevelDisplayName : Hata
+Message          : Hatalç uygulama adç: llama-server.exe, sÅrÅm: 0.0.0.0, zaman damgasç: 0x6a7ab07c
+                   Hatalç modÅl adç: unknown, sÅrÅm: 0.0.0.0, zaman damgasç: 0x00000000
+                   ôzel durum kodu: 0xc0000005
+                   Hata uzaklçßç 0x0000000000000000
+                   Hatalç iülem kimlißi: 0x0x14814
+                   Uygulama baülangçá zamanç: 0x0x1DD2AB9A9ADBE61
+                   Hatalç uygulama yolu: C:\Users\Serkan\AppData\Local\Programs\Ollama\lib\ollama\llama-server.exe
+                   Hatalç modÅl yolu: unknown
+                   Rapor kimlißi: 562e2fc3-c3a9-4114-8768-b51d62ad18e5
+                   Hatalç paket tam adç: 
+                   Hatalç paketle ilgili uygulama kimlißi: 
+
+TimeCreated      : 13.08.2026 03:21:08
+Id               : 1000
+LevelDisplayName : Hata
+Message          : Hatalç uygulama adç: llama-server.exe, sÅrÅm: 0.0.0.0, zaman damgasç: 0x6a7ab07c
+                   Hatalç modÅl adç: unknown, sÅrÅm: 0.0.0.0, zaman damgasç: 0x00000000
+                   ôzel durum kodu: 0xc0000005
+                   Hata uzaklçßç 0x0000000000000000
+                   Hatalç iülem kimlißi: 0x0x144F8
+                   Uygulama baülangçá zamanç: 0x0x1DD2AB9A2130FD2
+                   Hatalç uygulama yolu: C:\Users\Serkan\AppData\Local\Programs\Ollama\lib\ollama\llama-server.exe
+                   Hatalç modÅl yolu: unknown
+                   Rapor kimlißi: c6ba7f90-e80f-4db0-95a7-e2744f9d1dbc
+                   Hatalç paket tam adç: 
+                   Hatalç paketle ilgili uygulama kimlißi: 
+
+TimeCreated      : 13.08.2026 03:20:56
+Id               : 1000
+LevelDisplayName : Hata
+Message          : Hatalç uygulama adç: llama-server.exe, sÅrÅm: 0.0.0.0, zaman damgasç: 0x6a7ab07c
+                   Hatalç modÅl adç: unknown, sÅrÅm: 0.0.0.0, zaman damgasç: 0x00000000
+                   ôzel durum kodu: 0xc0000005
+                   Hata uzaklçßç 0x0000000000000000
+                   Hatalç iülem kimlißi: 0x0x4A88
+                   Uygulama baülangçá zamanç: 0x0x1DD2AB99A74A798
+                   Hatalç uygulama yolu: C:\Users\Serkan\AppData\Local\Programs\Ollama\lib\ollama\llama-server.exe
+                   Hatalç modÅl yolu: unknown
+                   Rapor kimlißi: 974e123f-d6c7-4175-82c0-fe6328a3fbf7
+                   Hatalç paket tam adç: 
+                   Hatalç paketle ilgili uygulama kimlißi: 
+
+TimeCreated      : 13.08.2026 03:20:42
+Id               : 1000
+LevelDisplayName : Hata
+Message          : Hatalç uygulama adç: llama-server.exe, sÅrÅm: 0.0.0.0, zaman damgasç: 0x6a7ab07c
+                   Hatalç modÅl adç: unknown, sÅrÅm: 0.0.0.0, zaman damgasç: 0x00000000
+                   ôzel durum kodu: 0xc0000005
+                   Hata uzaklçßç 0x0000000000000000
+                   Hatalç iülem kimlißi: 0x0x13A34
+                   Uygulama baülangçá zamanç: 0x0x1DD2AB992CCA44B
+                   Hatalç uygulama yolu: C:\Users\Serkan\AppData\Local\Programs\Ollama\lib\ollama\llama-server.exe
+                   Hatalç modÅl yolu: unknown
+                   Rapor kimlißi: df9f5d62-833d-4bee-b94b-938b49d8869e
+                   Hatalç paket tam adç: 
+                   Hatalç paketle ilgili uygulama kimlißi: 
+
+
+

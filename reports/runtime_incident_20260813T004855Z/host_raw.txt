@@ -1,0 +1,84 @@
+=== winver-equivalent (CIM) ===
+
+
+Caption        : Microsoft Windows 11 Pro
+Version        : 10.0.22631
+BuildNumber    : 22631
+OSArchitecture : 64 bit
+
+
+
+=== systeminfo (kisa) ===
+OS Name:                   Microsoft Windows 11 Pro
+OS Version:                10.0.22631 N/A Build 22631
+System Type:               x64-based PC
+BIOS Version:              American Megatrends Inc. E17F3IF8.107, 13.01.2021
+Total Physical Memory:     65.338 MB
+=== nvidia-smi ===
+Thu Aug 13 03:49:34 2026       
++-----------------------------------------------------------------------------+
+| NVIDIA-SMI 442.94       Driver Version: 442.94       CUDA Version: 10.2     |
+|-------------------------------+----------------------+----------------------+
+| GPU  Name            TCC/WDDM | Bus-Id        Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp  Perf  Pwr:Usage/Cap|         Memory-Usage | GPU-Util  Compute M. |
+|===============================+======================+======================|
+|   0  Quadro RTX 3000    WDDM  | 00000000:01:00.0  On |                  N/A |
+| N/A   70C    P8    12W /  N/A |   1555MiB /  6144MiB |     25%      Default |
++-------------------------------+----------------------+----------------------+
+                                                                               
++-----------------------------------------------------------------------------+
+| Processes:                                                       GPU Memory |
+|  GPU       PID   Type   Process name                             Usage      |
+|=============================================================================|
+|    0      2536    C+G   Insufficient Permissions                   N/A      |
+|    0      3344    C+G   ..._x64__8wekyb3d8bbwe\Notepad\Notepad.exe N/A      |
+|    0      3932    C+G   ...estacks-services\BlueStacksServices.exe N/A      |
+|    0      5268    C+G   ...2.0.0_x64__pzs8sxrjxfjjc\app\claude.exe N/A      |
+|    0      7112    C+G   ...5n1h2txyewy\StartMenuExperienceHost.exe N/A      |
+|    0      7480    C+G   ...icrosoft Office\root\Office16\EXCEL.EXE N/A      |
+|    0      7712    C+G   ....0_x64__cv1g1gvanyjgm\WhatsApp.Root.exe N/A      |
+|    0      9404    C+G   C:\Windows\explorer.exe                    N/A      |
+|    0      9660    C+G   ...es\Google\Chrome\Application\chrome.exe N/A      |
+|    0     10476    C+G   ...yb3d8bbwe\SnippingTool\SnippingTool.exe N/A      |
+|    0     11092    C+G   ...Client.CBS_cw5n1h2txyewy\SearchHost.exe N/A      |
+|    0     13532    C+G   ...__8wekyb3d8bbwe\PhoneExperienceHost.exe N/A      |
+|    0     13992    C+G   ...ation\150.0.4078.105\msedgewebview2.exe N/A      |
+|    0     14056    C+G   ...osoft.LockApp_cw5n1h2txyewy\LockApp.exe N/A      |
+|    0     14144    C+G   ...ent.CBS_cw5n1h2txyewy\TextInputHost.exe N/A      |
+|    0     18984    C+G   ...mmersiveControlPanel\SystemSettings.exe N/A      |
+|    0     24740    C+G   ...cal\Programs\Microsoft VS Code\Code.exe N/A      |
+|    0     47832    C+G   ...es\Google\Chrome\Application\chrome.exe N/A      |
+|    0     70940    C+G   ...2.0.0_x64__pzs8sxrjxfjjc\app\claude.exe N/A      |
+|    0     79720    C+G   ...t_cw5n1h2txyewy\ShellExperienceHost.exe N/A      |
++-----------------------------------------------------------------------------+
+nvidia-smi exit code: 0
+=== vulkaninfo (varsa) ===
+C:\Windows\System32\vulkaninfo.exe
+
+vulkaninfo - Summarize Vulkan information in relation to the current environment.
+
+USAGE: C:\Windows\system32\vulkaninfo.exe [options]
+
+OPTIONS:
+-h, --help            Print this help.
+--html                Produce an html version of vulkaninfo output, saved as
+                      "vulkaninfo.html" in the directory in which the command is
+                      run.
+-j, --json            Produce a json version of vulkaninfo to standard output of the
+                      first gpu in the system conforming to the DevSim schema.
+--json=<gpu-number>   For a multi-gpu system, a single gpu can be targetted by
+                      specifying the gpu-number associated with the gpu of 
+                      interest. This number can be determined by running
+                      vulkaninfo without any options specified.
+--show-formats        Display the format properties of each physical device.
+                      Note: This option does not affect html or json output;
+                      they will always print format properties.
+
+vulkaninfo exit: 0
+=== Vulkan runtime dll check ===
+
+Name         VersionInfo                                                                                               
+----         -----------                                                                                               
+vulkan-1.dll File:             C:\Windows\System32\vulkan-1.dll...                                                     
+
+

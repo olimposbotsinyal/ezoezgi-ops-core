@@ -411,3 +411,26 @@ değişmeden **Partial / FAILED_THRESHOLDS** kalıyor. Sayı uydurulmadı,
 adımlarla güncellendi (Vulkan/GPU'yu gerçekten kapatan doğru env
 değişkenini bulmak dahil — `OLLAMA_NUM_GPU=0` denemesi Vulkan cihazını
 sunucu logundan tam silmedi).
+
+**Ek (aynı gün, B036 derin triage — issue-ready kanıt paketi):**
+`reports/runtime_incident_20260813T004855Z/` altında tam bir triage kanıt
+paketi üretildi: (1) `host_fingerprint.md` — NVIDIA sürücü 442.94/CUDA 10.2
+(çok eski), Vulkan Instance 1.2.131 (eski), Event Viewer'da 20 özdeş
+`0xc0000005` kaydı (Hatalı modül: `unknown`); (2) `gpu_isolation_matrix.md`
+— A-E testleri: `OLLAMA_VULKAN=false` ve `OLLAMA_LLM_LIBRARY=cpu`, ikisi de
+sunucu loglarıyla **kanıtlanmış** şekilde Vulkan cihazını hiç başlatmıyor
+ve bu modda 5/5 çağrı başarılı/0 çöküş; Vulkan etkinken 5/5 çöküş (Test E —
+donanım seviyesi GPU devre dışı bırakma — kapsam/risk gerekçesiyle bilinçli
+atlandı); (3) `version_ab_test.md` — mevcut `0.32.9` çöküyor, önceki
+`0.30.0` (gerçekten kurulup test edildi, ardından `0.32.9`'a geri
+yüklendi) varsayılan ayarlarla çökmüyor ama log'a göre bu sürüm de Vulkan
+cihazını bu donanımda seçmiyor (otomatik CPU fallback) — "0.30.0'da
+düzeltilmiş" değil, farklı GPU-keşif davranışı; (4)
+`scripts/repro_ollama_crash.ps1` yazıldı ve hem çöküş hem başarı yolunda
+doğrulandı (`repro_output.txt`); (5)
+`OLLAMA_GITHUB_ISSUE_DRAFT.md` hazırlandı (gönderilmedi). **Sonuç: GPU/Vulkan
+sürücü etkileşimi kök neden olarak log-kanıtlı şekilde izole edildi.**
+`docs/RUNBOOK.md` ve `docs/BACKLOG.md` (B036) bu bulgularla güncellendi.
+B031 durumu değişmedi: **BLOCKED_BY_RUNTIME** (varsayılan/Vulkan modunda
+50/50 gate hâlâ koşulmadı; CPU-only workaround çökmüyor ama B031'in
+gecikme eşiğini muhtemelen karşılamıyor).

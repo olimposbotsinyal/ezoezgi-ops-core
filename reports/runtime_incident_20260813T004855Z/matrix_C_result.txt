@@ -1,0 +1,4 @@
+﻿HTTP Status: 200
+Latency (s): 7.7426121
+Response body:
+{"model":"qwen2.5:3b-instruct","created_at":"2026-08-13T01:00:37.6780491Z","response":"İşte buradayım, değil mi siz? Size nasıl yardımcı olabilirim?","done":true,"done_reason":"stop","context":[151644,8948,198,2610,525,1207,16948,11,3465,553,54364,14817,13,1446,525,264,10950,17847,13,151645,198,151644,872,198,26716,10573,64,11,9876,359,17141,8669,258,30,151645,198,151644,77091,198,47780,7222,665,7795,64626,37304,11,128721,9497,64896,30,8478,129384,133346,8328,12762,61372,30],"total_duration":7609404000,"load_duration":4539800000,"prompt_eval_count":39,"prompt_eval_duration":1255828000,"eval_count":19,"eval_duration":1807931000}

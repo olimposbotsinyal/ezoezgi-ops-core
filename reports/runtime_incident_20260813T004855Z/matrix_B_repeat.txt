@@ -1,0 +1,4 @@
+﻿=== Test B repeat calls (confidence check, same CPU-only server) ===
+Call 1 : Status=200 Latency=14.3773809s
+Call 2 : Status=200 Latency=23.1894976s
+Call 3 : Status=200 Latency=26.9017486s

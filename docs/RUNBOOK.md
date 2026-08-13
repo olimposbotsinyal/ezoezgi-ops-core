@@ -409,6 +409,66 @@ tekrarlamak yerine gate doğrudan FAIL olarak değerlendirildi.
 B031 durumu değişmedi: **Partial / FAILED_THRESHOLDS** (canlı yeniden
 ölçüm bu koşuda hiç denenmedi — engellendiği için).
 
+### B036 Derin Triage — GPU/Vulkan İzolasyon Matrisi + Sürüm A/B — 2026-08-13
+
+Tüm ham kanıtlar: `reports/runtime_incident_20260813T004855Z/`
+(`host_fingerprint.md`, `event_viewer_crash_entries.txt`,
+`gpu_isolation_matrix.md`, `version_ab_test.md`,
+`OLLAMA_GITHUB_ISSUE_DRAFT.md`, ham log/sonuç dosyaları).
+
+**Host fingerprint (özet):** Windows 11 Pro 10.0.22631; NVIDIA Quadro RTX
+3000, **sürücü 442.94 / CUDA 10.2** (Ollama'nın `cuda_v12`/`cuda_v13`
+backend'leriyle uyumsuz — çok eski); **Vulkan Instance Version 1.2.131**
+(eski); Event Viewer'da 20 adet özdeş `0xc0000005` `Application Error`
+kaydı (`llama-server.exe`, Hatalı modül adı: `unknown`).
+
+**GPU/Vulkan izolasyon matrisi (A-E) sonucu:**
+
+| Test | Ortam | Vulkan cihazı başlatıldı mı (log kanıtı) | `/api/generate` | Çöküş |
+|---|---|---|---|---|
+| A) Baseline | (yok) | EVET (`Vulkan1`/Quadro RTX 3000) | HTTP 500 | EVET |
+| B) `OLLAMA_VULKAN=false` | env | HAYIR (`library=cpu`) | HTTP 200 ×4 | HAYIR |
+| C) `OLLAMA_LLM_LIBRARY=cpu` | env | HAYIR (`library=cpu`) | HTTP 200 ×1 | HAYIR |
+| D) env görünürlüğü | — | Sunucunun kendi `server config` log satırıyla doğrulandı | — | — |
+| E) Donanım seviyesi GPU devre dışı | — | **Atlandı** (B/C zaten kesin kanıt sağladı; donanım değişikliği riski/kapsamı gerekçesiz) | — | — |
+
+GPU/Vulkan cihazı log kanıtıyla doğrulanmış şekilde hiç başlatılmadığında
+(B, C) çöküş **tamamen** ortadan kalkıyor (5/5 başarılı, 0 çöküş).
+`OLLAMA_NUM_GPU=0`'ın aksine (önceki B036 koşusundaki çekince), bu iki
+değişken sunucu loglarıyla **kanıtlanmış** şekilde Vulkan cihaz keşfini
+tamamen atlıyor.
+
+**Sürüm A/B testi:** Mevcut `0.32.9` 5/5 çöktü; önceki `0.30.0` (gerçekten
+kurulup test edildi, ardından `0.32.9`'a geri yüklendi) varsayılan ayarlarla
+**çökmedi** — ancak log kanıtı, 0.30.0'ın bu donanımda Vulkan cihazını hiç
+seçmediğini (otomatik CPU'ya düştüğünü) gösteriyor; bu, "bug 0.30.0'da
+düzeltilmiş" anlamına gelmiyor, yalnızca o sürümün GPU keşif mantığının bu
+eski sürücü/Vulkan kombinasyonunda farklı davrandığı anlamına geliyor (bkz.
+`version_ab_test.md`).
+
+**Reprodüksiyon scripti:** `scripts/repro_ollama_crash.ps1` — env yazdırır,
+`/api/tags` ve tek bir `/api/generate` çağrısı yapar, HTTP/gövde/gecikmeyi
+yazdırır, `HTTP 500` veya çöküş imzası bulunursa exit code `1` ile çıkar
+(başarıda `0`, sunucuya ulaşılamazsa `2`). Her iki yol da (çöküş / başarı)
+bu triage sırasında doğrulandı (bkz. `repro_output.txt`).
+
+**Ollama 0xc0000005 incident triage tamamlandı; GPU/Vulkan izolasyon
+matrisi ve sürüm A/B sonuçları raporlandı, B031 runtime stabil olana kadar
+bloklu.**
+
+**B036 çıkış kriteri (değişmedi, netleştirildi):** B031 quality gate'i
+yeniden koşulmadan önce, **varsayılan (Vulkan etkin) ortamda** 50/50
+başarılı `/api/generate` çağrısı, 0 `HTTP 500`, loglarda 0 `0xc0000005`
+gerekiyor. Şu an bilinen tek çalışan yapılandırma (`OLLAMA_VULKAN=false` /
+`OLLAMA_LLM_LIBRARY=cpu`, CPU-only) bu kriteri karşılamıyor sayılmaz —
+çökmediği için 50 çağrılık gate bu modda **denenebilir** — ama CPU-only
+gecikmesi (gözlemlenen 7.7s-26.9s/çağrı) B031'in `latency_p95≤2.5s`
+eşiğini büyük olasılıkla geçemeyecek. Bu nedenle B036'nın "çözüldü" sayılması
+için ya (a) GPU sürücüsü/Vulkan yığını güncellenip Vulkan modunda 50/50
+gate'i geçmeli, ya da (b) B031'in gecikme eşiği CPU-only gerçeğine göre ayrı
+bir ADR ile yeniden değerlendirilmeli. Her iki karar da bu triage'ın
+kapsamı dışında, kullanıcı/ekip kararını bekliyor.
+
 ## Onay Gerektiren Aksiyonlar (Faz 4+ ile aktif olacak)
 
 - Risk seviyesi `high` veya `irreversible` olan her aksiyon, kullanıcı onayı

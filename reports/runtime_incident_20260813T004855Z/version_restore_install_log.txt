@@ -1,0 +1,7 @@
+﻿Found Ollama [Ollama.Ollama] Version 0.32.9
+This application is licensed to you by its owner.
+Microsoft is not responsible for, nor does it grant any licenses to, third-party packages.
+Downloading https://github.com/ollama/ollama/releases/download/v0.32.9/OllamaSetup.exe
+Successfully verified installer hash
+Starting package install...
+Successfully installed

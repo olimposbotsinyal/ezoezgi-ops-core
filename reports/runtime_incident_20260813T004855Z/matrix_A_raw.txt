@@ -1,0 +1,15 @@
+﻿=== TEST A: Default launch (baseline) ===
+Command: ollama serve (already running, PID 82048, no special env vars)
+Env check (relevant vars, should be unset):
+OLLAMA_LLM_LIBRARY=
+OLLAMA_NUM_GPU=
+
+server.log size before call: 419421 bytes
+HTTP Status: 500
+Latency (s): 7.8296326
+Response body:
+{"error":"llama-server process has terminated: exit status 0xc0000005: The instruction at 0xp referenced memory at 0xp. The memory could not be s."}
+
+server.log size after call: 419421 bytes
+--- New log lines during this call ---
+
