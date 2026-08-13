@@ -22,9 +22,18 @@ runtime kararsızlığı, Vulkan/GPU backend etkileşimiyle log-kanıtlı ilişk
   sayfasının varlığı/içeriği WebFetch ile doğrulandı, ancak GitHub yorum
   fragment'leri (`#issuecomment-...`) HTTP isteğine dahil edilmediğinden
   (tarayıcı-taraflı anchor), bu ortamdaki araçlarla **spesifik yorumun
-  kendisi bağımsız olarak doğrulanamadı**. `gh` CLI/API erişimi yok. Bu
-  nedenle permalink "kullanıcı tarafından bildirilen, taban issue'yla
-  tutarlı" olarak kabul edildi — kesin doğrulanmış olarak değil.
+  kendisi tek başına, fragment üzerinden bağımsız olarak doğrulanamadı**.
+- **Kanonik doğrulama referansı (audit için sunucu-adreslenebilir):**
+  - Comment ID: `5275320830`
+  - Comment API URL: <https://api.github.com/repos/ollama/ollama/issues/comments/5275320830>
+  - Bu URL, fragment'ten farklı olarak gerçek bir HTTP kaynağı olduğundan
+    WebFetch ile **doğrudan doğrulandı**: yorum gerçekten mevcut, yazar
+    `olimposbotsinyal`, issue #17716 üzerinde, içeriği bu projenin
+    hazırladığı takip taslağıyla (`upstream_comment_draft_17716.md`)
+    birebir eşleşiyor (n=100, senaryo A-E, 80/100 çöküş istatistikleri
+    dahil). Bu, permalink'in üstündeki fragment-sınırlaması notunu
+    **geçersiz kılmıyor** (fragment hâlâ tek başına doğrulanamaz) ama
+    aynı yorumu farklı, sunucu-taraflı bir kanaldan kanıtlıyor.
 
 ## Kontrol sıklığı (poll cadence)
 

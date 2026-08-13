@@ -597,6 +597,8 @@ tanımlandı:
 (Trigger A: 10 çağrı hedefli, Trigger B: 40 çağrı 3-senaryolu, Trigger C:
 100 çağrı tam matris).
 
+Canonical audit reference added for upstream comment: issue comment ID 5275320830.
+
 ## Onay Gerektiren Aksiyonlar (Faz 4+ ile aktif olacak)
 
 - Risk seviyesi `high` veya `irreversible` olan her aksiyon, kullanıcı onayı
