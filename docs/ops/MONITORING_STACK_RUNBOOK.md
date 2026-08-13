@@ -665,6 +665,86 @@ görüldüğünde):**
    unutursa bile, drift tespiti (haftalık ritüelin veya günlük
    çalıştırmanın PARÇASI olarak) bunu OTOMATİK yakalar.
 
+## Pilot Flags Matrix (default OFF)
+
+**v1.2, hiçbir flag açılmadan önceki davranışı BİREBİR korur** — aşağıdaki
+DÖRT flag'in hepsi, açıkça etkinleştirilmedikçe hiçbir kod yolunu
+DEĞİŞTİRMEZ (gorev kısıtı: "Default behavior unchanged unless explicit
+flag enabled"). Hiçbiri `config/model_gateway.yaml`'da DEĞİL — hepsi
+ortam değişkeni (env var) olarak okunur, CLI/PS1 parametreleriyle
+per-run override edilebilir.
+
+| Flag | Varsayılan | Etkilediği araç | Açıldığında ne değişir |
+|---|---|---|---|
+| `GOV_EMERGENCY_CHAIN_MATCHING` | `0` (KAPALI) | `detect_observability_drift.py` (`--use-chain-matching`) | "Takip eden onay" kontrolü yalnızca `alert_name` yerine checksum-zinciri sürekliliğini de arar; aynı-alert-ama-kırık-zincir durumu artık sessizce "çözüldü" sayılmaz, WARN üretir |
+| `GOV_AUTO_ROLLBACK_ON_VERIFY_FAIL` | `0` (KAPALI) | `apply_threshold_proposal.ps1` (`-AutoRollbackOnVerifyFail`) | `-VerifyReload` genel durumu FAIL verirse, dosya OTOMATİK olarak yedekten geri yüklenir (yalnızca FAIL'de — SKIPPED/PASS'te ASLA) |
+| `GOV_EMERGENCY_LEGITIMACY_REQUIRED` | `0` (KAPALI, pilot non-blocking) | Hiçbiri (henüz) — yalnızca `check_emergency_legitimacy.py`'nin çıktısında/raporunda GÖRÜNÜR | **v1.2'de bu flag hiçbir apply akışını ETKİLEMEZ** — yalnızca "gelecekte enforced moda geçilirse bu kontrol zorunlu hale gelecek" niyetinin dokümantasyonudur (bkz. aşağıdaki "Promotion criteria") |
+| `GOV_TICKET_REGEX` | `^OPS-\d+$` | `check_emergency_legitimacy.py` (`--ticket-regex`) | Ticket format doğrulamasının kabul ettiği düzenli ifadeyi değiştirir |
+
+**Ek parametre (env var değil, yalnızca PS1 anahtarı):** `-AutoRollbackMode <safe|strict>`
+(varsayılan `safe`) — `safe`, dosyanın checksum'ı apply'ın yazdığı
+değerden SAPMIŞSA (araya başka bir değişiklik girmişse) auto-rollback'i
+İPTAL EDER; `strict` bu ek kontrolü yapmadan her FAIL'de tetiklenir.
+
+## How to run v1.2 trials safely
+
+1. **Her zaman ÖNCE dry-run/salt-okunur araçlarla başlayın:**
+   - `python scripts/ops/run_emergency_chain_trial.py` — hiçbir şeyi
+     DEĞİŞTİRMEZ, mevcut ledger üzerinde v1.1 vs v1.2 karşılaştırması
+     üretir (`reports/emergency_chain_trial_<UTC>/chain_eval.md`).
+   - `python scripts/ops/check_emergency_legitimacy.py --incident-id <id> --provider mock`
+     — hiçbir gerçek servise bağlanmaz, hiçbir sır gerektirmez.
+2. **Flag'leri TEK TEK açın, birlikte değil** — örneğin önce yalnızca
+   `GOV_EMERGENCY_CHAIN_MATCHING=1` ile bir haftalık gözden geçirme
+   döngüsü çalıştırıp sonuçları inceleyin, ondan SONRA
+   `GOV_AUTO_ROLLBACK_ON_VERIFY_FAIL` ile denemeye geçin.
+3. **`-AutoRollbackOnVerifyFail`'i İLK KEZ açmadan önce**, hızlı bir
+   geri dönüş yolunun var olduğunu doğrulayın: `rollback_threshold_apply.ps1`'in
+   çalıştığını (bkz. "Eşik Değişikliği SOP") ve gerçek `promtool`/`amtool`
+   binary'lerinin (varsa) doğru yollarda olduğunu kontrol edin — gorev
+   kısıtı: "Fast rollback path must exist before enabling any trial
+   feature".
+4. **`-AutoRollbackMode`'u ÖNCE `safe` ile deneyin**, yalnızca `safe`
+   modun beklendiği gibi çalıştığını (concurrent-değişiklik korumasının
+   işe yaradığını) gördükten SONRA `strict`'i düşünün.
+5. **Her deneme bir kanıt paketi ÜRETMELİDİR** — `reports/emergency_chain_trial_<UTC>/`,
+   `reports/emergency_legitimacy_<UTC>/`, veya bir `apply_report.json`'daki
+   `auto_rollback` alanı; kanıtsız bir "denedim, çalıştı" ASLA yeterli
+   değildir (bkz. `reports/v1_2_pilot_<UTC>/pilot_summary.md`).
+6. **Genel rollout YAPMAYIN** — bu flag'ler, açık ADR/karar OLMADAN
+   `config/model_gateway.yaml`'a veya CI/CD ortam değişkenlerine
+   KALICI olarak eklenmemelidir (gorev kısıtı: "Pilot-first, no broad
+   rollout").
+
+## Promotion criteria from pilot → enforced
+
+Bir v1.2 pilot özelliğinin "enforced" (varsayılan davranışın PARÇASI,
+flag'siz) statüsüne terfi edebilmesi için AŞAĞIDAKİLERİN HEPSİ
+sağlanmalıdır:
+
+1. **En az 2-4 hafta** gerçek (veya gerçekçi sentetik) trafikte,
+   flag AÇIK durumda, hiçbir beklenmedik/istenmeyen davranış OLMADAN
+   çalıştırılmış olmalı.
+2. **v1.1/v1.2 sonuç farkı** (`chain_eval.md` gibi karşılaştırma
+   raporları) İNCELENMİŞ ve YANLIŞ-POZİTİF/YANLIŞ-NEGATİF oranının
+   KABUL EDİLEBİLİR olduğu (ideal: sıfır yanlış-negatif) DOĞRULANMIŞ
+   olmalı.
+3. **`docs/BACKLOG.md`'de açık bir karar notu** (kim, ne zaman, hangi
+   kanıta dayanarak) bulunmalı — sessiz bir "varsayılan değiştirme
+   commit'i" ASLA olmamalı.
+4. **Geri alma planı belgelenmiş olmalı** — terfi sonrası bir sorun
+   çıkarsa, flag'i TEKRAR `0`'a çekmenin (veya kod satırını geri
+   almanın) YOLU AÇIKÇA yazılmalı.
+5. **Özel olarak `GOV_EMERGENCY_LEGITIMACY_REQUIRED`** için: `enforced`
+   moda geçiş, `check_apply_eligibility`'ye YENİ bir kontrol EKLEMEYİ
+   gerektirir (şu an HİÇBİR yerde okunmuyor) — bu, kendi başına AYRI
+   bir görev/commit olarak ele alınmalı, bu belgedeki flag'in
+   `1` yapılması TEK BAŞINA yeterli DEĞİLDİR.
+
+Bu kriterler karşılanana kadar TÜM v1.2 özellikleri **KEEP PILOT**
+durumunda kalır (bkz. `reports/v1_2_pilot_<UTC>/pilot_summary.md`
+öneri alanı).
+
 ## Kalıcı (persistent) izleme profili
 
 `infra/monitoring/profiles/persistent/` — `prometheus.yml` +

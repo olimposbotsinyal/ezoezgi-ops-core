@@ -1,0 +1,5 @@
+=== v1.1 (varsayilan, use_chain_matching=False) ===
+HICBIR finding uretilmedi -- v1.1 bu durumu SESSIZCE cozulmus sayiyor (yanlis-pozitif risk).
+
+=== v1.2 PILOT (use_chain_matching=True) ===
+WARN ACIL DURUM esik degisikligi (proposal_id=HIGH_NULL_INTENT_RATE-20260810T000000+0000) icin ayni alert

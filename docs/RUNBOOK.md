@@ -807,6 +807,30 @@ geçişi denetlenebilir kılar.
   edilmedi). Ayrıntı: `docs/ops/MONITORING_STACK_RUNBOOK.md` "Emergency
   Change Protocol (Enforced)", "VerifyReload operational prerequisites",
   "Overdue emergency review escalation SOP".
+- **Governance v1.2 pilot denemeleri (checksum-zinciri vade eslestirme +
+  opsiyonel otomatik geri alma + acil durum mesruiyet on-kontrolu,
+  HEPSI VARSAYILAN KAPALI):** `scripts/ops/emergency_chain_core.py`
+  (checksum-zinciri surekliligi ile RESOLVED/BROKEN_CHAIN/NO_FOLLOWUP
+  siniflandirmasi -- `GOV_EMERGENCY_CHAIN_MATCHING=1`/`--use-chain-matching`
+  ile `detect_observability_drift.py`'ye entegre; varsayilan davranis
+  v1.1 ile BIREBIR aynidir) + `scripts/ops/run_emergency_chain_trial.py`
+  (salt-okunur v1.1/v1.2 karsilastirma raporu). `apply_threshold_proposal.ps1
+  -AutoRollbackOnVerifyFail -AutoRollbackMode <safe|strict>` (varsayilan
+  KAPALI/safe) -- `-VerifyReload` FAIL verirse dosyayi OTOMATIK geri
+  yukler (yalnizca FAIL'de, ASLA SKIPPED/PASS'te), `safe` modu
+  ARADA-BASKA-BIR-DEGISIKLIK-VAR durumunu tespit edip tetiklenmeyi
+  IPTAL EDER, `data/audit/audit.log.jsonl`'e `task=auto_rollback_triggered`
+  kaydi ekler. `scripts/ops/emergency_legitimacy_core.py` +
+  `check_emergency_legitimacy.py` (bilet-format regex + `none`/`mock`/
+  `jira_stub` saglayici -- PILOT'ta GERCEK ag/sir YOK; `create_threshold_review_record.py`'nin
+  opsiyonel `--legitimacy-report-path`'i yalnizca BILGI AMACLIDIR,
+  `check_apply_eligibility` bunu OKUMAZ/UYGULAMAZ). Gercek uctan uca
+  dogrulandi: chain trial gercek bir yanlis-pozitif "cozuldu" senaryosunu
+  yakaladi; auto-rollback gercek `amtool` FAIL'inde (`strict` modda)
+  dosyayi gercekten geri yukledi VE (varsayilan KAPALI ile) dosyayi
+  BILEREK mutasyona ugramis biraktigini dogruladi. Ayrinti: `docs/ops/MONITORING_STACK_RUNBOOK.md`
+  "Pilot Flags Matrix (default OFF)", "How to run v1.2 trials safely",
+  "Promotion criteria from pilot to enforced".
 
 ## Onay Gerektiren Aksiyonlar (Faz 4+ ile aktif olacak)
 

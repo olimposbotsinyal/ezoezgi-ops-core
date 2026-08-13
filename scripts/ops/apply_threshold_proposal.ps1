@@ -57,11 +57,24 @@ Uc dogrulama adimi calistirir, HICBIRINI FABRIKE ETMEZ:
 Genel durum: herhangi bir kontrol FAIL ise FAIL; tumu SKIPPED ise
 VERIFICATION_SKIPPED; aksi halde PASS.
 
+**-AutoRollbackOnVerifyFail (v1.2 PILOT, VARSAYILAN KAPALI):** VerifyReload
+genel durumu FAIL ise VE bu bayrak (veya GOV_AUTO_ROLLBACK_ON_VERIFY_FAIL=1
+ortam degiskeni) ACIKSA, dosyayi OTOMATIK olarak yedekten geri yukler --
+ASLA VERIFICATION_SKIPPED/PASS uzerinde tetiklenmez. `-AutoRollbackMode`:
+`safe` (VARSAYILAN -- dosyanin checksum'i apply'in HEMEN SONRASINDA
+yazdigi degerle eslesmiyorsa, yani ARADA baska bir surec/kisi
+degistirdiyse, TETIKLENMEZ/ELLE mudahale gerekir) veya `strict` (bu ek
+kontrolu yapmadan HER ZAMAN tetiklenir). Tetiklendiginde: `data/audit/audit.log.jsonl`'e
+`task=auto_rollback_triggered` bir denetim kaydi EKLENIR, apply raporunda
+ACIKCA bir OPERATOR UYARI banner'i gorunur.
+
 Cikis kodu: 0 (uygun -- dry-run onizlemesi basarili VEYA gercek apply
 basarili, VerifyReload FAIL degil), 2 (uygunsuz/engellendi -- fabrike
 edilmis bir basari ASLA donmez), 3 (apply BASARILI ama VerifyReload
-FAIL -- dosya UYGULANDI, geri almak icin rollback_threshold_apply.ps1
-kullanin).
+FAIL -- auto-rollback KAPALIYSA veya tetiklenmediyse dosya UYGULANMIS
+HALDE KALIR, geri almak icin rollback_threshold_apply.ps1 kullanin;
+auto-rollback tetiklendiyse dosya ZATEN geri yuklenmistir, apply
+raporundaki `auto_rollback` alanina bakin).
 #>
 
 param(
@@ -75,7 +88,9 @@ param(
     [string]$AmtoolPath = "",
     [string]$AlertmanagerConfigPath = "",
     [string]$PrometheusHealthUrl = "",
-    [string]$AlertmanagerReadyUrl = ""
+    [string]$AlertmanagerReadyUrl = "",
+    [switch]$AutoRollbackOnVerifyFail,
+    [ValidateSet("safe", "strict")][string]$AutoRollbackMode = "safe"
 )
 
 $ErrorActionPreference = "Stop"
@@ -88,6 +103,11 @@ $mode = if ($Apply) { "apply" } else { "dry_run" }
 Write-Output "=== Esik degisikligi uygulama -- mod: $mode ==="
 
 $effectiveAmConfigPath = if ($AlertmanagerConfigPath) { $AlertmanagerConfigPath } else { "$RepoRoot\infra\monitoring\profiles\persistent\alertmanager.yml" }
+# `-AutoRollbackOnVerifyFail` ACIKCA gecilmemisse, GOV_AUTO_ROLLBACK_ON_VERIFY_FAIL=1
+# ortam degiskeni de bayragi ACABILIR -- ikisinden HERHANGI biri yeterli.
+# Varsayilan (hicbiri verilmezse) HER ZAMAN KAPALI (gorev kisiti: "feature
+# remains OFF by default").
+$effectiveAutoRollback = $AutoRollbackOnVerifyFail.IsPresent -or ($env:GOV_AUTO_ROLLBACK_ON_VERIFY_FAIL -eq "1")
 
 $driverScript = @"
 import sys, json, subprocess, urllib.request, urllib.error
@@ -101,6 +121,7 @@ from threshold_apply_core import (
     apply_proposal_to_alerts_text, create_backup, append_ledger_entry, build_ledger_entry,
     build_apply_audit_details, get_non_patchable_alerts, ApplyOutcome, write_apply_report,
     build_pass_check, build_fail_check, build_skipped_check, aggregate_verification_state,
+    restore_backup, build_rollback_audit_details, decide_auto_rollback, build_auto_rollback_result,
 )
 from detect_observability_drift import compute_file_sha256
 from audit_logger import AuditLogger
@@ -119,6 +140,8 @@ amtool_path = r'$AmtoolPath'
 am_config_path = r'$effectiveAmConfigPath'
 prom_health_url = r'$PrometheusHealthUrl'
 am_ready_url = r'$AlertmanagerReadyUrl'
+auto_rollback_enabled = $(if ($effectiveAutoRollback) { "True" } else { "False" })
+auto_rollback_mode = r'$AutoRollbackMode'
 
 generated_at = datetime.now(timezone.utc).isoformat()
 
@@ -285,6 +308,40 @@ if verify_reload:
     ]
     verification_state = aggregate_verification_state(verification)
 
+# --- Opsiyonel otomatik geri alma (auto-rollback) -- v1.2 PILOT, VARSAYILAN
+# KAPALI. Yalnizca VerifyReload GENEL DURUMU FAIL ise degerlendirilir --
+# SKIPPED/PASS uzerinde ASLA tetiklenmez (bkz. threshold_apply_core.py::decide_auto_rollback).
+auto_rollback_result = None
+if auto_rollback_enabled:
+    current_checksum_now = compute_file_sha256(target_path)
+    triggered, decision_reason = decide_auto_rollback(
+        verification_state=verification_state, auto_rollback_enabled=auto_rollback_enabled,
+        mode=auto_rollback_mode, current_file_checksum=current_checksum_now,
+        expected_checksum_after_apply=new_checksum,
+    )
+    if triggered:
+        print('!!! OPERATOR UYARISI: OTOMATIK GERI ALMA (AUTO-ROLLBACK) TETIKLENDI !!!')
+        restore_backup(backup_path, target_path)
+        restored_checksum = compute_file_sha256(target_path)
+        auto_rollback_result = build_auto_rollback_result(
+            triggered=True, decision_reason=decision_reason, restored=True, restored_checksum=restored_checksum,
+        )
+        rollback_audit_details = build_rollback_audit_details(
+            proposal_id=proposal['proposal_id'], backup_path=backup_path,
+            restored_checksum=restored_checksum, reason=f'auto-rollback ({auto_rollback_mode} mod): {decision_reason}',
+        )
+        rollback_audit_details['triggered_by'] = 'apply_threshold_proposal.ps1 -AutoRollbackOnVerifyFail'
+        auto_audit_record = audit_logger.log(
+            alias=None, task='auto_rollback_triggered', status='ROLLED_BACK', risk_level='high',
+            details=rollback_audit_details,
+        )
+        print(f'auto_rollback_restored_checksum={restored_checksum}')
+        print(f'auto_rollback_audit_request_id={auto_audit_record["request_id"]}')
+    else:
+        auto_rollback_result = build_auto_rollback_result(triggered=False, decision_reason=decision_reason)
+        if verification_state == 'FAIL':
+            print(f'auto-rollback degerlendirildi ama TETIKLENMEDI: {decision_reason}')
+
 outcome = ApplyOutcome(
     applied=True, dry_run=False, reasons=[], patched_kinds=patched_kinds,
     old_checksum=old_checksum, new_checksum=new_checksum, backup_path=str(backup_path),
@@ -292,6 +349,7 @@ outcome = ApplyOutcome(
     non_patchable=get_non_patchable_alerts(),
     proposal_path=str(proposal_path), review_record_path=str(review_path),
     verification=verification, verification_state=verification_state,
+    auto_rollback=auto_rollback_result,
 )
 write_apply_report(outcome, proposal, out_dir, generated_at=generated_at)
 

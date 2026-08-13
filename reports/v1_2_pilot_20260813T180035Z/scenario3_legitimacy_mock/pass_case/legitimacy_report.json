@@ -1,0 +1,10 @@
+{
+  "generated_at": "2026-08-13T18:04:59.659456+00:00",
+  "incident_id": "OPS-5001",
+  "provider": "mock",
+  "legitimacy_status": "PASS",
+  "reasons": [
+    "ticket format gecerli",
+    "[PILOT STUB -- gercek baglanti/sir YOK] provider=mock, ticket=OPS-5001 'acik' varsayildi"
+  ]
+}

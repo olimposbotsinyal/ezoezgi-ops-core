@@ -65,6 +65,13 @@ reports/threshold_apply_*/
 reports/threshold_rollback_*/
 reports/emergency_review_check_*/
 
+# v1.2 PILOT ciktilari -- ayni gerekce: rutin/tekrar-uretilebilir. Bir
+# pilot denemesinin genuinely onemli oldugu (bkz. reports/v1_2_pilot_*/pilot_summary.md)
+# durumlarda `git add -f` ile arsivlenir.
+reports/emergency_chain_trial_*/
+reports/emergency_legitimacy_*/
+reports/v1_2_pilot_*/
+
 # NOT: reports/weekly_observability_<YYYY-WW>/ KASITLI olarak burada
 # YOK -- bu, "Post-GO weekly ritual"in kalici governance gunlugudur
 # (her hafta EKLENIR, uzerine yazilmaz), diger raporlar gibi rutin/

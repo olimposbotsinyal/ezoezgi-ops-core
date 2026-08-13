@@ -301,6 +301,15 @@ TARAFINDAN doğrulanır (bkz. `docs/ops/MONITORING_STACK_RUNBOOK.md`
 retroaktif inceleme vadesinin kaçırılması durumunda OTOMATİK CRITICAL
 drift üretimi orada belgelidir).
 
+**v1.2 PİLOT özellikleri (hepsi VARSAYILAN KAPALI — flag ile açılmadıkça
+hiçbir davranış değişmez):** checksum-zinciri farkındalıklı vade takibi
+(`GOV_EMERGENCY_CHAIN_MATCHING`), VerifyReload FAIL'de opsiyonel otomatik
+geri alma (`GOV_AUTO_ROLLBACK_ON_VERIFY_FAIL` / `-AutoRollbackOnVerifyFail`),
+ve acil durum bilet-format ön-kontrolü (`check_emergency_legitimacy.py`,
+henüz apply'ı ENGELLEMİYOR). Tam flag tablosu + güvenli deneme adımları
++ enforced'a terfi kriterleri: `docs/ops/MONITORING_STACK_RUNBOOK.md`
+"Pilot Flags Matrix (default OFF)".
+
 ## Bilinen sınırlamalar
 
 - Hiçbir alert şu an gerçekten **sayfalamıyor** — canlı bir

@@ -1,0 +1,12 @@
+{
+  "generated_at": "2026-08-13T18:03:14.121664+00:00",
+  "rows": [
+    {
+      "proposal_id": "HIGH_NULL_INTENT_RATE-20260810T000000+0000",
+      "alert_name": "HIGH_NULL_INTENT_RATE",
+      "v1_1_alert_name_only": "RESOLVED",
+      "v1_2_checksum_chain": "BROKEN_CHAIN",
+      "outcome_differs": true
+    }
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "generated_at": "2026-08-13T18:04:43.999833+00:00",
+  "proposal_id": "HIGH_NULL_INTENT_RATE-20260813T180435",
+  "alert_name": "HIGH_NULL_INTENT_RATE",
+  "dry_run": false,
+  "applied": true,
+  "reasons": [],
+  "patched_kinds": [
+    "warn",
+    "crit"
+  ],
+  "old_checksum": "1677b2657abc8cb8e67e47c300b7aa8c7fcdc7410b013cd39eb2bd04c0bd719c",
+  "new_checksum": "c8285bbc14822010dd9a982d4bd43a4313034068997a87df1046e8bc5bf4c2da",
+  "backup_path": "d:\\Projects\\ezoezgi-ops\\reports\\threshold_apply_20260813T180443Z\\backups\\model_gateway_alerts.yaml.HIGH_NULL_INTENT_RATE-20260813T180435.backup",
+  "is_emergency": false,
+  "emergency_fields": null,
+  "non_patchable": {
+    "PRIMARY_RESTRICTED_PERSISTENT": "calibrate_alert_thresholds.ALERT_ENV_VAR_MAP'te warn/crit=None -- ayarlanabilir bir ortam degiskeni YOK (herhangi bir olusum > 0 tetikler, 'olmamasi gereken durum' tipi bir alert, oran-tabanli kalibrasyona uygun degil).",
+    "PREFLIGHT_UNKNOWN_PERSISTENT": "calibrate_alert_thresholds.ALERT_ENV_VAR_MAP'te warn/crit=None -- esik (>0.9) kodda sabit, ayarlanabilir bir ortam degiskeni YOK; degistirmek icin once model_gateway kod tarafinda bir env var eklenmesi gerekir.",
+    "CIRCUIT_OPEN_STUCK": "Sayisal/oransal bir esik degil -- boolean durum kontrolu (`model_gateway_circuit_open == 1`), esik kalibrasyonu/onay is akisinin kapsami disinda."
+  },
+  "proposal_path": "C:\\Temp\\pilot2\\proposal2.json",
+  "review_record_path": "C:\\Temp\\pilot2\\review2.json",
+  "verification": [
+    {
+      "check": "promtool_check_rules",
+      "state": "VERIFICATION_SKIPPED",
+      "reason": "PromtoolPath saglanmadi"
+    },
+    {
+      "check": "amtool_check_config",
+      "state": "FAIL",
+      "reason": "Checking 'd:\\Projects\\ezoezgi-ops\\infra\\monitoring\\profiles\\persistent\\alertmanager.yml'  FAILED: invalid URL: unsupported scheme \"\" for URL\n\namtool.exe: error: failed to validate 1 file(s)"
+    },
+    {
+      "check": "prometheus_health",
+      "state": "VERIFICATION_SKIPPED",
+      "reason": "URL saglanmadi (opsiyonel parametre)"
+    },
+    {
+      "check": "alertmanager_ready",
+      "state": "VERIFICATION_SKIPPED",
+      "reason": "URL saglanmadi (opsiyonel parametre)"
+    }
+  ],
+  "verification_state": "FAIL",
+  "auto_rollback": {
+    "triggered": true,
+    "decision_reason": "strict mod: verification_state=FAIL, otomatik rollback TETIKLENIYOR",
+    "restored": true,
+    "restored_checksum": "1677b2657abc8cb8e67e47c300b7aa8c7fcdc7410b013cd39eb2bd04c0bd719c"
+  }
+}

@@ -13,18 +13,22 @@ from pathlib import Path
 import pytest
 
 from threshold_apply_core import (
+    AUTO_ROLLBACK_MODE_SAFE,
+    AUTO_ROLLBACK_MODE_STRICT,
     ApplyOutcome,
     RollbackOutcome,
     aggregate_verification_state,
     append_ledger_entry,
     apply_proposal_to_alerts_text,
     build_apply_audit_details,
+    build_auto_rollback_result,
     build_fail_check,
     build_ledger_entry,
     build_pass_check,
     build_rollback_audit_details,
     build_skipped_check,
     create_backup,
+    decide_auto_rollback,
     load_approved_checksums,
     load_ledger_entries,
     patch_alert_expr_value,
@@ -464,3 +468,129 @@ def test_aggregate_verification_state_empty_list_is_skipped_not_pass():
     """Hicbir kontrol calismadiysa (bos liste), bu ASLA PASS ile
     KARISTIRILAMAZ -- fabrike edilmis bir basari olmamali."""
     assert aggregate_verification_state([]) == "VERIFICATION_SKIPPED"
+
+
+# --- v1.2 PILOT: auto-rollback karar mantigi (decide_auto_rollback) -------------
+
+
+def test_auto_rollback_never_triggers_on_pass():
+    triggered, reason = decide_auto_rollback(
+        verification_state="PASS", auto_rollback_enabled=True, mode=AUTO_ROLLBACK_MODE_STRICT
+    )
+    assert triggered is False
+    assert "PASS" in reason
+
+
+def test_auto_rollback_never_triggers_on_skipped():
+    triggered, reason = decide_auto_rollback(
+        verification_state="VERIFICATION_SKIPPED", auto_rollback_enabled=True, mode=AUTO_ROLLBACK_MODE_STRICT
+    )
+    assert triggered is False
+    assert "VERIFICATION_SKIPPED" in reason
+
+
+def test_auto_rollback_never_triggers_on_none_state():
+    triggered, reason = decide_auto_rollback(
+        verification_state=None, auto_rollback_enabled=True, mode=AUTO_ROLLBACK_MODE_STRICT
+    )
+    assert triggered is False
+
+
+def test_auto_rollback_never_triggers_when_disabled_even_on_fail():
+    """Gorev kisiti: 'feature remains OFF by default' -- bayrak KAPALIYSA
+    FAIL bile olsa TETIKLENMEMELIDIR."""
+    triggered, reason = decide_auto_rollback(
+        verification_state="FAIL", auto_rollback_enabled=False, mode=AUTO_ROLLBACK_MODE_STRICT
+    )
+    assert triggered is False
+    assert "KAPALI" in reason
+
+
+def test_auto_rollback_strict_mode_triggers_on_fail_regardless_of_checksum():
+    triggered, reason = decide_auto_rollback(
+        verification_state="FAIL", auto_rollback_enabled=True, mode=AUTO_ROLLBACK_MODE_STRICT,
+        current_file_checksum="anything", expected_checksum_after_apply="something_else",
+    )
+    assert triggered is True
+    assert "strict" in reason
+
+
+def test_auto_rollback_safe_mode_triggers_when_checksum_matches():
+    triggered, reason = decide_auto_rollback(
+        verification_state="FAIL", auto_rollback_enabled=True, mode=AUTO_ROLLBACK_MODE_SAFE,
+        current_file_checksum="X", expected_checksum_after_apply="X",
+    )
+    assert triggered is True
+    assert "safe" in reason
+
+
+def test_auto_rollback_safe_mode_blocks_when_checksum_diverged():
+    """Gorev kisiti: safe mod, ARADA baska bir surec/kisi dosyayi
+    degistirmisse (checksum artik apply'in yazdigi degerle eslesmiyor),
+    o degisikligi EZMEMEK icin tetiklenmemelidir."""
+    triggered, reason = decide_auto_rollback(
+        verification_state="FAIL", auto_rollback_enabled=True, mode=AUTO_ROLLBACK_MODE_SAFE,
+        current_file_checksum="CONCURRENTLY_CHANGED", expected_checksum_after_apply="X",
+    )
+    assert triggered is False
+    assert "BEKLENENDEN FARKLI" in reason
+
+
+def test_auto_rollback_rejects_invalid_mode():
+    triggered, reason = decide_auto_rollback(
+        verification_state="FAIL", auto_rollback_enabled=True, mode="yolo",
+    )
+    assert triggered is False
+    assert "gecersiz" in reason
+
+
+def test_build_auto_rollback_result_shape_when_triggered():
+    result = build_auto_rollback_result(triggered=True, decision_reason="test", restored=True, restored_checksum="abc")
+    assert result == {
+        "triggered": True, "decision_reason": "test", "restored": True, "restored_checksum": "abc",
+    }
+
+
+def test_build_auto_rollback_result_shape_when_not_triggered():
+    result = build_auto_rollback_result(triggered=False, decision_reason="test")
+    assert result == {
+        "triggered": False, "decision_reason": "test", "restored": False, "restored_checksum": None,
+    }
+
+
+def test_apply_outcome_auto_rollback_field_defaults_to_none():
+    """Geriye donuk uyumluluk: yeni alan verilmezse mevcut cagricilar
+    (Commit T/U/V) DEGISIKLIKSIZ calismaya devam eder."""
+    outcome = ApplyOutcome(applied=True, dry_run=False)
+    assert outcome.auto_rollback is None
+
+
+def test_render_apply_report_md_includes_operator_warning_when_triggered():
+    outcome = ApplyOutcome(
+        applied=True, dry_run=False, verification_state="FAIL",
+        auto_rollback=build_auto_rollback_result(triggered=True, decision_reason="x", restored=True, restored_checksum="abc"),
+    )
+    md = render_apply_report_md(outcome, {"proposal_id": "A-1", "alert_name": "X"}, generated_at="2026-08-13T00:00:00+00:00")
+    assert "OPERATOR UYARISI" in md
+    assert "OTOMATIK GERI ALMA" in md
+
+
+def test_render_apply_report_md_shows_not_triggered_reason_when_evaluated_but_skipped():
+    outcome = ApplyOutcome(
+        applied=True, dry_run=False,
+        auto_rollback=build_auto_rollback_result(triggered=False, decision_reason="safe mod engelledi"),
+    )
+    md = render_apply_report_md(outcome, {"proposal_id": "A-1", "alert_name": "X"}, generated_at="2026-08-13T00:00:00+00:00")
+    assert "safe mod engelledi" in md
+    assert "OPERATOR UYARISI" not in md
+
+
+def test_write_apply_report_serializes_auto_rollback_field(tmp_path):
+    outcome = ApplyOutcome(
+        applied=True, dry_run=False,
+        auto_rollback=build_auto_rollback_result(triggered=True, decision_reason="x", restored=True, restored_checksum="abc"),
+    )
+    paths = write_apply_report(outcome, {"proposal_id": "A-1", "alert_name": "X"}, tmp_path / "out", generated_at="2026-08-13T00:00:00+00:00")
+    payload = json.loads(paths["json"].read_text(encoding="utf-8"))
+    assert payload["auto_rollback"]["triggered"] is True
+    assert payload["auto_rollback"]["restored_checksum"] == "abc"

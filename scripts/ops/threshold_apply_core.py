@@ -342,6 +342,68 @@ def aggregate_verification_state(checks: list[dict[str, str]]) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Opsiyonel otomatik geri alma (auto-rollback) karar mantigi -- v1.2 PILOT,
+# VARSAYILAN KAPALI. Saf/testable: hicbir dosya G/C YAPMAZ, yalnizca
+# TETIKLENMELI Mİ karari verir -- gercek `restore_backup()` cagrisi
+# `apply_threshold_proposal.ps1`'in gomulu surucusunde kalir.
+# ---------------------------------------------------------------------------
+
+AUTO_ROLLBACK_MODE_SAFE = "safe"
+AUTO_ROLLBACK_MODE_STRICT = "strict"
+VALID_AUTO_ROLLBACK_MODES = (AUTO_ROLLBACK_MODE_SAFE, AUTO_ROLLBACK_MODE_STRICT)
+
+
+def decide_auto_rollback(
+    *,
+    verification_state: str | None,
+    auto_rollback_enabled: bool,
+    mode: str,
+    current_file_checksum: str | None = None,
+    expected_checksum_after_apply: str | None = None,
+) -> tuple[bool, str]:
+    """Otomatik geri alma TETIKLENMELI MI karari verir. Doner:
+    (tetiklenmeli_mi, neden).
+
+    - `verification_state != 'FAIL'` (yani `None`/`PASS`/`VERIFICATION_SKIPPED`)
+      -- ASLA tetiklenmez (gorev kisiti: "never auto-rollback on SKIPPED",
+      PASS icin de ayni gerekce gecerlidir -- yapilacak bir sey yok).
+    - `auto_rollback_enabled=False` (VARSAYILAN) -- ASLA tetiklenmez
+      (gorev kisiti: "feature remains OFF by default").
+    - `mode='safe'` (VARSAYILAN): `current_file_checksum`, apply'in
+      HEMEN SONRASINDA yazdigi `expected_checksum_after_apply` ile
+      EŞLEŞMİYORSA -- yani ARADA baska bir surec/kisi dosyayi ZATEN
+      degistirdiyse -- tetiklenmez (o degisikligi EZMEMEK icin, ELLE
+      mudahale gerektirir).
+    - `mode='strict'`: bu ek kontrolu YAPMAZ -- verification FAIL
+      oldugunda checksum durumundan BAGIMSIZ HER ZAMAN tetiklenir
+      (daha hizli ama daha az temkinli)."""
+    if verification_state != VERIFY_FAIL:
+        return False, f"verification_state={verification_state!r} (yalnizca {VERIFY_FAIL} tetikler)"
+    if not auto_rollback_enabled:
+        return False, "AutoRollbackOnVerifyFail bayragi KAPALI (varsayilan)"
+    if mode not in VALID_AUTO_ROLLBACK_MODES:
+        return False, f"gecersiz auto-rollback modu: {mode!r} (gecerli: {VALID_AUTO_ROLLBACK_MODES})"
+    if mode == AUTO_ROLLBACK_MODE_SAFE and current_file_checksum != expected_checksum_after_apply:
+        return False, (
+            f"safe mod: dosya checksum'i BEKLENENDEN FARKLI (mevcut={current_file_checksum!r}, "
+            f"beklenen={expected_checksum_after_apply!r}) -- ARADA baska bir surec/kisi degistirmis "
+            "olabilir, o degisikligin EZILMEMESI icin otomatik rollback IPTAL edildi, ELLE mudahale gerekiyor"
+        )
+    return True, f"{mode} mod: verification_state={VERIFY_FAIL}, otomatik rollback TETIKLENIYOR"
+
+
+def build_auto_rollback_result(
+    *, triggered: bool, decision_reason: str, restored: bool = False, restored_checksum: str | None = None
+) -> dict[str, Any]:
+    return {
+        "triggered": triggered,
+        "decision_reason": decision_reason,
+        "restored": restored,
+        "restored_checksum": restored_checksum,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Rapor uretimi
 # ---------------------------------------------------------------------------
 
@@ -364,6 +426,9 @@ class ApplyOutcome:
     review_record_path: str | None = None
     verification: list[dict[str, Any]] | None = None
     verification_state: str | None = None
+    # v1.2 PILOT alanlari (GERIYE UYUMLU varsayilanlar -- auto_rollback
+    # yalnizca -AutoRollbackOnVerifyFail ACIKCA gecildiginde dolu olur):
+    auto_rollback: dict[str, Any] | None = None
 
 
 def render_apply_report_md(outcome: ApplyOutcome, proposal: dict[str, Any], *, generated_at: str) -> str:
@@ -418,6 +483,25 @@ def render_apply_report_md(outcome: ApplyOutcome, proposal: dict[str, Any], *, g
         for v in outcome.verification:
             lines.append(f"| {v.get('check')} | {v.get('state')} | {v.get('reason')} |")
         lines.append("")
+    if outcome.auto_rollback is not None:
+        ar = outcome.auto_rollback
+        if ar.get("triggered"):
+            lines.append("## !!! OPERATOR UYARISI: OTOMATIK GERI ALMA (AUTO-ROLLBACK) TETIKLENDI !!!")
+            lines.append("")
+            lines.append(
+                "**VerifyReload FAIL verdi VE `-AutoRollbackOnVerifyFail` acikti -- dosya OTOMATIK "
+                "OLARAK onceki haline geri yuklendi. Bu degisikligi TEKRAR uygulamadan ONCE, "
+                "VerifyReload'in NEDEN FAIL verdigini mutlaka arastirin.**"
+            )
+            lines.append("")
+            lines.append(f"- Geri yuklendi mi: {ar.get('restored')}")
+            lines.append(f"- Geri yuklenen checksum: `{ar.get('restored_checksum')}`")
+            lines.append(f"- Karar gerekcesi: {ar.get('decision_reason')}")
+        else:
+            lines.append("## Otomatik geri alma (auto-rollback) degerlendirmesi")
+            lines.append("")
+            lines.append(f"- Tetiklenmedi. Gerekce: {ar.get('decision_reason')}")
+        lines.append("")
     return "\n".join(lines) + "\n"
 
 
@@ -448,6 +532,7 @@ def write_apply_report(
         "review_record_path": outcome.review_record_path,
         "verification": outcome.verification,
         "verification_state": outcome.verification_state,
+        "auto_rollback": outcome.auto_rollback,
     }
     json_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
 
