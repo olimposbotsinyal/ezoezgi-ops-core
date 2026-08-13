@@ -988,16 +988,156 @@ python scripts/ops/check_emergency_legitimacy.py --incident-id OPS-1234 --provid
 - Çıktı: `legitimacy_report.json`/`.md` artık gerçek bir sağlayıcı
   kontrolü yapıldığında açık bir `provider_evidence` bloğu içerir
   (`mode`/`checked`/`found`/`status_code`/`detail`/`attempts`).
-- **`provider_is_stub_only` blocker'ıyla ilişkisi:** bu blocker zaten
-  `evidence_payloads`'taki `provider` alanını inceliyordu ve
-  `{"mock", "jira_stub", "none", None}` dışındaki HERHANGİ bir değeri
-  "gerçek sağlayıcı" sayıyordu (bkz. `evaluate_pilot_promotion.py`) —
-  yani `provider="jira"` ile üretilmiş en az bir `legitimacy_report.json`
-  `required_evidence_paths` içinde bulunduğunda bu blocker EK bir kod
-  değişikliği GEREKMEDEN otomatik olarak temizlenir.
+- **`provider_is_stub_only` blocker'ıyla ilişkisi (GÜNCELLENDİ —
+  Promotion-candidate sprint):** bu blocker `evidence_payloads`'taki
+  `provider` alanının `{"mock", "jira_stub", "none", None}` dışında
+  olmasını KONTROL EDER, AMA ARTIK BU TEK BAŞINA YETERLİ DEĞİLDİR —
+  `provider_evidence.checked` alanının da `true` olması ZORUNLUDUR
+  (bkz. `evaluate_pilot_promotion.py::_check_blockers`). Bu düzeltme
+  ÖNCEDEN var olan gerçek bir boşluğu kapatır: `--provider jira`
+  YAPILANDIRILMADAN çalıştırılmış (dolayısıyla `checked=false`,
+  `legitimacy_status=SKIPPED` üretmiş) bir kanıt, salt `provider="jira"`
+  string'i YÜZÜNDEN bu blocker'ı YANLIŞLIKLA temizleyebilirdi — "no
+  implicit pass on unchecked provider" ilkesi burada da geçerlidir
+  (bkz. aşağıdaki "Legitimacy status semantics"). Blocker'ın GERÇEKTEN
+  temizlenmesi için `required_evidence_paths` içinde `provider="jira"`
+  VE `provider_evidence.checked=true` olan (yani GERÇEKTEN tamamlanmış
+  bir Jira doğrulaması yapılmış) en az bir `legitimacy_report.json`
+  bulunmalıdır.
 - **Hâlâ v1.2'de non-blocking:** diğer sağlayıcılar gibi, bu kontrolün
   sonucu `apply_threshold_proposal.ps1`'i ENGELLEMEZ — bkz. "Emergency
   Change Protocol" ve "Promotion criteria from pilot → enforced".
+
+## Legitimacy status semantics (PASS/FAIL/SKIPPED)
+
+**Promotion-candidate sprint** ile `emergency_legitimacy_core.py::evaluate_legitimacy`nin
+durum semantiği KESİNLEŞTİRİLDİ — üç durum, üç AYRI anlam:
+
+| Durum | Anlamı | Ne zaman üretilir |
+|---|---|---|
+| `PASS` | Ticket formatı GEÇERLİ VE sağlayıcı GERÇEKTEN kontrol edildi (`checked=true`) VE bulundu (`found=true`) | `provider=none`/`mock`/`jira_stub` (PILOT stub, her zaman `checked` uygun) VEYA `provider=jira` GERÇEKTEN yapılandırılmış VE bilet GERÇEKTEN bulunmuş |
+| `FAIL` | Ticket formatı GEÇERSİZ, VEYA sağlayıcı GERÇEKTEN kontrol edildi (`checked=true`) AMA bulunamadı/geçersiz (`found=false`) | Format hatası (provider'dan BAĞIMSIZ, HEMEN döner) VEYA `provider=jira` gerçek bir 404/red aldı |
+| `SKIPPED` | `incident_id` hiç verilmemiş, VEYA `provider=jira` için kontrol HİÇ ÇALIŞMADI (`checked=false`) | `incident_id=None` (her zaman) VEYA `provider=jira` + ortam değişkenleri eksik/yapılandırılmamış |
+
+**Kritik düzeltme (bu sprint'in temel motivasyonu — "no implicit pass on
+unchecked provider"):** eskiden, `provider=jira` yapılandırılmamışken
+(`checked=false`) VE ticket formatı geçerliyken, sonuç SESSİZCE `PASS`
+dönüyordu — bu, "hiç kontrol edilmedi" ile "gerçekten doğrulandı"yı
+AYNI GÖSTEREREK yanlış-güven veriyordu (bkz. Kanıt olgunlaştırma
+sprinti'nin `docs/BACKLOG.md`'deki bilinen sınırlama notu). Artık
+`provider=jira` + `checked=false` HER ZAMAN `SKIPPED` döner, ASLA
+`PASS` değil.
+
+**`provider=none`/`mock`/`jira_stub` davranışı GERİYE UYUMLU DEĞİŞMEDİ**
+— bu kısıtlama YALNIZCA `provider=jira` (gerçek sağlayıcı) için
+geçerlidir; PILOT stub'ların "checked=false/true, her zaman 'atlama,
+gerçek bir doğrulama iddia edilmiyor' semantiği" tasarımı aynı kaldı
+(bkz. yukarıdaki "Jira legitimacy verification setup" — bu ayrımın
+NEDENİ orada da açıklanır).
+
+**Pratik sonuç — operatörler için:** `legitimacy_status=PASS` görmek
+TEK BAŞINA "gerçek bir Jira doğrulaması yapıldı" anlamına GELMEZ —
+`provider=mock` ile de `PASS` üretilebilir (PILOT stub, kasıtlı olarak
+her zaman "bulundu" varsayar). Gerçek doğrulamanın olup olmadığını
+anlamak için HER ZAMAN `legitimacy_report.json`'daki `provider_evidence.checked`
+alanına bakın: `true` ise gerçek bir ağ çağrısı yapıldı (sonuç PASS/FAIL
+olabilir), `false`/`null` ise hiç yapılmadı (sonuç SKIPPED olacaktır,
+`provider=jira` için) veya bir PILOT stub kullanılmıştır.
+
+**`evaluate_pilot_promotion.py`'ye etkisi:** `emergency_legitimacy_required`
+özelliği için, `legitimacy_status=SKIPPED` olan bir kanıt dosyası artık
+`runs`/`observation_days`/`false_positive_rate` hesaplamasına
+KATILMAZ — "hiç kontrol edilmedi" bir "run" SAYILMAZ (bkz. aşağıdaki
+"Promotion evidence runpack usage" ve `EvidenceSummary.skipped_evidence_count`
+alanı, bunun kaç kanıt girdisini etkilediğini gösterir).
+
+## Promotion evidence runpack usage
+
+`scripts/ops/run_promotion_evidence_pack.ps1` -- terfi-adayı kanıtını
+TEK bir tekrar-üretilebilir komutla toplayan bir orkestratördür (gorev
+kısıtı: "Evidence runpack script (repeatable)"). Sırayla çalıştırır:
+chain trial → legitimacy (mock) → legitimacy (jira, koşullu) → FPR özeti
+→ haftalık review JSON export'u → değerlendirici (normal mod) → tüm
+sonuçların birleştirilmesi.
+
+```powershell
+pwsh scripts/ops/run_promotion_evidence_pack.ps1
+# veya jira ortam değişkenlerini (JIRA_BASE_URL/JIRA_EMAIL/JIRA_API_TOKEN)
+# hiç denemeden atlamak icin:
+pwsh scripts/ops/run_promotion_evidence_pack.ps1 -SkipJira
+```
+
+**Çıktı:** `reports/promotion_candidate_<UTC>/runpack_index.json`+`runpack_summary.md`
+— her adımın (`step`/`exit_code`/`status`/`evidence_path`) dökümü + genel
+bir `promotion_readiness_outlook` (`PROMOTE-ready`/`EXTEND-likely`/
+`REJECT-risk`/`UNKNOWN`, değerlendiricinin gerçek exit code'undan
+haritalanır — bkz. `promotion_evidence_pack_core.py::promotion_readiness_outlook`).
+
+**jira adımı — koşullu, ASLA fabrike edilmez:** `-SkipJira` verilmezse
+`check_emergency_legitimacy.py --provider jira` GERÇEKTEN çağrılır —
+ortam değişkenleri yapılandırılmışsa GERÇEK bir doğrulama yapar,
+yapılandırılmamışsa (yukarıdaki "Legitimacy status semantics"
+sayesinde) kendiliğinden `SKIPPED` döner; script BUNU ayrıca tespit
+etmeye ÇALIŞMAZ, yalnızca CLI'nin kendi doğru semantiğine güvenir.
+
+**`auto_rollback_evidence_scan` adımı GÖZLEMSELDİR:** görev metni
+"execute verify-fail scenarios (auto-rollback OFF/ON)" istese de, bu
+script GERÇEK bir VerifyReload FAIL/auto-rollback senaryosunu KENDİSİ
+TETİKLEMEZ — bu, gerçek Alertmanager/promtool durumu + onaylı bir
+proposal/review gerektiren, potansiyel olarak DURUM-DEĞİŞTİREN bir
+işlemdir ve "Default runtime behavior remains conservative" görev
+kısıtıyla ÇELİŞİR. Bunun yerine, repo içinde ÖNCEDEN var olan
+`apply_report.json` kanıtlarını tarayıp `auto_rollback.triggered=true`
+(ON) vs `false`/yok (OFF) SAYIMINI raporlar. **Gerçek bir senaryo
+üretmek için** elle: bkz. "How to run v1.2 trials safely" (`apply_threshold_proposal.ps1
+-AutoRollbackOnVerifyFail -AutoRollbackMode <safe|strict>`).
+
+**Hiçbir adım kalıcı durum değiştirmez** — `-Apply`/durum-değiştiren
+hiçbir komut çalıştırılmaz, `pilot_flags_state.json`'a ASLA yazılmaz.
+Bir adım başarısız olursa (exit code != 0), paketin TAMAMI DURMAZ —
+diğer adımlar yine de çalışır (kısmi kanıt, hiç kanıt olmamasından
+DAHA DEĞERLİDİR); script'in KENDİ exit code'u değerlendiricinin exit
+code'unu yansıtır.
+
+Mimari not: orkestrasyonun kendisi (N python CLI'sını sırayla çağırmak)
+`.ps1`'de kalır; yalnızca SONUÇLARIN BİRLEŞTİRİLMESİ (auto-rollback
+sayımı + outlook haritalama + JSON/markdown üretimi) `promotion_evidence_pack_core.py`'de
+SAF mantık olarak yaşar (`build_promotion_runpack_index.py` bunun
+CLI sarmalayıcısıdır) — bu ikili ayrım sayesinde bu mantık gerçek bir
+PowerShell süreci başlatmadan pytest ile deterministik test edilir.
+
+## Rehearsal mode interpretation
+
+`evaluate_pilot_promotion.py --rehearsal` — AYNI karar mantığını
+(`evaluate_feature`) çalıştırır, ama:
+
+- `promotion_report.md`/`.json` YAZMAZ — bunun yerine `reports/pilot_promotion_<UTC>/rehearsal_report.md`+`.json`
+  yazar (aynı dizin adlandırma kuralı, farklı dosya adları — normal bir
+  değerlendirme çıktısıyla KARIŞTIRILMASIN diye).
+- **Hiçbir kalıcı durumu DEĞİŞTİRMEZ** — zaten normal moddaki değerlendirici
+  de `pilot_flags_state.json`'a hiç yazmıyordu (yalnızca `promote_pilot_flags.ps1`
+  yazar); rehearsal modu bunu AÇIKÇA yeniden teyit eder ve raporun
+  kendisine de bir uyarı satırı ekler.
+- Her özellik için "kaç çalıştırma/gün daha gerekli" SOMUT sayılara
+  çevrilir: `runs_needed = max(0, min_runs - evidence.runs)`,
+  `days_needed = max(0.0, observation_min_days - evidence.observation_days)`
+  (bkz. `pilot_promotion_core.py::compute_rehearsal_detail`).
+- Bir özellik `REJECT` ise (blocker tetiklendi), rehearsal raporu bunu
+  AÇIKÇA belirtir — "eksik çalıştırma/gün" sayıları YANILTICI OLMASIN
+  diye (bir blocker sayısal kriterlerden BAĞIMSIZDIR, "3 çalıştırma
+  daha" yeterli DEĞİLDİR).
+- `skipped_evidence_count > 0` ise (bkz. yukarıdaki "Legitimacy status
+  semantics"), rapor bunu AYRICA not düşer — bu sayılar "eksik
+  çalıştırma" hesabına DAHİL EDİLMEMİŞTİR, çünkü SKIPPED kanıt hiç
+  kontrol edilmemiş demektir.
+- Çıkış kodu semantiği DEĞİŞMEZ (0/1/2, normal modla AYNI) — bir CI/
+  otomasyon script'i rehearsal modunu "gerçek bir değerlendirme
+  YAPMADAN önce hızlı bir önizleme" olarak zincirleyebilir.
+
+```powershell
+python scripts/ops/evaluate_pilot_promotion.py --rehearsal
+cat reports/pilot_promotion_<UTC>/rehearsal_report.md
+```
 
 ## Kalıcı (persistent) izleme profili
 

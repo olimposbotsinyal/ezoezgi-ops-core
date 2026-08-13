@@ -75,6 +75,11 @@ reports/pilot_promotion_*/
 reports/pilot_flag_rollback_*/
 reports/pilot_metrics_*/
 
+# Promotion-candidate kanit runpack'i (scripts/ops/run_promotion_evidence_pack.ps1)
+# ciktilari -- ayni gerekce: rutin/tekrar-uretilebilir kanit paketleri
+# (kendisi zaten yukaridaki alt-rapor turlerini referans alir/toplar).
+reports/promotion_candidate_*/
+
 # NOT: reports/weekly_observability_<YYYY-WW>/ KASITLI olarak burada
 # YOK -- bu, "Post-GO weekly ritual"in kalici governance gunlugudur
 # (her hafta EKLENIR, uzerine yazilmaz), diger raporlar gibi rutin/

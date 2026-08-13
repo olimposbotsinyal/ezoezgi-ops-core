@@ -336,6 +336,21 @@ zaman tetiklenmeyen yer tutuculardı). Tam model: `docs/ops/MONITORING_STACK_RUN
 "Evidence maturity model", "How FPR is computed", "Promotion blockers
 now auto-checked".
 
+**GÜNCELLENDİ — legitimacy durum semantiği sıkılaştırıldı + tekrar-
+üretilebilir kanıt paketi + karar provası eklendi:** `check_emergency_legitimacy.py --provider jira`,
+ortam yapılandırılmamışken (`checked=false`) artık ASLA sessizce `PASS`
+DÖNMÜYOR — `SKIPPED` döner ("no implicit pass on unchecked provider").
+`evaluate_pilot_promotion.py`, `emergency_legitimacy_required` için
+SKIPPED-durumlu kanıtı artık "kontrol edilmiş bir çalıştırma" SAYMIYOR.
+`scripts/ops/run_promotion_evidence_pack.ps1` (chain trial + legitimacy
+mock/jira + FPR + haftalık export + değerlendirici + auto-rollback
+kanıt taraması — TAMAMEN salt-okunur, hiçbir kalıcı durumu DEĞİŞTİRMEZ)
+ve `evaluate_pilot_promotion.py --rehearsal` (aynı kararı hesaplar,
+"kaç çalıştırma/gün daha gerekli"yi somutlaştırır, `pilot_flags_state.json`'a
+DOKUNMAZ) eklendi. Tam detay: `docs/ops/MONITORING_STACK_RUNBOOK.md`
+"Legitimacy status semantics (PASS/FAIL/SKIPPED)", "Promotion evidence
+runpack usage", "Rehearsal mode interpretation".
+
 ## Bilinen sınırlamalar
 
 - Hiçbir alert şu an gerçekten **sayfalamıyor** — canlı bir

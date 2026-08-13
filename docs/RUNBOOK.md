@@ -902,6 +902,54 @@ geçişi denetlenebilir kılar.
   "Evidence maturity model", "How FPR is computed", "Promotion blockers
   now auto-checked", "Jira legitimacy verification setup (env-only
   secrets)".
+- **Promotion-candidate sprinti (kesin legitimacy semantigi + tekrar-
+  uretilebilir kanit runpack'i + karar provasi):** (1)
+  `emergency_legitimacy_core.py::evaluate_legitimacy`, `provider='jira'`
+  icin `checked=false` durumunu ARTIK ASLA `PASS`'e DUSURMUYOR --
+  `SKIPPED` doner ("no implicit pass on unchecked provider"; onceki
+  sprintte belgelenen bilinen sinirlama BOYLECE KAPATILDI).
+  `none`/`mock`/`jira_stub` davranisi GERIYE UYUMLU degismedi. (2)
+  `evaluate_pilot_promotion.py`, `emergency_legitimacy_required` icin
+  SKIPPED-durumlu kaniti artik `runs`/`observation_days`/`false_positive_rate`
+  hesabina KATMIYOR (non-promotable kanit, `EvidenceSummary.skipped_evidence_count`
+  ile izlenebilir); `provider_is_stub_only` blocker'i artik
+  `provider_evidence.checked=true` ZORUNLU kiliyor (checked=false +
+  provider='jira' kombinasyonu blocker'i artik YANLISLIKLA
+  TEMIZLEYEMIYOR). (3) `pilot_promotion_core.py`'ye `validate_fpr_summary_schema`/
+  `validate_weekly_review_schema`/`validate_legitimacy_report_schema`
+  eklendi -- semasi bozuk bir kanit dosyasi artik yeni
+  `invalid_evidence_schema` blocker'ini tetikler (`pilot_promotion_criteria_v1.json`'da
+  her uc ozellik icin kayitli). (4) `evaluate_pilot_promotion.py --rehearsal`:
+  AYNI karari hesaplar ama `pilot_flags_state.json`'a DOKUNMAZ, her
+  ozellik icin "kac calistirma/gun daha gerekli"yi somut sayilara
+  cevirir, `reports/pilot_promotion_<UTC>/rehearsal_report.md`+`.json`
+  yazar (`promotion_report.md`/`.json` YERINE). (5) `scripts/ops/run_promotion_evidence_pack.ps1`
+  (yeni) -- chain trial + legitimacy (mock+jira, jira adimi ortam
+  yapilandirilmamissa kendiliginden SKIPPED doner, fabrike edilmez) +
+  FPR ozeti + haftalik review JSON export'u + degerlendirici (normal
+  mod) + tum sonuclarin birlestirilmesini TEK bir tekrar-uretilebilir
+  komutla calistirir -- `reports/promotion_candidate_<UTC>/runpack_index.json`+`runpack_summary.md`
+  (genel bir `promotion_readiness_outlook` iceren). **`auto_rollback_evidence_scan`
+  adimi GOZLEMSELDIR** -- gercek bir VerifyReload FAIL/auto-rollback
+  senaryosunu KENDISI TETIKLEMEZ (durum-degistiren bir islem olurdu,
+  "Default runtime behavior remains conservative" gorev kisitiyla
+  CELISIRDI), yalnizca ONCEDEN var olan `apply_report.json` kanitlarini
+  ON/OFF olarak SAYAR; bundling mantigi (`promotion_evidence_pack_core.py`)
+  saf/pytest-test-edilebilir, orkestrasyonun kendisi (`.ps1`) SAF
+  DEGILDIR (bu projenin ayni .ps1+_core.py ayrim ilkesi). Gercek
+  uctan uca dogrulandi: hem `-SkipJira` (partial-skip) hem varsayilan
+  (jira ortam degiskenleri yokken kendiliginden SKIPPED) yollari
+  GERCEKTEN calistirilip `runpack_index.json`/`runpack_summary.md`
+  icerigi elle dogrulandi -- bu sirada IKI gercek hata bulunup
+  DUZELTILDI: (a) Windows PowerShell 5.1'in `Set-Content -Encoding utf8`'i
+  DAIMA bir UTF-8 BOM ekliyordu, Python `json.loads` bunu reddediyordu
+  (`build_promotion_runpack_index.py` artik `utf-8-sig` ile okuyor); (b)
+  bir PowerShell fonksiyonunun (`Invoke-PackStep`) `Write-Output`
+  cagrilari YANLISLIKLA donus degerine KARISIYORDU (fonksiyonun TUM
+  cikti akisi donus degerine dahildir, yalnizca `return` DEGIL) --
+  ilerleme mesajlari `Write-Host`'a tasindi. Ayrinti: `docs/ops/MONITORING_STACK_RUNBOOK.md`
+  "Legitimacy status semantics (PASS/FAIL/SKIPPED)", "Promotion evidence
+  runpack usage", "Rehearsal mode interpretation".
 
 ## Onay Gerektiren Aksiyonlar (Faz 4+ ile aktif olacak)
 
