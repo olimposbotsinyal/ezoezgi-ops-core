@@ -1,0 +1,4 @@
+{"error":"llama-server process has terminated: exit status 0xc0000005: The instruction at 0xp referenced memory at 0xp. The memory could not be s."}
+HTTP_STATUS=500
+TIME_TOTAL=8.672923
+elapsed_ms=8740

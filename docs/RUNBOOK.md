@@ -376,6 +376,39 @@ uydurulmadı, PASS iddia edilmedi. Kapanış koşulu netleşene kadar (bkz.
 `docs/BACKLOG.md` yeni madde) canlı Ollama koşuları güvenilir kabul
 edilmeyecek.
 
+### B036 Runtime Stabilizasyon Kapısı — 2026-08-13T00:38:34Z
+
+Tüm ham çıktılar: `reports/runtime_diag_20260813T003834Z/`
+(`env_summary.md`, `stability_steps.md`, `batch_50_summary.md`,
+`batch_50_raw.jsonl`, ham komut çıktıları).
+
+**4 sıralı, minimal-riskli deney çalıştırıldı** (hepsi `qwen2.5:3b-instruct`
+veya `llama3:latest` ile, tek çağrılık):
+
+| Adım | Değişken | HTTP | `0xc0000005` |
+|---|---|---|---|
+| A) Baseline | mevcut durum | 500 | VAR |
+| B) CPU izolasyon | `OLLAMA_NUM_GPU=0` + servis yeniden başlatma | 500 | VAR |
+| C) Temiz model | `rm` + `pull` (sha256 doğrulandı) | 500 | VAR |
+| D) Farklı model | `llama3:latest` (8B) | 500 | VAR |
+
+**4/4 aynı imzayla çöktü — tek bir tekli çağrı bile başarılı olmadı.**
+Not: B) deneyinde `OLLAMA_NUM_GPU=0`'a rağmen sunucu logu hâlâ
+`Vulkan0 : Quadro RTX 3000` cihazını listeliyordu — bu ayar Vulkan/GPU
+algılamasını tam kapatmamış olabilir, bu yüzden GPU/Vulkan sürücü
+etkileşimi kesin olarak ekarte edilemedi (bkz. `stability_steps.md`).
+
+**50 çağrılık hard gate: ÇALIŞTIRILMADI.** Görev kuralı gereği ("herhangi
+bir tekli test başarılı olursa batch testi çalıştır") — hiçbir tekli test
+başarılı olmadığından bu koşul hiç sağlanmadı; 50 çağrıyı boşuna
+tekrarlamak yerine gate doğrudan FAIL olarak değerlendirildi.
+
+**Ollama runtime stabilizasyon kapısı (50/50) geçilemedi; HTTP 500 ve/veya
+0xc0000005 çöküşü nedeniyle B031 yeniden değerlendirmesi bloklandı.**
+
+B031 durumu değişmedi: **Partial / FAILED_THRESHOLDS** (canlı yeniden
+ölçüm bu koşuda hiç denenmedi — engellendiği için).
+
 ## Onay Gerektiren Aksiyonlar (Faz 4+ ile aktif olacak)
 
 - Risk seviyesi `high` veya `irreversible` olan her aksiyon, kullanıcı onayı

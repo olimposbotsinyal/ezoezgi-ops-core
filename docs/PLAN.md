@@ -397,3 +397,17 @@ uydurulmadı, yeni kök neden dürüstçe kaydedildi. Sonraki adım kullanıcıy
 soruldu (farklı/daha küçük model denemek mi, Ollama crash'ini ayrıca mı
 teşhis etmek). Detay: `docs/RUNBOOK.md` "Değerlendirme koşu kayıtları"
 (2026-08-13T00:13:05Z satırı), `reports/nlu_eval_20260813.md`.
+
+**Ek (aynı gün, B036 stabilizasyon kapısı):** 2026-08-13T00:38:34Z'de 4
+sıralı, minimal-riskli deney çalıştırıldı (baseline, `OLLAMA_NUM_GPU=0` +
+servis restart, temiz `rm`+`pull`, farklı model `llama3`) — tüm ham
+çıktılar `reports/runtime_diag_20260813T003834Z/`'de. **4/4 aynı
+`0xc0000005` çöküşüyle sonuçlandı**, tek bir tekli çağrı bile başarılı
+olmadı. Görev kuralı gereği 50 çağrılık hard gate hiç koşulmadı (koşum
+koşulu — en az bir başarılı tekli test — hiç sağlanmadı) ve **B031 canlı
+yeniden ölçümü bu nedenle çalıştırılmadı** (bloklandı). B031 durumu
+değişmeden **Partial / FAILED_THRESHOLDS** kalıyor. Sayı uydurulmadı,
+50/50 iddia edilmedi. `docs/BACKLOG.md` B036 rafine edilmiş sonraki
+adımlarla güncellendi (Vulkan/GPU'yu gerçekten kapatan doğru env
+değişkenini bulmak dahil — `OLLAMA_NUM_GPU=0` denemesi Vulkan cihazını
+sunucu logundan tam silmedi).

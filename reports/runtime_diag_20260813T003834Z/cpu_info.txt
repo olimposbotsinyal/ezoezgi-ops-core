@@ -1,0 +1,8 @@
+
+
+Name                      : Intel(R) Core(TM) i9-10980HK CPU @ 2.40GHz
+NumberOfCores             : 8
+NumberOfLogicalProcessors : 16
+
+
+

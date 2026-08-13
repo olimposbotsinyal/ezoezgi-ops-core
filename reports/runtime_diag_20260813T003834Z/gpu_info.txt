@@ -1,0 +1,12 @@
+
+
+Name          : Intel(R) UHD Graphics
+DriverVersion : 27.20.100.8190
+AdapterRAM    : 1073741824
+
+Name          : NVIDIA Quadro RTX 3000
+DriverVersion : 26.21.14.4294
+AdapterRAM    : 4293918720
+
+
+
