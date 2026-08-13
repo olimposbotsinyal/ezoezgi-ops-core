@@ -1,0 +1,72 @@
+{
+  "version": 1,
+  "generated_at": "2026-08-13T00:00:00+00:00",
+  "description": "Model Gateway /metrics icin ONAYLI (approved) metrik adi + etiket sozlesmesi. scripts/ops/detect_observability_drift.py bunu, gozlenen gercek /metrics ciktisiyla karsilastirir. Bu dosya elle guncellenir -- bkz. 'Guncelleme prosedueru' asagida.",
+  "always_allowed_extra_labels": [
+    "synthetic"
+  ],
+  "always_allowed_extra_labels_note": "scripts/ops/emit_synthetic_gateway_signals.py, TUM sentetik orneklere 'synthetic=\"true\"' etiketi ekler -- bu, kasitli/dokumante bir test isaretidir, DRIFT SAYILMAZ. Baska HERHANGI bir beklenmeyen etiket anahtari drift olarak isaretlenir.",
+  "business_metrics": {
+    "model_gateway_requests_total": {
+      "type": "counter",
+      "labels": ["provider", "result"],
+      "source": "model_gateway/router.py"
+    },
+    "model_gateway_fallback_total": {
+      "type": "counter",
+      "labels": ["from_provider", "to_provider", "reason_code"],
+      "source": "model_gateway/router.py"
+    },
+    "model_gateway_null_intent_total": {
+      "type": "counter",
+      "labels": ["terminal_reason"],
+      "source": "model_gateway/compat.py"
+    },
+    "model_gateway_restrictions_total": {
+      "type": "counter",
+      "labels": ["provider", "reason_code"],
+      "source": "model_gateway/router.py"
+    },
+    "model_gateway_preflight_total": {
+      "type": "counter",
+      "labels": ["status", "reason_code"],
+      "source": "model_gateway/runtime_verify.py"
+    },
+    "model_gateway_preflight_latency_ms": {
+      "type": "histogram",
+      "labels": ["method"],
+      "source": "model_gateway/runtime_verify.py"
+    },
+    "model_gateway_generate_latency_ms": {
+      "type": "histogram",
+      "labels": ["provider"],
+      "source": "model_gateway/router.py"
+    },
+    "model_gateway_provider_health": {
+      "type": "gauge",
+      "labels": ["provider"],
+      "source": "model_gateway/router.py"
+    },
+    "model_gateway_circuit_open": {
+      "type": "gauge",
+      "labels": ["provider"],
+      "source": "model_gateway/router.py"
+    }
+  },
+  "self_observability_metrics": {
+    "metrics_sink_write_failures_total": {"type": "counter", "labels": [], "source": "model_gateway/metrics_sink.py"},
+    "metrics_events_dropped_total": {"type": "counter", "labels": [], "source": "model_gateway/metrics_sink.py"},
+    "metrics_aggregator_read_failures_total": {"type": "counter", "labels": [], "source": "model_gateway/metrics_aggregate.py"},
+    "metrics_aggregator_series_dropped_total": {"type": "counter", "labels": [], "source": "model_gateway/metrics_aggregate.py"},
+    "metrics_aggregator_events_deferred_total": {"type": "counter", "labels": [], "source": "model_gateway/metrics_aggregate.py"},
+    "metrics_aggregator_cache_hits_total": {"type": "counter", "labels": [], "source": "model_gateway/metrics_cache.py"},
+    "metrics_aggregator_cache_misses_total": {"type": "counter", "labels": [], "source": "model_gateway/metrics_cache.py"},
+    "metrics_aggregator_rebuild_duration_ms": {"type": "gauge", "labels": [], "source": "model_gateway/metrics_cache.py"}
+  },
+  "config_defaults": {
+    "description": "Kod-tanimli (dataclass) varsayilan degerler -- ortam degiskeninden BAGIMSIZ, dogrudan GatewayConfig alan varsayilanlarindan okunur. Bu degerlerin degismesi CRITICAL drift'tir (bkz. gorev kisitlari: 'remote-default degisikligi yok', 'strict varsayilan korunur').",
+    "remote_enabled": false,
+    "ollama_cpu_verify_strict": true
+  },
+  "guncelleme_proseduru": "Bu manifesti YALNIZCA bilinen, kasitli bir metrik/etiket semasi degisikligi sonrasinda, degisikligi yapan gorevin kendisi (ayni commit'te) guncellemelidir -- ayri, sessiz bir 'manifest duzeltme' commit'i OLMAMALIDIR. Guncelleyen: degisikligi yapan gorev/ajan. Ne zaman: metrics.py/router.py/runtime_verify.py/compat.py'de yeni bir metrik veya etiket eklendiginde/kaldirildiginde/yeniden adlandirildiginda. Nasil: bu JSON dosyasini elle duzenleyin (otomatik uretim yok -- kasitli, ki her degisiklik goz onunde/code review'da acikca gorulsun), version alanini artirin, generated_at'i guncelleyin, docs/BACKLOG.md'ye bir not dusun."
+}

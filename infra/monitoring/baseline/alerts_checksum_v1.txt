@@ -1,0 +1,22 @@
+# Onayli alert kural dosyasi checksum'i (SHA256) -- drift tespiti icin.
+#
+# Bu dosya, infra/monitoring/prometheus/model_gateway_alerts.yaml'nin
+# ONAYLI/BILINEN durumunun SHA256 ozetini tutar. scripts/ops/detect_observability_drift.py
+# gercek dosyanin GUNCEL checksum'ini hesaplayip burasiyla karsilastirir --
+# farkli ise, alert kurallari INCELEME/ONAY OLMADAN degistirilmis demektir
+# (CRITICAL drift olarak isaretlenir -- alert kurallari sessizce degisirse
+# esikler/davranis operatorun haberi olmadan kayabilir).
+#
+# Guncelleme prosedueru: model_gateway_alerts.yaml BILEREK/onayli
+# degistirildiginde (ornegin yeni bir alert eklendiginde), bu dosya AYNI
+# commit'te yeniden hesaplanip guncellenmelidir:
+#   sha256sum infra/monitoring/prometheus/model_gateway_alerts.yaml
+# Guncelleyen: degisikligi yapan gorev/ajan (ayri, sessiz bir "checksum
+# duzeltme" commit'i OLMAMALIDIR -- degisiklik code review'da acikca
+# gorulmelidir). docs/BACKLOG.md'ye bir not dusulmesi onerilir.
+#
+# version=1
+# file=infra/monitoring/prometheus/model_gateway_alerts.yaml
+# algorithm=sha256
+# generated_at=2026-08-13T00:00:00+00:00
+1677b2657abc8cb8e67e47c300b7aa8c7fcdc7410b013cd39eb2bd04c0bd719c
