@@ -368,3 +368,15 @@ live Ollama eval for B031 acceptance metrics.
 çalıştırıldı; Ollama erişilemedi (timeout); B031 hâlâ **NOT_EVALUATED**
 (bkz. `docs/RUNBOOK.md` "Değerlendirme koşu kayıtları",
 `reports/nlu_eval_20260812.md`).
+
+**Ek (aynı gün, ilk canlı Ollama koşusu):** Ollama winget ile kuruldu
+(`Ollama.Ollama`), `llama3:latest` çekildi (4.7GB). Preflight 4/4 PASS,
+`tools/eval_nlu.py` canlı Ollama'ya karşı çalıştırıldı — **B031 ilk kez
+gerçekten ölçüldü ve FAIL aldı**: 5 kriterden 4'ü karşılanmadı
+(intent_accuracy %30, entity_match %0, fallback_rate %100, p95 6.06s;
+yalnızca parse_error_rate PASS). Kök neden teşhis edildi: istemci timeout'u
+(2.0s) gerçek CPU inference süresinden (~6s) kısa, her istek fallback'e
+düşüyor. B031 durumu **Partial / FAILED_THRESHOLDS** olarak güncellendi
+(önceki NOT_EVALUATED'den farklı — artık gerçek, olumsuz bir ölçüm var).
+Sayı uydurulmadı. Detay: `docs/RUNBOOK.md` "Değerlendirme koşu kayıtları",
+`reports/nlu_eval_20260813.md`.

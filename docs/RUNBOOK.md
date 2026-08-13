@@ -332,6 +332,7 @@ olarak saklandı."
 |---|---|---|---|---|---|---|---|
 | 2026-08-12T23:45:38Z | local Ollama (`http://localhost:11434`) | N/A | N/A | N/A | N/A | N/A | **Partial / NOT_EVALUATED** — Ollama servisine ulaşılamadı (`urlopen error timed out`); mock referans: intent acc. %92.0, entity match %0.0 (bkz. `reports/nlu_eval_20260812.md`) |
 | 2026-08-12T23:49:36Z | local Ollama (`http://localhost:11434`) | N/A | N/A | N/A | N/A | N/A | **Partial / NOT_EVALUATED** — preflight 4/4 PASS sonrası tekrar koşuldu, sonuç değişmedi: Ollama servisine ulaşılamadı (`urlopen error timed out`); mock referans: intent acc. %92.0, entity match %0.0 (bkz. `reports/nlu_eval_20260812.md`) |
+| 2026-08-13T00:01:19Z | local Ollama (`http://localhost:11434`, `llama3:latest`, winget ile kuruldu) | %30.0 | %0.0 | %0.0 | %100.0 | 6.06s | **Partial / FAILED_THRESHOLDS** — ilk canlı ölçüm; 5 kriterden 4'ü FAIL (yalnızca parse_error_rate PASS). Kök neden: `model_client.py::DEFAULT_TIMEOUT_SECONDS=2.0s`, gerçek CPU inference gecikmesinin (~6s, ölçülen p95) çok altında — her istek zaman aşımına uğrayıp mock fallback'e düşüyor (`fallback_rate=%100`). `intent_accuracy=%30`, modelin gerçekten çalışmasından değil, golden set'teki `UNKNOWN` oranıyla (15/50) rastlantısal örtüşmeden kaynaklanıyor — model bir kez bile gerçek yanıt veremedi. **Sonraki adım:** timeout'u gerçekçi bir değere (ör. 15-30s) çıkarıp yeniden koşmak (bkz. `reports/nlu_eval_20260813.md`) |
 
 ## Onay Gerektiren Aksiyonlar (Faz 4+ ile aktif olacak)
 
