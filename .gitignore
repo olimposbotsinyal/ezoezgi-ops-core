@@ -20,3 +20,10 @@ data/audit/*
 .claude/
 # Runtime incident watch evidence
 !reports/runtime_incident_20260813T004855Z/watch_runs/**/*.log
+
+# Gunluk gateway smoke kanit paketleri -- rutin/otomatik uretilir, her
+# gun birikip repoyu sisirmesin diye varsayilan olarak izlenmez. Belirli
+# bir gunun ciktisi bir olayin kaniti olarak gerekiyorsa `git add -f`
+# ile eklenebilir (bkz. reports/runtime_incident_*/ icin ayni desen).
+reports/daily_smoke_*/
+reports/incidents/

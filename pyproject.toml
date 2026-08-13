@@ -7,5 +7,6 @@ pythonpath = [
     "services/model-gateway/src",
     "tools/cli-runner/src",
     "scripts",
+    "scripts/ops",
     "tools",
 ]

@@ -684,6 +684,15 @@ geçişi denetlenebilir kılar.
   bakın — config ile ollama-only CPU moduna dönüş (CPU-verify kapısını
   `OLLAMA_CPU_VERIFY_ENABLED=false` ile kapatmak dahil), kod revert'i
   gerekmez.
+- **Gözlemlenebilirlik (SLI/SLO/alert/ops otomasyonu):**
+  `services/model-gateway/src/model_gateway/metrics.py` (bellek-içi
+  metrikler, canlı `/metrics` endpoint'i yok), `docs/ops/SLO_MODEL_GATEWAY.md`,
+  `docs/ops/ALERT_PLAYBOOK_MODEL_GATEWAY.md`,
+  `scripts/ops/daily_gateway_smoke.ps1` (günlük sağlık kontrolü, exit
+  code 0/1/2), `scripts/ops/package_gateway_incident.ps1` (olay kanıt
+  paketleyici, secret'lar maskeli). Tam kılavuz:
+  `docs/ops/MODEL_FALLBACK_RUNBOOK.md` "Gözlemlenebilirlik ve Ops
+  Otomasyonu".
 
 ## Onay Gerektiren Aksiyonlar (Faz 4+ ile aktif olacak)
 

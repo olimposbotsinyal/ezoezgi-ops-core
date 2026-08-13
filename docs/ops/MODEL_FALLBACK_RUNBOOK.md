@@ -8,6 +8,18 @@
 > saglayıcının çökmesiyle tamamen durmasını önler ve her geçişi
 > denetlenebilir kılar.
 
+## Operatör hızlı aksiyonlar (özet)
+
+| Belirti | Hızlı aksiyon |
+|---|---|
+| **Marker eksik** | Marker dosyasını oluştur: `docs/ops/MODEL_FALLBACK_RUNBOOK.md` § "Operatör kontrol listesi", veya geçici olarak `OLLAMA_CPU_VERIFY_STRICT=false` |
+| **Primary restricted** (Ollama hiç denenmiyor) | `reports/daily_smoke_<UTC>/preflight_snapshot.json`'a bak veya `scripts/ops/daily_gateway_smoke.ps1`'i çalıştır; `status != VERIFIED` ise marker eksik/eski demektir |
+| **Null-intent spike** | `scripts/ops/package_gateway_incident.ps1` ile kanıt paketi topla, `audit_slice.jsonl`'deki `reason_code` dağılımına bak (`RUNTIME_CRASH` ise B036, `PRIMARY_RESTRICTED_CPU_UNVERIFIED` ise marker) |
+| **Fallback exhausted** (hiçbir sağlayıcı çalışmıyor) | `python -c "from model_gateway.router import get_router; print(get_router().healthcheck_all())"` ile canlı sağlık durumunu kontrol et |
+
+Tam alert listesi ve eşikler: `docs/ops/ALERT_PLAYBOOK_MODEL_GATEWAY.md`.
+SLO tanımları: `docs/ops/SLO_MODEL_GATEWAY.md`.
+
 ## Sağlayıcı sırası (varsayılan: yalnızca local-first)
 
 `MODEL_PROVIDER_ORDER` varsayılan değeri **`ollama`** — yani varsayılan
@@ -242,6 +254,54 @@ print(r.evidence)
   dosyası oluşturmak yerine önce gerçek sorunu çözün
   (`docs/ops/OLLAMA_WORKAROUND_CPU_ONLY.md`).
 
+## Gözlemlenebilirlik ve Ops Otomasyonu
+
+> Tam SLI/SLO tanımları: `docs/ops/SLO_MODEL_GATEWAY.md`. Tam alert
+> listesi: `docs/ops/ALERT_PLAYBOOK_MODEL_GATEWAY.md`.
+
+### Metrikler
+
+`METRICS_ENABLED=true` (varsayılan) ile `services/model-gateway/src/model_gateway/metrics.py`
+tüm istekleri/fallback'leri/kısıtlamaları/gecikmeleri bellek-içi olarak
+biriktirir. `METRICS_EXPORTER=prometheus` ile Prometheus exposition-format
+metnini üretebilir (`MetricsRegistry.render_prometheus_text()`) — ama
+şu an bunu sunan canlı bir `/metrics` HTTP endpoint'i **yok**. Pratik
+kullanım: `scripts/ops/daily_gateway_smoke.ps1` her koşuda
+`metrics_snapshot.json`'a yazar.
+
+### Günlük smoke kontrolü
+
+```bash
+powershell -ExecutionPolicy Bypass -File scripts\ops\daily_gateway_smoke.ps1
+```
+
+Config sanity, preflight anlık görüntüsü, sağlayıcı sağlığı, tek bir
+yıkıcı-olmayan sentetik `classify()` probu ve audit-append doğrulamasını
+çalıştırır; kanıtı `reports/daily_smoke_<UTC>/` altına yazar (bkz.
+`.gitignore` — bu klasörler varsayılan olarak repoya eklenmez, günlük
+biriken rutin çıktılar). Çıkış kodu:
+
+| Kod | Anlam |
+|---|---|
+| `0` | Sağlıklı — gerçek bir model yanıtı alındı |
+| `1` | Bozulmuş ama çalışıyor — genellikle STRICT CPU-verify kapısının kasıtlı kısıtlaması |
+| `2` | Aksiyon gerekiyor — audit yazılamıyor, hiçbir sağlayıcı sağlıklı değil, veya `remote_policy_gate` zayıflatılmış |
+
+### Olay kanıt paketleyici
+
+```bash
+powershell -ExecutionPolicy Bypass -File scripts\ops\package_gateway_incident.ps1 `
+    -WindowStart "<ISO8601>" -WindowEnd "<ISO8601>" -KnownGoodRef "<git-sha-veya-tag>"
+```
+
+Verilen zaman penceresi için audit dilimini, sağlayıcı/preflight anlık
+görüntüsünü, **maskelenmiş** config parmak izini (`REMOTE_API_KEY` gibi
+anahtar-benzeri adlar otomatik maskelenir — bkz.
+`scripts/ops/package_gateway_incident_core.py::mask_secrets`) ve son
+bilinen-iyi referanstan bu yana değişen dosyaları
+`reports/incidents/gateway_<timestamp>/` altına paketler (bu klasör de
+varsayılan olarak repoya eklenmez).
+
 ## Bilinen sınırlamalar
 
 - `remote_provider.py` yalnızca OpenAI-uyumlu `/v1/chat/completions`
@@ -262,3 +322,9 @@ print(r.evidence)
   şey "neden Ollama artık hiç kullanılmıyor" olabilir. İlk kurulumda
   mutlaka marker dosyası oluşturun veya `OLLAMA_CPU_VERIFY_STRICT=false`
   seçin.
+- **Metrikler yalnızca bellek-içi** — süreç yeniden başlarsa sıfırlanır,
+  canlı bir Prometheus scrape endpoint'i yok. `FALLBACK_SPIKE` gibi
+  kısa-pencereli alert'ler bu yüzden şu an yalnızca dokümante edilmiş
+  (`infra/monitoring/prometheus/model_gateway_alerts.yaml`), gerçekten
+  değerlendirilmiyor — bkz. `docs/ops/ALERT_PLAYBOOK_MODEL_GATEWAY.md`
+  "Bilinen sınırlamalar".
