@@ -1,0 +1,2 @@
+# TYPE model_gateway_circuit_open gauge
+model_gateway_circuit_open{provider="ollama",synthetic="true"} 1.0

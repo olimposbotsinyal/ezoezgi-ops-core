@@ -1,0 +1,105 @@
+{
+  "generated_at": "2026-08-13T07:31:40.683729+00:00",
+  "git_sha": "63e9fcb5335d9437e924c166d7dcbd1227281dea",
+  "git_recent_log": [
+    "63e9fcb fix(cli-runner): resolve B037 PowerShell/Git Bash PATH parity gap (commit O)",
+    "6e9a5ee feat(model-gateway): add alert calibration, sign-off, and rollback drill (commit N)",
+    "1b4c317 feat(model-gateway): add go-live gate automation for observability (commit M)",
+    "9ff1687 feat(model-gateway): add TTL cache + benchmark for /metrics scrape (commit L)",
+    "0b003c0 feat(model-gateway): add incremental /metrics aggregator (commit K)",
+    "17e8b84 feat(model-gateway): wire serve_metrics.py to cross-process JSONL aggregator (commit J)",
+    "5ffad08 feat(model-gateway): add cross-process JSONL metrics sink + aggregator (commit I)",
+    "ef69788 feat(model-gateway): add Alertmanager routing + synthetic E2E verification (commit H)"
+  ],
+  "test_summary": {
+    "ran": true,
+    "exit_code": 0,
+    "summary_line": "============================= 271 passed in 9.11s ============================="
+  },
+  "gate_results": {
+    "generated_at": "2026-08-13T07:31:18.528944+00:00",
+    "mode": "simulation",
+    "overall_status": "PASS",
+    "overall_exit_code": 0,
+    "gates": [
+      {
+        "name": "A_metrics_availability",
+        "status": "PASS",
+        "detail": "SIMULASYON modu (kisa ornek pencere, GERCEK 24s gozlem DEGIL) [10 ornek x 0.2s] -- 10/10 basarili (kullanilabilirlik=100.00%)",
+        "evidence": {
+          "successes": 10,
+          "samples": 10,
+          "availability": 1.0,
+          "simulated": true,
+          "window_label": "10 ornek x 0.2s"
+        }
+      },
+      {
+        "name": "B_scrape_success_rate",
+        "status": "PASS",
+        "detail": "SIMULASYON (yerel tekrar istek) -- scrape basari orani=100.00% (20/20), esik >=%99",
+        "evidence": {
+          "successes": 20,
+          "samples": 20,
+          "rate": 1.0,
+          "simulated": true
+        }
+      },
+      {
+        "name": "C_synthetic_alerts_visible",
+        "status": "PASS",
+        "detail": "4/4 sentetik mod /metrics'te gorunur oldu",
+        "evidence": {
+          "mode_visibility": {
+            "preflight-unknown": true,
+            "circuit-open-stuck": true,
+            "fallback-spike": true,
+            "null-intent-spike": true
+          },
+          "visible": [
+            "preflight-unknown",
+            "circuit-open-stuck",
+            "fallback-spike",
+            "null-intent-spike"
+          ],
+          "missing": []
+        }
+      },
+      {
+        "name": "D_alertmanager_receive_path",
+        "status": "PASS",
+        "detail": "Alertmanager alma yolu uctan uca dogrulandi",
+        "evidence": {
+          "alertmanager_installed": true,
+          "alertmanager_reachable": true,
+          "alert_received": true
+        }
+      },
+      {
+        "name": "E_classify_regression_smoke",
+        "status": "PASS",
+        "detail": "classify-ilgili regresyon testleri exit_code=0 -- ============================= 54 passed in 3.71s ==============================",
+        "evidence": {
+          "pytest_exit_code": 0,
+          "tests_summary": "============================= 54 passed in 3.71s =============================="
+        }
+      }
+    ],
+    "_source_file": "d:\\Projects\\ezoezgi-ops\\reports\\go_live_gates_20260813T073109Z\\gate_results.json"
+  },
+  "go_no_go_decision": "GO",
+  "go_no_go_rationale": "Test suite yesil, tum go-live gate'leri PASS.",
+  "known_limitations": [
+    "Bu makinede Prometheus/Alertmanager KURULU DEGIL -- canli scrape/alert-firing/routing pipeline'i dogrulanamaz (bkz. docs/ops/MONITORING_STACK_RUNBOOK.md 'Bu makinenin gercek durumu').",
+    "Gate D (Alertmanager alma yolu), bu makinede SKIPPED doner -- altyapi eksikligi nedeniyle, fabrike edilmis bir PASS degil.",
+    "/metrics cross-process gorunurlugu eventual-consistency'dir -- gercek zamanli push degildir (bkz. docs/ops/MONITORING_STACK_RUNBOOK.md 'Bilinen odunlesimler').",
+    "Alert esikleri (ALERT_NULL_INTENT_WARN/CRIT, ALERT_FALLBACK_SPIKE_MULTIPLIER) bu depoda GERCEK uretim trafigiyle kalibre EDILMEMISTIR -- bkz. docs/ops/ALERT_PLAYBOOK_MODEL_GATEWAY.md 'Ilk vs kalibre edilmis esikler'.",
+    "tools/cli-runner/src/runner.py, shutil.which('echo') ile calisir -- saf bir PowerShell surecinin PATH'inde basarisiz olabilir (EXECUTABLE_NOT_FOUND); classify/fallback sozlesmesiyle ilgisiz, onceden var olan bir ortam sinirlamasi."
+  ],
+  "rollback_reference": {
+    "script": "scripts/ops/rollback_observability.ps1",
+    "dry_run_default": true,
+    "apply_command": "powershell -ExecutionPolicy Bypass -File scripts\\ops\\rollback_observability.ps1 -Apply",
+    "dry_run_command": "powershell -ExecutionPolicy Bypass -File scripts\\ops\\rollback_observability.ps1"
+  }
+}

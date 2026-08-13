@@ -255,12 +255,17 @@ sonra) yeniden çalıştırılması önerilir.
   `docs/ops/MONITORING_STACK_RUNBOOK.md` "ÇÖZÜLDÜ (büyük ölçüde):
   süreç-içi metrik izolasyonu"). Kalan gerçek ödünleşim eventual-consistency
   penceresidir (gerçek zamanlı push değil), kritik bir sınırlama değildir.
-- Go-live Gate D (Alertmanager alma yolu), bu makinede Alertmanager
-  kurulu olmadığından **SKIPPED** döner — fabrike edilmiş bir PASS
-  değildir, bkz. `docs/ops/MONITORING_STACK_RUNBOOK.md` "Go/No-Go checklist".
-- `tools/cli-runner/src/runner.py`, `shutil.which("echo")` ile çalışır
-  — saf bir PowerShell sürecinin PATH'inde bu bulunamayabilir
-  (`EXECUTABLE_NOT_FOUND`), bu Model Gateway classify/fallback
-  sözleşmesiyle İLGİSİZ, önceden var olan bir ortam sınırlamasıdır
-  (go-live Gate E çalıştırılırken keşfedildi, bkz.
-  `docs/ops/MONITORING_STACK_RUNBOOK.md`).
+- **ÇÖZÜLDÜ (2026-08-13):** Go-live Gate D (Alertmanager alma yolu) —
+  bu makinede kalıcı bir Alertmanager kurulumu hâlâ YOK, ama gerçek
+  Prometheus v3.13.2 + Alertmanager v0.33.1 ile TAM bir uçtan uca
+  doğrulama yapıldı (sentetik sinyal → gerçek `firing` → Alertmanager
+  gerçekten aldı, observe-only/`null-receiver` korunarak) — bkz.
+  `docs/ops/MONITORING_STACK_RUNBOOK.md` "Gate D gerçek doğrulama".
+  Kalıcı altyapı kurulmadığından, her yeni gate koşusunda Alertmanager
+  ayrıca başlatılmadıysa Gate D yine **SKIPPED** döner (fabrike edilmiş
+  bir PASS asla üretilmez) — bu beklenen, dürüst bir davranıştır.
+- **ÇÖZÜLDÜ (B037, 2026-08-13):** `tools/cli-runner/src/runner.py`,
+  `shutil.which("echo")` başarısız olduğunda artık saf-Python bir
+  eşdeğere düşüyor (Git Bash'te de saf PowerShell'de de birebir aynı
+  davranış) — bkz. `docs/ops/MONITORING_STACK_RUNBOOK.md` "B037
+  düzeltmesi". Tam suite artık her iki kabukta da yeşil.

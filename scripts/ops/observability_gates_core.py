@@ -158,8 +158,30 @@ def evaluate_gate_c_synthetic_alerts(mode_visibility: dict[str, bool]) -> GateRe
 
 
 # ---------------------------------------------------------------------------
-# Gate D: Alertmanager alma yolu (bu makinede genellikle SKIPPED -- kurulu degil)
+# Gate D: Alertmanager alma yolu -- gercek Alertmanager v3 v2 API'siyle
+# (2026-08-13'te prometheus v3.13.2 + alertmanager v0.33.1 ile elle
+# dogrulandi, bkz. reports/gate_d_real_validation_*/ ve
+# docs/ops/MONITORING_STACK_RUNBOOK.md "Gate D gercek dogrulama") elle
+# dogrulanmis, gercek bir kurulumla calisir.
 # ---------------------------------------------------------------------------
+
+
+def parse_alertmanager_v2_payload(payload: Any) -> list[str]:
+    """Alertmanager `GET /api/v2/alerts` yanitindan (bir liste) her
+    alert'in `labels.alertname` degerini cikarir. Beklenmeyen sekil
+    (liste degil, `labels`/`alertname` eksik vb.) icin o girdi
+    SESSIZCE atlanir -- tum fonksiyon ASLA exception firlatmaz
+    (`run_observability_gates.ps1`'in PowerShell'deki esdegeri ile
+    ayni, kanit amaciyla Python tarafinda ayrica test edilir)."""
+    if not isinstance(payload, list):
+        return []
+    names: list[str] = []
+    for entry in payload:
+        try:
+            names.append(entry["labels"]["alertname"])
+        except (KeyError, TypeError):
+            continue
+    return names
 
 
 def evaluate_gate_d_alertmanager_receive(

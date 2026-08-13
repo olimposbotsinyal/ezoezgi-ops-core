@@ -48,3 +48,4 @@ reports/go_live_gates_*/
 reports/alert_calibration_*/
 reports/observability_signoff_*/
 reports/rollback_drill_*/
+reports/gate_d_real_validation_*/

@@ -10,9 +10,16 @@
 Bu görev başlamadan önce kontrol edildi:
 
 - **Docker: KURULU DEĞİL.**
-- **Prometheus binary: KURULU DEĞİL.**
-- **Alertmanager binary: KURULU DEĞİL.**
-- **FastAPI/Flask/uvicorn: KURULU DEĞİL.**
+- **Prometheus/Alertmanager binary: sistem PATH'inde kalıcı olarak KURULU
+  DEĞİL** — ama **2026-08-13'te GERÇEK Prometheus v3.13.2 + Alertmanager
+  v0.33.1 binary'leri indirilip yerel olarak (repo DIŞINDA,
+  `C:\Temp\monitoring_bin\`) çalıştırılarak TAM E2E doğrulama yapıldı**
+  (bkz. aşağıdaki "Gate D gerçek doğrulama" bölümü). Bu, kalıcı bir kurulum
+  DEĞİLDİR — yalnızca doğrulama süresince ayakta tutuldu, sonra durduruldu.
+  Aynı adımlar herhangi bir operatör tarafından tekrarlanabilir (tarif
+  aşağıda).
+- **FastAPI/Flask/uvicorn: KURULU DEĞİL** (`/metrics` hâlâ stdlib
+  `http.server` kullanıyor, bu değişmedi).
 - Repoda hiçbir `docker-compose*` dosyası **yoktu** (bu görevle eklenmedi —
   görev talimatı "repo'da compose varsa patch'le, yoksa PowerShell
   script'i sağla" diyordu; repo'da compose olmadığı için PowerShell
@@ -203,36 +210,101 @@ ALTYAPIYI (config, script'ler) hazırlar ama gerçek geçişi YAPMAZ.
 
 `scripts/ops/run_observability_gates.ps1`, yukarıdaki manuel
 değerlendirmenin OTOMATİK, kanıt-üreten (`gate_report.md` +
-`gate_results.json`) karşılığıdır:
+`gate_results.json`) karşılığıdır.
+
+**GÜNCEL DURUM (2026-08-13, B037 düzeltmesi + gerçek Prometheus/
+Alertmanager doğrulaması SONRASI):**
 
 | Gate | Ne kontrol eder | Bu makinede gerçek sonuç (elle çalıştırıldı) |
 |---|---|---|
 | A_metrics_availability | `/metrics` kullanılabilirliği (varsayılan: SIMULASYON, kısa örnek pencere — `-Real24h` ile gerçek pencere için etiketlenir, gerçek 24s gözlem TEK bir script çalıştırmasında YAPILAMAZ) | **PASS** (10/10 örnek) |
 | B_scrape_success_rate | Scrape başarı oranı ≥ %99 (Prometheus yoksa endpoint'in kendisine tekrar istek PROXY'si) | **PASS** (20/20 örnek) |
 | C_synthetic_alerts_visible | 4 sentetik alert modunun (fallback-spike, null-intent-spike, preflight-unknown, circuit-open-stuck) `/metrics`'te görünürlüğü | **PASS** (4/4 mod) |
-| D_alertmanager_receive_path | Alertmanager alma yolu | **SKIPPED** — Alertmanager bu makinede kurulu değil (fabrike edilmiş bir PASS değil) |
-| E_classify_regression_smoke | classify/fallback ile ilgili pytest dosyaları | **FAIL** (bu makinede) — bkz. aşağıdaki "Bilinen, bu görevden bağımsız ortam notu" |
+| D_alertmanager_receive_path | Alertmanager alma yolu | **PASS** — gerçek Alertmanager v0.33.1, gerçek bir alert aldı (bkz. aşağıdaki "Gate D gerçek doğrulama") |
+| E_classify_regression_smoke | classify/fallback ile ilgili pytest dosyaları | **PASS** (54/54) — B037 düzeltildi (bkz. aşağıda) |
 
-**Genel sonuç bu makinede: FAIL (exit code 2)** — bir Gate FAIL olduğu
-için (yalnızca D SKIPPED olsaydı sonuç PARTIAL/exit 1 olurdu). **0
-fabrike edilmedi.**
+**Genel sonuç: PASS (exit code 0).** Kanıt: `reports/go_live_gates_20260813T073109Z/`
+(`git add -f` ile arşivlendi, bkz. bu görevin final raporu). **0 fabrike
+edilmedi** — her iki gate de gerçekten çalıştırılıp gerçekten PASS oldu.
 
-### Bilinen, bu görevden bağımsız ortam notu (Gate E)
+**ÖNCEKİ DURUM (bu görevden önce, referans için korunuyor):** Aynı script,
+B037 düzeltmesinden ve gerçek Alertmanager kurulumundan ÖNCE genel sonuç
+**FAIL (exit code 2)** döndürüyordu — A/B/C PASS, D SKIPPED (Alertmanager
+kurulu değildi), E FAIL (B037). Bu, o zamanki GERÇEK durumdu, fabrike
+edilmemişti — aşağıdaki iki bölüm neyin nasıl düzeltildiğini açıklıyor.
 
-Gate E'nin gerçek makinedeki FAIL'i, `tools/cli-runner/src/runner.py`'nin
-`shutil.which("echo")` ile çalışmasından kaynaklanıyor: Git Bash'in
-PATH'inde gerçek bir `echo.exe` var, ama SAF bir PowerShell sürecinin
-PATH'inde `echo` yalnızca bir dil anahtar kelimesi/alias'tır, gerçek
-bir yürütülebilir DEĞİLDİR — bu yüzden `test_nlu_provider_flag.py`'nin
-3 orchestrator-smoke alt-testi `EXECUTABLE_NOT_FOUND` ile başarısız
-olur. Bu, **classify/fallback sözleşmesinde bir regresyon DEĞİLDİR** —
-`run_observability_gates.ps1` bunu PowerShell PATH'inde gerçek bir
-`echo` olup olmadığını önceden kontrol ederek TANI notuyla
-zenginleştirir (gate durumu yine de gerçek pytest sonucuna göre FAIL
-kalır — bu tanı, sonucu asla PASS'e çevirmez). Aynı test dosyaları
-Bash üzerinden (bu depodaki standart geliştirme/CI akışı) çalıştırılınca
-**sorunsuz geçer** (265/265 tam suite yeşil, bkz. bu görevin final
-raporu). Takip: `docs/BACKLOG.md`.
+### B037 düzeltmesi (Gate E artık PASS)
+
+**Kök neden:** `tools/cli-runner/src/runner.py`, `shutil.which("echo")`
+ile çalışıyordu. Git Bash'in PATH'inde gerçek bir `echo.exe` var, ama
+SAF bir PowerShell sürecinin PATH'inde `echo` yalnızca bir dil anahtar
+kelimesi/alias'tır, gerçek bir yürütülebilir DEĞİLDİR — bu yüzden
+`test_nlu_provider_flag.py`'nin 3 orchestrator-smoke alt-testi
+`EXECUTABLE_NOT_FOUND` ile başarısız oluyordu. Bu, **classify/fallback
+sözleşmesinde bir regresyon DEĞİLDİ.**
+
+**Düzeltme (Commit O):** `runner.py`, `shutil.which()` başarısız
+olduğunda, KÜÇÜK ve SABİT bir komut kümesi (`echo`, `pwd`) için SAF
+PYTHON eşdeğerleri kullanacak şekilde güncellendi — `cmd.exe /c` gibi
+bir kabuğa fallback YAPILMADI (bu, `runner.py`'nin "shell=True asla
+kullanılmaz" güvenlik ilkesini dolaylı olarak ihlal ederdi). Saf-Python
+yol, gerçek bir yürütülebilirden DAHA AZ değil DAHA GÜVENLİDİR (hiçbir
+subprocess/shell yüzeyi yok) ve her platformda birebir aynı çıktıyı
+üretir. Bilinmeyen komutlar için eski davranış (açık hata) aynen
+korundu — hiçbir şey sessizce uydurulmadı.
+
+**Doğrulama:** Tam test suite'i (278 test) hem Git Bash hem native
+PowerShell üzerinden **278/278 yeşil** — önceden native PowerShell'de
+3 test başarısız oluyordu.
+
+### Gate D gerçek doğrulama (2026-08-13, Prometheus v3.13.2 + Alertmanager v0.33.1)
+
+Bu makinede kalıcı bir Prometheus/Alertmanager kurulumu YOK — ama Gate
+D'yi gerçekten (simülasyon değil) doğrulamak için GERÇEK binary'ler
+indirilip yerel olarak çalıştırıldı, tam uçtan uca akış (scrape → rule
+eval → pending → **firing** → Alertmanager receive) kanıtlandı:
+
+1. **İndirme** (resmi GitHub release'leri, repo'ya COMMIT EDİLMEDİ):
+
+   ```text
+   https://github.com/prometheus/prometheus/releases/download/v3.13.2/prometheus-3.13.2.windows-amd64.zip
+   https://github.com/prometheus/alertmanager/releases/download/v0.33.1/alertmanager-0.33.1.windows-amd64.zip
+   ```
+
+   `C:\Temp\monitoring_bin\`'e (repo DIŞI) açıldı.
+2. **Geçici doğrulama config'i:** `infra/monitoring/prometheus/prometheus.yml`
+   ve `model_gateway_alerts.yaml`'nin BİREBİR kopyaları — TEK fark,
+   `for:` sürelerinin (30m/24h/15m/10m/5m → hepsi 10s) test hızı için
+   kısaltılmış olması (expr/labels/annotations aynı). Bu geçici
+   dosyalar da `C:\Temp\monitoring_bin\`'de yaşıyor, repoya HİÇ
+   girmedi. `infra/monitoring/alertmanager/alertmanager.yml` ise
+   **repodaki gerçek dosyanın kendisiyle, hiç değiştirilmeden**
+   kullanıldı (yalnızca `${ALERTMANAGER_*_WEBHOOK_URL}` placeholder'ları,
+   Alertmanager'ın config-validation'ı geçebilmesi için yerel/dummy bir
+   URL'e çözümlenen AYRI bir kopyada dolduruldu — gerçek repo dosyası
+   asla dokunulmadı, `git diff` ile doğrulandı).
+3. **Akış:** `serve_metrics.py --enable-debug-injection` (port 9108) →
+   gerçek `prometheus.exe` (port 9090, hedefi scrape etti, `up`) →
+   `POST /debug/inject_synthetic {"mode": "circuit-open-stuck"}` →
+   ~15 saniye içinde Prometheus alert'i **firing**'e çevirdi → gerçek
+   `alertmanager.exe` (port 9093) alert'i ALDI, `null-receiver`'a
+   yönlendirdi (**observe-only korundu, hiçbir yere dışarı çıkmadı**).
+4. **Kanıt:** `reports/gate_d_real_validation_20260813T072946Z/` —
+   Prometheus `/api/v1/targets` + `/api/v1/alerts`, Alertmanager
+   `/api/v2/alerts` + `/api/v2/status` ham JSON yanıtları, kullanılan
+   geçici config'lerin kopyaları. `git add -f` ile arşivlendi (rutin
+   olmayan, gerçek go-live kanıtı).
+5. **Temizlik:** Her iki süreç de doğrulama sonrası durduruldu — bu
+   makinede kalıcı bir Prometheus/Alertmanager kurulumu YOK, yalnızca
+   doğrulama süresince ayaktaydı.
+
+**Tekrarlamak isteyen bir operatör için:** yukarıdaki adımlar,
+`docs/ops/MONITORING_STACK_RUNBOOK.md` "Kurulum" bölümündeki
+`prometheus.exe`/`alertmanager.exe` indirme adımlarıyla + bu bölümdeki
+geçici config tarifiyle birebir tekrarlanabilir. `run_observability_gates.ps1`'in
+Gate D kontrolü artık **erişilebilirliği BİRİNCİL sinyal** olarak
+kullanıyor (yalnızca sistem PATH'i değil) — böylece PATH dışında
+başlatılmış bir Alertmanager de doğru tespit edilir.
 
 ## Performans ayar rehberi tablosu (hatırlatma)
 
@@ -247,12 +319,15 @@ denetiminde) sırayla çalıştırılması/kontrol edilmesi gereken adımların
 KANONİK listesidir. `scripts/ops/build_observability_signoff.py` bu
 listenin çoğunu OTOMATİK olarak toplar (bkz. aşağıda).
 
-- [ ] `./.venv/Scripts/python.exe -m pytest` — tam suite yeşil mi?
-      (Bash üzerinden çalıştırın — bkz. yukarıdaki Gate E notu)
+- [ ] `./.venv/Scripts/python.exe -m pytest` — tam suite yeşil mi? (B037
+      düzeltmesinden beri hem Bash hem native PowerShell'de aynı sonucu
+      verir, bkz. "B037 düzeltmesi" bölümü — herhangi biriyle çalıştırılabilir)
 - [ ] `powershell -ExecutionPolicy Bypass -File scripts\ops\run_observability_gates.ps1`
       — Gate A-E sonucu nedir? (`gate_results.json`'daki `overall_status`)
-      Gerçek altyapı (Prometheus/Alertmanager) varsa `-Real24h` ile
-      gerçek bir 24 saatlik pencere sonrası tekrar çalıştırın.
+      Gerçek Prometheus/Alertmanager ayaktaysa Gate D gerçekten doğrulanır
+      (bkz. "Gate D gerçek doğrulama" bölümü); yoksa SKIPPED döner (fabrike
+      edilmiş bir PASS değil). Gerçek altyapı varsa `-Real24h` ile gerçek
+      bir 24 saatlik pencere sonrası tekrar çalıştırın.
 - [ ] `python scripts/ops/calibrate_alert_thresholds.py --hours 24` —
       eşikler gerçek trafikle kalibre edilmiş mi, yoksa hâlâ
       `INSUFFICIENT_DATA` mı? (İkincisi go-live'ı ENGELLEMEZ ama

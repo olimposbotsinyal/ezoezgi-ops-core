@@ -108,6 +108,52 @@ def test_render_signoff_md_includes_decision_tests_gates_limitations_rollback():
     assert "abc123 commit msg" in md
 
 
+def test_decision_matrix_regression_prior_real_no_go_scenario():
+    """2026-08-13 (bu gorevden ONCE) bu makinede GERCEKTEN gozlenen
+    NO-GO senaryosunu regresyona karsi kilitler: tam suite yesildi
+    (271/271) ama gate suite'i FAIL donuyordu (Gate E, B037 -- saf
+    PowerShell'de echo PATH sorunu -- FAIL, Gate D Alertmanager
+    kurulu olmadigindan SKIPPED). Bu, B037 duzeltmesinden VE gercek
+    Alertmanager kurulumundan ONCEKI gercek durumdu."""
+    prior_real_gate_results = {
+        "overall_exit_code": 2,  # FAIL (Gate E FAIL, Gate D yalnizca SKIPPED)
+        "overall_status": "FAIL",
+        "gates": [
+            {"name": "A_metrics_availability", "status": "PASS", "detail": "..."},
+            {"name": "B_scrape_success_rate", "status": "PASS", "detail": "..."},
+            {"name": "C_synthetic_alerts_visible", "status": "PASS", "detail": "..."},
+            {"name": "D_alertmanager_receive_path", "status": "SKIPPED", "detail": "..."},
+            {"name": "E_classify_regression_smoke", "status": "FAIL", "detail": "..."},
+        ],
+    }
+    decision, rationale = go_no_go_recommendation(test_exit_code=0, gate_results=prior_real_gate_results)
+    assert decision == NO_GO
+    assert "FAIL" in rationale
+
+
+def test_decision_matrix_regression_current_real_go_scenario():
+    """2026-08-13 (B037 duzeltmesi + gercek Prometheus v3.13.2 +
+    Alertmanager v0.33.1 kurulumu SONRASI) bu makinede GERCEKTEN elde
+    edilen GO senaryosunu regresyona karsi kilitler: tam suite yesil
+    (271/271, hem Bash hem native PowerShell) VE gate suite'i tam PASS
+    (Gate D artik gercek bir alert alarak PASS, Gate E B037 duzeltmesi
+    sonrasi PASS)."""
+    current_real_gate_results = {
+        "overall_exit_code": 0,
+        "overall_status": "PASS",
+        "gates": [
+            {"name": "A_metrics_availability", "status": "PASS", "detail": "..."},
+            {"name": "B_scrape_success_rate", "status": "PASS", "detail": "..."},
+            {"name": "C_synthetic_alerts_visible", "status": "PASS", "detail": "..."},
+            {"name": "D_alertmanager_receive_path", "status": "PASS", "detail": "Alertmanager alma yolu uctan uca dogrulandi"},
+            {"name": "E_classify_regression_smoke", "status": "PASS", "detail": "..."},
+        ],
+    }
+    decision, rationale = go_no_go_recommendation(test_exit_code=0, gate_results=current_real_gate_results)
+    assert decision == GO
+    assert rationale
+
+
 def test_write_signoff_creates_both_md_and_json(tmp_path):
     data = build_signoff(
         git_sha="abc123", git_log=[],

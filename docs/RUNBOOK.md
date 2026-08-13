@@ -724,11 +724,16 @@ geçişi denetlenebilir kılar.
   `scripts/ops/run_observability_gates.ps1` (otomatik Gate A-E — metrics
   availability, scrape success, 4 sentetik alert modunun görünürlüğü,
   Alertmanager alma yolu, classify regresyon smoke — `gate_report.md` +
-  `gate_results.json` üretir, exit code 0/1/2). Bu makinede gerçek
-  sonuç: **FAIL** (A/B/C PASS, D SKIPPED altyapı yokluğundan, E FAIL —
-  kök neden `tools/cli-runner/src/runner.py`'nin PowerShell PATH'inde
-  `echo` bulamaması, classify/fallback sözleşmesiyle İLGİSİZ, bkz.
-  `docs/ops/MONITORING_STACK_RUNBOOK.md`). `scripts/ops/calibrate_alert_thresholds.py`
+  `gate_results.json` üretir, exit code 0/1/2). **2026-08-13 güncel
+  gerçek sonuç: PASS (5/5 gate)** — B037 düzeltmesi (`tools/cli-runner/src/runner.py`,
+  PowerShell PATH'inde `echo` bulunamaması artık saf-Python fallback ile
+  çözüldü, classify/fallback sözleşmesiyle ilgisiz bir ortam sorunuydu)
+  ile gerçek Prometheus v3.13.2/Alertmanager v0.33.1 ile uçtan uca
+  doğrulama (sentetik sinyal → gerçek firing → Alertmanager gerçekten
+  aldı, observe-only korunarak) sonrasında. Kanıt: `reports/go_live_gates_20260813T073109Z/`,
+  `reports/gate_d_real_validation_20260813T072946Z/` (`git add -f` ile
+  arşivlendi). Ayrıntı: `docs/ops/MONITORING_STACK_RUNBOOK.md` "Go-live
+  gate otomasyonu". `scripts/ops/calibrate_alert_thresholds.py`
   (son N saatlik gerçek veriden WARN/CRIT önerisi — bu makinede
   `INSUFFICIENT_DATA`, mevcut varsayılanlar korunuyor).
   `scripts/ops/build_observability_signoff.py` (git SHA + tam test

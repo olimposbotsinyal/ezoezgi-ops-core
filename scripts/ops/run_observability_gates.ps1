@@ -109,22 +109,36 @@ try {
     Set-Content -Path "$outDir\gate_c_mode_visibility.json" -Value $modeVisibilityJson -Encoding utf8
 
     Write-Output "=== Gate D: Alertmanager alma yolu kontrol ediliyor ==="
-    $amInstalled = [bool](Get-Command alertmanager.exe -ErrorAction SilentlyContinue)
+    # ONEMLI: erisilebilirlik (API yaniti) BIRINCIL sinyaldir -- Get-Command
+    # PATH tabanlidir ve yalnizca sistem PATH'ine eklenmis bir kurulumu
+    # bulur; gercekte calisan bir Alertmanager surecinin (ornegin elle
+    # indirilip PATH DISINDA bir yoldan baslatilmis) API'si erisilebilirse
+    # bu, "kurulu ve calisiyor" icin daha DOGRUDAN/GUVENILIR bir kanittir.
+    # PATH kontrolu yalnizca API erisilemedigi durumda "hic kurulu degil"
+    # (SKIPPED) ile "kurulu ama şu an calismiyor/erisilemez" (FAIL) ayrimini
+    # yapmak icin ikincil bir sinyal olarak kullanilir.
     $amReachable = $false
     $amAlertReceived = $false
-    if ($amInstalled) {
-        try {
-            $amResp = Invoke-WebRequest -Uri "http://127.0.0.1:$AlertmanagerPort/api/v2/alerts" -TimeoutSec 5
-            $amReachable = $true
-            $amAlerts = $amResp.Content | ConvertFrom-Json
-            $amAlertReceived = ($amAlerts.Count -gt 0)
-        } catch {
-            Write-Output "  Alertmanager kurulu ama erisilemedi: $_"
+    $amAlertNames = @()
+    try {
+        $amResp = Invoke-WebRequest -Uri "http://127.0.0.1:$AlertmanagerPort/api/v2/alerts" -TimeoutSec 5
+        $amReachable = $true
+        $amAlerts = $amResp.Content | ConvertFrom-Json
+        if ($amAlerts) {
+            $amAlertNames = @($amAlerts | ForEach-Object { $_.labels.alertname })
         }
-    } else {
-        Write-Output "  Alertmanager bu makinede kurulu degil (beklenen durum, bkz. MONITORING_STACK_RUNBOOK.md)"
+        $amAlertReceived = ($amAlertNames.Count -gt 0)
+    } catch {
+        Write-Output "  Alertmanager API'sine erisilemedi: $_"
     }
-    Write-Output "Gate D: installed=$amInstalled reachable=$amReachable alert_received=$amAlertReceived"
+
+    $amInstalled = $amReachable -or [bool](Get-Command alertmanager.exe -ErrorAction SilentlyContinue)
+    if (-not $amReachable -and -not $amInstalled) {
+        Write-Output "  Alertmanager bu makinede kurulu degil (beklenen durum, bkz. MONITORING_STACK_RUNBOOK.md)"
+    } elseif ($amReachable) {
+        Write-Output "  Alertmanager erisilebilir -- alinan alert'ler: $($amAlertNames -join ', ')"
+    }
+    Write-Output "Gate D: installed=$amInstalled reachable=$amReachable alert_received=$amAlertReceived alerts=[$($amAlertNames -join ', ')]"
 
     Write-Output "=== Gate E: classify regresyon smoke (ilgili pytest dosyalari) ==="
     $gateETestFiles = @(

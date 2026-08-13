@@ -1,0 +1,70 @@
+{
+  "generated_at": "2026-08-13T07:31:18.528944+00:00",
+  "mode": "simulation",
+  "overall_status": "PASS",
+  "overall_exit_code": 0,
+  "gates": [
+    {
+      "name": "A_metrics_availability",
+      "status": "PASS",
+      "detail": "SIMULASYON modu (kisa ornek pencere, GERCEK 24s gozlem DEGIL) [10 ornek x 0.2s] -- 10/10 basarili (kullanilabilirlik=100.00%)",
+      "evidence": {
+        "successes": 10,
+        "samples": 10,
+        "availability": 1.0,
+        "simulated": true,
+        "window_label": "10 ornek x 0.2s"
+      }
+    },
+    {
+      "name": "B_scrape_success_rate",
+      "status": "PASS",
+      "detail": "SIMULASYON (yerel tekrar istek) -- scrape basari orani=100.00% (20/20), esik >=%99",
+      "evidence": {
+        "successes": 20,
+        "samples": 20,
+        "rate": 1.0,
+        "simulated": true
+      }
+    },
+    {
+      "name": "C_synthetic_alerts_visible",
+      "status": "PASS",
+      "detail": "4/4 sentetik mod /metrics'te gorunur oldu",
+      "evidence": {
+        "mode_visibility": {
+          "preflight-unknown": true,
+          "circuit-open-stuck": true,
+          "fallback-spike": true,
+          "null-intent-spike": true
+        },
+        "visible": [
+          "preflight-unknown",
+          "circuit-open-stuck",
+          "fallback-spike",
+          "null-intent-spike"
+        ],
+        "missing": []
+      }
+    },
+    {
+      "name": "D_alertmanager_receive_path",
+      "status": "PASS",
+      "detail": "Alertmanager alma yolu uctan uca dogrulandi",
+      "evidence": {
+        "alertmanager_installed": true,
+        "alertmanager_reachable": true,
+        "alert_received": true
+      }
+    },
+    {
+      "name": "E_classify_regression_smoke",
+      "status": "PASS",
+      "detail": "classify-ilgili regresyon testleri exit_code=0 -- ============================= 54 passed in 3.71s ==============================",
+      "evidence": {
+        "pytest_exit_code": 0,
+        "tests_summary": "============================= 54 passed in 3.71s =============================="
+      }
+    }
+  ]
+}

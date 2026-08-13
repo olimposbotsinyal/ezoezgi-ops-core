@@ -1,0 +1,13 @@
+﻿============================= test session starts =============================
+platform win32 -- Python 3.13.3, pytest-9.1.1, pluggy-1.6.0
+rootdir: D:\Projects\ezoezgi-ops
+configfile: pyproject.toml
+collected 54 items
+
+tests\test_ollama_nlu.py ..............                                  [ 25%]
+tests\test_model_client.py ............                                  [ 48%]
+tests\test_nlu_provider_flag.py ............                             [ 70%]
+tests\test_model_gateway_router.py .........                             [ 87%]
+tests\test_model_gateway_runtime_verify.py .......                       [100%]
+
+============================= 54 passed in 3.71s ==============================

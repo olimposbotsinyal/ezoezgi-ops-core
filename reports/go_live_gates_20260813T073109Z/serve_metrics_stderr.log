@@ -1,0 +1,41 @@
+2026-08-13 10:31:10,347 serve_metrics WARNING: DEBUG INJECTION ACIK: POST /debug/inject_synthetic ile disaridan metrik enjekte edilebilir -- yalnizca izole/test ortaminda kullanin.
+2026-08-13 10:31:10,348 serve_metrics WARNING: Metrics kaynagi: surec-ici (in_memory) registry -- yalnizca BU surecte biriken metrikler gorunur (METRICS_SINK=in_memory, opt-in eski davranis).
+2026-08-13 10:31:10,359 serve_metrics INFO: Metrics endpoint dinliyor: http://127.0.0.1:9109/metrics (metrics_enabled=True, metrics_sink=in_memory)
+2026-08-13 10:31:12,147 serve_metrics INFO: 127.0.0.1 - "GET /metrics HTTP/1.1" 200 -
+2026-08-13 10:31:12,231 serve_metrics INFO: 127.0.0.1 - "GET /metrics HTTP/1.1" 200 -
+2026-08-13 10:31:12,265 serve_metrics INFO: 127.0.0.1 - "GET /metrics HTTP/1.1" 200 -
+2026-08-13 10:31:12,298 serve_metrics INFO: 127.0.0.1 - "GET /metrics HTTP/1.1" 200 -
+2026-08-13 10:31:12,336 serve_metrics INFO: 127.0.0.1 - "GET /metrics HTTP/1.1" 200 -
+2026-08-13 10:31:12,374 serve_metrics INFO: 127.0.0.1 - "GET /metrics HTTP/1.1" 200 -
+2026-08-13 10:31:12,406 serve_metrics INFO: 127.0.0.1 - "GET /metrics HTTP/1.1" 200 -
+2026-08-13 10:31:12,437 serve_metrics INFO: 127.0.0.1 - "GET /metrics HTTP/1.1" 200 -
+2026-08-13 10:31:12,465 serve_metrics INFO: 127.0.0.1 - "GET /metrics HTTP/1.1" 200 -
+2026-08-13 10:31:12,491 serve_metrics INFO: 127.0.0.1 - "GET /metrics HTTP/1.1" 200 -
+2026-08-13 10:31:12,518 serve_metrics INFO: 127.0.0.1 - "GET /metrics HTTP/1.1" 200 -
+2026-08-13 10:31:12,549 serve_metrics INFO: 127.0.0.1 - "GET /metrics HTTP/1.1" 200 -
+2026-08-13 10:31:12,583 serve_metrics INFO: 127.0.0.1 - "GET /metrics HTTP/1.1" 200 -
+2026-08-13 10:31:12,618 serve_metrics INFO: 127.0.0.1 - "GET /metrics HTTP/1.1" 200 -
+2026-08-13 10:31:12,651 serve_metrics INFO: 127.0.0.1 - "GET /metrics HTTP/1.1" 200 -
+2026-08-13 10:31:12,687 serve_metrics INFO: 127.0.0.1 - "GET /metrics HTTP/1.1" 200 -
+2026-08-13 10:31:12,718 serve_metrics INFO: 127.0.0.1 - "GET /metrics HTTP/1.1" 200 -
+2026-08-13 10:31:12,749 serve_metrics INFO: 127.0.0.1 - "GET /metrics HTTP/1.1" 200 -
+2026-08-13 10:31:12,781 serve_metrics INFO: 127.0.0.1 - "GET /metrics HTTP/1.1" 200 -
+2026-08-13 10:31:12,813 serve_metrics INFO: 127.0.0.1 - "GET /metrics HTTP/1.1" 200 -
+2026-08-13 10:31:12,843 serve_metrics INFO: 127.0.0.1 - "GET /metrics HTTP/1.1" 200 -
+2026-08-13 10:31:12,876 serve_metrics INFO: 127.0.0.1 - "GET /metrics HTTP/1.1" 200 -
+2026-08-13 10:31:12,908 serve_metrics INFO: 127.0.0.1 - "GET /metrics HTTP/1.1" 200 -
+2026-08-13 10:31:12,960 serve_metrics INFO: 127.0.0.1 - "GET /metrics HTTP/1.1" 200 -
+2026-08-13 10:31:12,985 serve_metrics INFO: 127.0.0.1 - "GET /metrics HTTP/1.1" 200 -
+2026-08-13 10:31:13,012 serve_metrics INFO: 127.0.0.1 - "GET /metrics HTTP/1.1" 200 -
+2026-08-13 10:31:13,036 serve_metrics INFO: 127.0.0.1 - "GET /metrics HTTP/1.1" 200 -
+2026-08-13 10:31:13,066 serve_metrics INFO: 127.0.0.1 - "GET /metrics HTTP/1.1" 200 -
+2026-08-13 10:31:13,096 serve_metrics INFO: 127.0.0.1 - "GET /metrics HTTP/1.1" 200 -
+2026-08-13 10:31:13,130 serve_metrics INFO: 127.0.0.1 - "GET /metrics HTTP/1.1" 200 -
+2026-08-13 10:31:13,245 serve_metrics INFO: 127.0.0.1 - "POST /debug/inject_synthetic HTTP/1.1" 200 -
+2026-08-13 10:31:13,345 serve_metrics INFO: 127.0.0.1 - "GET /metrics HTTP/1.1" 200 -
+2026-08-13 10:31:13,413 serve_metrics INFO: 127.0.0.1 - "POST /debug/inject_synthetic HTTP/1.1" 200 -
+2026-08-13 10:31:13,460 serve_metrics INFO: 127.0.0.1 - "GET /metrics HTTP/1.1" 200 -
+2026-08-13 10:31:13,511 serve_metrics INFO: 127.0.0.1 - "POST /debug/inject_synthetic HTTP/1.1" 200 -
+2026-08-13 10:31:13,559 serve_metrics INFO: 127.0.0.1 - "GET /metrics HTTP/1.1" 200 -
+2026-08-13 10:31:13,610 serve_metrics INFO: 127.0.0.1 - "POST /debug/inject_synthetic HTTP/1.1" 200 -
+2026-08-13 10:31:13,658 serve_metrics INFO: 127.0.0.1 - "GET /metrics HTTP/1.1" 200 -

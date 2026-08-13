@@ -1,0 +1,89 @@
+# GECICI DOGRULAMA kural dosyasi -- infra/monitoring/prometheus/model_gateway_alerts.yaml'nin
+# kopyasidir. TEK FARK: `for:` sureleri, gercek pipeline'in (scrape ->
+# rule eval -> pending -> firing -> Alertmanager receive) birkaç saniye
+# icinde uctan uca dogrulanabilmesi icin KISALTILDI (ornegin 30m -> 10s).
+# expr/labels/annotations BIREBIR AYNI birakildi. Repodaki GERCEK
+# infra/monitoring/prometheus/model_gateway_alerts.yaml (production
+# esikleri: 5m/10m/15m/24h/30m) bu dogrulamada HICBIR SEKILDE
+# degistirilmedi/kullanilmadi -- bu dosya yalnizca C:\Temp\monitoring_bin\'de
+# yasar, repo disindadir.
+
+groups:
+  - name: model_gateway
+    rules:
+      - alert: ModelGatewayHighNullIntentRateWarning
+        expr: |
+          (sum(rate(model_gateway_null_intent_total[6h])) / sum(rate(model_gateway_requests_total[6h]))) > 0.01
+        for: 10s
+        labels:
+          severity: warning
+        annotations:
+          summary: "Model gateway null-intent orani warning esigini asiyor"
+          description: "Son 6 saatte null-intent orani %1'in uzerinde."
+          runbook: "docs/ops/ALERT_PLAYBOOK_MODEL_GATEWAY.md#high_null_intent_rate"
+          first_action: "Son EXHAUSTED/FALLBACK audit kayitlarinin reason_code dagilimina bak"
+
+      - alert: ModelGatewayHighNullIntentRateCritical
+        expr: |
+          (sum(rate(model_gateway_null_intent_total[1h])) / sum(rate(model_gateway_requests_total[1h]))) > 0.02
+        for: 10s
+        labels:
+          severity: critical
+          page: "true"
+        annotations:
+          summary: "Model gateway null-intent orani critical esigini asiyor"
+          description: "Son 1 saatte null-intent orani %2'nin uzerinde -- SLO burn-rate kritik."
+          runbook: "docs/ops/ALERT_PLAYBOOK_MODEL_GATEWAY.md#high_null_intent_rate"
+          first_action: "docs/ops/SLO_MODEL_GATEWAY.md burn-rate bolumune bak, on-call'a sayfala"
+
+      - alert: ModelGatewayFallbackSpike
+        expr: |
+          sum(rate(model_gateway_fallback_total[15m])) > (3.0 * sum(rate(model_gateway_fallback_total[24h])) / (24*4))
+        for: 10s
+        labels:
+          severity: critical
+          page: "true"
+        annotations:
+          summary: "Model gateway fallback orani ani yukseldi (spike)"
+          description: "Son 15 dakikadaki fallback orani, 24 saatlik ortalamanin ALERT_FALLBACK_SPIKE_MULTIPLIER (varsayilan 3.0x) katindan fazla."
+          runbook: "docs/ops/ALERT_PLAYBOOK_MODEL_GATEWAY.md#fallback_spike"
+          first_action: "fallback_total{from_provider=\"ollama\"} reason_code dagilimina bak"
+
+      - alert: ModelGatewayPrimaryRestrictedPersistent
+        expr: |
+          sum_over_time(model_gateway_restrictions_total{provider="ollama",reason_code="PRIMARY_RESTRICTED_CPU_UNVERIFIED"}[24h]) > 0
+          and
+          sum(model_gateway_requests_total{provider="ollama"}) == 0
+        for: 10s
+        labels:
+          severity: ticket
+        annotations:
+          summary: "Ollama STRICT modda 24 saattir hic denenmedi"
+          description: "CPU-verify kapisi Ollama'yi surekli kisitliyor -- muhtemelen marker dosyasi eksik."
+          runbook: "docs/ops/ALERT_PLAYBOOK_MODEL_GATEWAY.md#primary_restricted_persistent"
+          first_action: "Test-Path $env:OLLAMA_CPU_MARKER_FILE"
+
+      - alert: ModelGatewayPreflightUnknownPersistent
+        expr: |
+          (sum(rate(model_gateway_preflight_total{status="UNKNOWN"}[24h])) / sum(rate(model_gateway_preflight_total[24h]))) > 0.9
+        for: 10s
+        labels:
+          severity: ticket
+        annotations:
+          summary: "Preflight kontrolleri surekli UNKNOWN donuyor"
+          description: "Genellikle beklenen (marker politikasi uygulanmiyorsa) -- bkz. SLO belgesi Preflight Confidence notu."
+          runbook: "docs/ops/ALERT_PLAYBOOK_MODEL_GATEWAY.md#preflight_unknown_persistent"
+          first_action: "Marker dosyasi politikasinin bilerek uygulanip uygulanmadigini dogrula"
+
+      - alert: ModelGatewayCircuitOpenStuck
+        expr: |
+          model_gateway_circuit_open == 1
+        for: 10s
+        labels:
+          severity: critical
+          page: "true"
+        annotations:
+          summary: "Circuit breaker 30 dakikadir acik kaliyor"
+          description: "CIRCUIT_BREAKER_RESET_SEC suresi coktan gecmis olmali -- surekli hata veya config sorunu."
+          runbook: "docs/ops/ALERT_PLAYBOOK_MODEL_GATEWAY.md#circuit_open_stuck"
+          first_action: "Ilgili saglayicinin health check'ini manuel calistir"

@@ -23,6 +23,7 @@ from observability_gates_core import (
     evaluate_gate_e_classify_regression,
     overall_exit_code,
     overall_status,
+    parse_alertmanager_v2_payload,
     parse_gate_results_json,
     render_gate_report_md,
     write_gate_results_json,
@@ -140,6 +141,75 @@ def test_evaluate_gate_d_full_path_is_pass():
         alertmanager_installed=True, alertmanager_reachable=True, alert_received=True
     )
     assert r.status == STATUS_PASS
+
+
+# Gercek Alertmanager v0.33.1 `GET /api/v2/alerts` yanitindan alinan,
+# 2026-08-13'te bu makinede prometheus v3.13.2 + alertmanager v0.33.1
+# ile elle dogrulanmis GERCEK bir kayit (sentetik circuit-open-stuck
+# sinyali, gercekten firing olana kadar beklendi -- bkz.
+# reports/gate_d_real_validation_20260813T072946Z/alertmanager_alerts.json,
+# docs/ops/MONITORING_STACK_RUNBOOK.md "Gate D gercek dogrulama").
+REAL_ALERTMANAGER_V2_PAYLOAD_FIXTURE = [
+    {
+        "annotations": {
+            "description": "CIRCUIT_BREAKER_RESET_SEC suresi coktan gecmis olmali -- surekli hata veya config sorunu.",
+            "first_action": "Ilgili saglayicinin health check'ini manuel calistir",
+            "runbook": "docs/ops/ALERT_PLAYBOOK_MODEL_GATEWAY.md#circuit_open_stuck",
+            "summary": "Circuit breaker 30 dakikadir acik kaliyor",
+        },
+        "endsAt": "2026-08-13T07:33:11.773Z",
+        "fingerprint": "50748866f964f1fd",
+        "receivers": [{"name": "null-receiver"}],
+        "startsAt": "2026-08-13T07:29:11.773Z",
+        "status": {"inhibitedBy": [], "mutedBy": [], "silencedBy": [], "state": "active"},
+        "updatedAt": "2026-08-13T10:29:11.776+03:00",
+        "generatorURL": "http://DESKTOP-8NMPFCA:9090/graph?g0.expr=model_gateway_circuit_open+%3D%3D+1&g0.tab=1",
+        "labels": {
+            "alertname": "ModelGatewayCircuitOpenStuck",
+            "env": "local-dev-validation",
+            "instance": "serve_metrics-local",
+            "job": "ezoezgi_model_gateway",
+            "page": "true",
+            "provider": "ollama",
+            "service": "model-gateway",
+            "severity": "critical",
+            "synthetic": "true",
+        },
+    }
+]
+
+
+def test_parse_alertmanager_v2_payload_extracts_alertname_from_real_fixture():
+    names = parse_alertmanager_v2_payload(REAL_ALERTMANAGER_V2_PAYLOAD_FIXTURE)
+    assert names == ["ModelGatewayCircuitOpenStuck"]
+
+
+def test_parse_alertmanager_v2_payload_empty_list_is_normal():
+    assert parse_alertmanager_v2_payload([]) == []
+
+
+def test_parse_alertmanager_v2_payload_malformed_entries_are_skipped_not_raised():
+    malformed = [{"no_labels_key": True}, {"labels": {"no_alertname_key": True}}, "not_even_a_dict", None]
+    assert parse_alertmanager_v2_payload(malformed) == []
+
+
+def test_parse_alertmanager_v2_payload_non_list_input_returns_empty():
+    assert parse_alertmanager_v2_payload({"not": "a list"}) == []
+    assert parse_alertmanager_v2_payload(None) == []
+
+
+def test_gate_d_end_to_end_with_real_fixture_produces_pass():
+    """Gercek makinede 2026-08-13'te elde edilen kanitla ayni sekilde:
+    Alertmanager erisilebilir + gercek bir alert alinmis -> Gate D PASS
+    (fabrike edilmemis, gercekten dogrulanmis bir senaryo)."""
+    alert_names = parse_alertmanager_v2_payload(REAL_ALERTMANAGER_V2_PAYLOAD_FIXTURE)
+    result = evaluate_gate_d_alertmanager_receive(
+        alertmanager_installed=True,
+        alertmanager_reachable=True,
+        alert_received=len(alert_names) > 0,
+    )
+    assert result.status == STATUS_PASS
+    assert "ModelGatewayCircuitOpenStuck" in alert_names
 
 
 def test_evaluate_gate_e_pytest_success_is_pass():
