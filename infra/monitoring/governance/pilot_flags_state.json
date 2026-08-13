@@ -1,0 +1,17 @@
+{
+  "emergency_chain_matching": {
+    "promoted": false,
+    "promoted_at_utc": null,
+    "promotion_report_path": null
+  },
+  "auto_rollback_on_verify_fail": {
+    "promoted": false,
+    "promoted_at_utc": null,
+    "promotion_report_path": null
+  },
+  "emergency_legitimacy_required": {
+    "promoted": false,
+    "promoted_at_utc": null,
+    "promotion_report_path": null
+  }
+}

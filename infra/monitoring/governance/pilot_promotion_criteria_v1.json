@@ -1,0 +1,58 @@
+{
+  "$schema_note": "Bu dosya JSON Schema DEGILDIR -- threshold_proposal_schema_v1.json'dan farkli olarak, dogrudan scripts/ops/pilot_promotion_core.py::validate_criteria_manifest tarafindan okunan, el-yazimi (hand-rolled) bir politika-veri (policy-as-data) dosyasidir. v1.2 pilot ozelliklerinin (bkz. docs/ops/MONITORING_STACK_RUNBOOK.md 'Pilot Flags Matrix') PILOT -> ENFORCED gecisi icin OLCULEBILIR, insan-onayi-DISI (mekanik) kriterleri tanimlar.",
+  "schema_version": 1,
+  "generated_at_utc": "2026-08-13T18:00:00+00:00",
+  "features": {
+    "emergency_chain_matching": {
+      "description": "Checksum-zinciri farkindalikli acil durum kapanis eslestirmesi (GOV_EMERGENCY_CHAIN_MATCHING).",
+      "flag_env_var": "GOV_EMERGENCY_CHAIN_MATCHING",
+      "observation_min_days": 14,
+      "min_runs": 3,
+      "max_false_positive_rate": 0.1,
+      "max_unresolved_critical": 0,
+      "required_evidence_paths": [
+        "reports/emergency_chain_trial_*/chain_eval.json",
+        "reports/v1_2_pilot_*/**/chain_eval.json"
+      ],
+      "blocker_conditions": ["remote_default_changed", "secrets_committed", "classify_contract_changed"]
+    },
+    "auto_rollback_on_verify_fail": {
+      "description": "VerifyReload FAIL durumunda opsiyonel otomatik geri alma (GOV_AUTO_ROLLBACK_ON_VERIFY_FAIL).",
+      "flag_env_var": "GOV_AUTO_ROLLBACK_ON_VERIFY_FAIL",
+      "observation_min_days": 14,
+      "min_runs": 3,
+      "max_false_positive_rate": 0.05,
+      "max_unresolved_critical": 0,
+      "required_evidence_paths": [
+        "reports/v1_2_pilot_*/**/apply_report.json",
+        "reports/threshold_apply_*/apply_report.json"
+      ],
+      "blocker_conditions": ["remote_default_changed", "secrets_committed", "classify_contract_changed"]
+    },
+    "emergency_legitimacy_required": {
+      "description": "Acil durum bilet-mesruiyet on-kontrolunun ZORUNLU (blocking) hale getirilmesi (GOV_EMERGENCY_LEGITIMACY_REQUIRED).",
+      "flag_env_var": "GOV_EMERGENCY_LEGITIMACY_REQUIRED",
+      "observation_min_days": 28,
+      "min_runs": 5,
+      "max_false_positive_rate": 0.0,
+      "max_unresolved_critical": 0,
+      "required_evidence_paths": [
+        "reports/emergency_legitimacy_*/legitimacy_report.json",
+        "reports/v1_2_pilot_*/**/legitimacy_report.json"
+      ],
+      "blocker_conditions": [
+        "remote_default_changed",
+        "secrets_committed",
+        "classify_contract_changed",
+        "provider_is_stub_only"
+      ]
+    }
+  },
+  "blocker_condition_notes": {
+    "remote_default_changed": "En son drift raporundaki 'remote_default' kategorisi CRITICAL ise tetiklenir -- MEKANIK olarak kontrol edilir.",
+    "secrets_committed": "Su an icin YAPISAL BIR YER TUTUCUDUR -- otomatik bir secret-scan calistirmaz (bilinen bir sizinti/olay kaydi yoksa hicbir zaman tetiklenmez). Gercek bir secret-tarama araci entegre edilene kadar bu blocker'in gercek kapsami sinirlidir (bkz. docs 'known limitations').",
+    "classify_contract_changed": "Su an icin YAPISAL BIR YER TUTUCUDUR -- ayni gerekce, otomatik bir API-sozlesme-degisikligi tespiti YAPILMAZ.",
+    "provider_is_stub_only": "YALNIZCA emergency_legitimacy_required icin gecerli -- TUM kanit girdileri provider='mock'/'jira_stub'/'none' ise (yani hicbir GERCEK saglayici entegrasyonu HIC kullanilmadiysa) tetiklenir. Gercek bir Jira/servis entegrasyonu OLMADAN bu ozelligin 'enforced' moda terfi etmesi ANLAMSIZDIR."
+  },
+  "guncelleme_proseduru": "Bu dosyayi degistirmek (esik degerlerini gevsetmek/sikilastirmak) DAIMA acik bir docs/BACKLOG.md karar notu + AYNI commit'te bir gerekce gerektirir -- sessiz bir esik degisikligi commit'i ASLA olmamalidir (bkz. docs/ops/MONITORING_STACK_RUNBOOK.md 'Pilot Promotion Policy')."
+}
