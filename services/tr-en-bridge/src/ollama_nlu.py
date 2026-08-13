@@ -22,6 +22,19 @@ Guvenlik/dayaniklilik ilkeleri:
     durumunda (gecici formatlama hatasi ihtimaline karsi) `max_attempts`
     kadar tekrar denenir; servis tamamen erisilemezse (fallback=True)
     tekrar denemenin faydasi olmadigindan hemen null-intent'e duser.
+
+Saglayici (B036 resilience layer, PLAN.md model gateway):
+  - `client=` parametresi hala test enjeksiyonu icin `OllamaModelClient` ile
+    ayni `.generate(prompt) -> dict` sozlesmesine sahip herhangi bir nesneyi
+    kabul eder -- test_ollama_nlu.py'deki mevcut sahte client'lar (`_FakeClient`,
+    `_ExplodingClient`) DEGISMEDEN calismaya devam eder.
+  - `client=None` (varsayilan, gercek uretim yolu) durumunda artik
+    `model_gateway.compat.RouterBackedClient` kullanilir -- bu da
+    `services/model-gateway/src/model_gateway/router.py` uzerinden sirali,
+    acik-loglu coklu-saglayici fallback uygular (bkz.
+    docs/ops/MODEL_FALLBACK_RUNBOOK.md). Varsayilan config'de yalnizca
+    Ollama denendiginden, davranis onceki `OllamaModelClient()` ile
+    ayni -- fark, yalnizca fallback etkinlestirilirse gorunur.
 """
 
 from __future__ import annotations
@@ -32,6 +45,7 @@ import re
 from typing import Any
 
 from model_client import OllamaModelClient
+from model_gateway.compat import RouterBackedClient
 
 logger = logging.getLogger("ollama_nlu")
 
@@ -118,7 +132,7 @@ def classify(
     input_tr: str,
     known_intents: list[str],
     context: dict[str, Any] | None = None,
-    client: OllamaModelClient | None = None,
+    client: OllamaModelClient | RouterBackedClient | None = None,
     max_attempts: int = DEFAULT_MAX_ATTEMPTS,
 ) -> dict[str, Any]:
     """TR girdiyi Ollama uzerinden canonical NLU semasina siniflandirir.
@@ -131,7 +145,7 @@ def classify(
     zaman exception firlatmaz.
     """
     context = context or {}
-    active_client = client or OllamaModelClient()
+    active_client = client or RouterBackedClient()
     prompt = _build_prompt(input_tr, known_intents)
 
     last_raw = ""
