@@ -305,10 +305,21 @@ drift üretimi orada belgelidir).
 hiçbir davranış değişmez):** checksum-zinciri farkındalıklı vade takibi
 (`GOV_EMERGENCY_CHAIN_MATCHING`), VerifyReload FAIL'de opsiyonel otomatik
 geri alma (`GOV_AUTO_ROLLBACK_ON_VERIFY_FAIL` / `-AutoRollbackOnVerifyFail`),
-ve acil durum bilet-format ön-kontrolü (`check_emergency_legitimacy.py`,
-henüz apply'ı ENGELLEMİYOR). Tam flag tablosu + güvenli deneme adımları
-+ enforced'a terfi kriterleri: `docs/ops/MONITORING_STACK_RUNBOOK.md`
+ve acil durum bilet-format ön-kontrolü (`check_emergency_legitimacy.py`).
+Tam flag tablosu + güvenli deneme adımları: `docs/ops/MONITORING_STACK_RUNBOOK.md`
 "Pilot Flags Matrix (default OFF)".
+
+**GÜNCELLENDİ — resmi terfi (promotion) kapısı eklendi:** `--decision
+APPROVE_EMERGENCY` akışında `legitimacy_report_path` artık **GERÇEKTEN
+ENGELLEYİCİ** olabilir — ama YALNIZCA `emergency_legitimacy_required`
+özelliği `scripts/ops/evaluate_pilot_promotion.py` tarafından ÖLÇÜLEBİLİR
+kriterlerle `PROMOTE` edildiğinde VE bu terfi `scripts/ops/promote_pilot_flags.ps1
+-Apply` ile GERÇEKTEN uygulandığında (`pilot_flags_state.json`'da
+kayıtlı) — `GOV_EMERGENCY_LEGITIMACY_REQUIRED=1` ortam değişkenini TEK
+BAŞINA ayarlamak HİÇBİR ŞEYİ değiştirmez. Engellendiğinde hata mesajı
+AÇIKÇA nedeni gösterir (rapor eksik/okunamadı/`FAIL`). Tam politika +
+karar matrisi + güvenli geri alma: `docs/ops/MONITORING_STACK_RUNBOOK.md`
+"Pilot Promotion Policy".
 
 ## Bilinen sınırlamalar
 

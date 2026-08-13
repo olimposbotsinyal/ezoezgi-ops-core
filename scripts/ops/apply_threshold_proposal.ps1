@@ -110,7 +110,7 @@ $effectiveAmConfigPath = if ($AlertmanagerConfigPath) { $AlertmanagerConfigPath 
 $effectiveAutoRollback = $AutoRollbackOnVerifyFail.IsPresent -or ($env:GOV_AUTO_ROLLBACK_ON_VERIFY_FAIL -eq "1")
 
 $driverScript = @"
-import sys, json, subprocess, urllib.request, urllib.error
+import sys, json, os, subprocess, urllib.request, urllib.error
 sys.path.insert(0, r'$RepoRoot\scripts\ops')
 sys.path.insert(0, r'$RepoRoot\apps\orchestrator\src')
 from datetime import datetime, timezone
@@ -124,6 +124,7 @@ from threshold_apply_core import (
     restore_backup, build_rollback_audit_details, decide_auto_rollback, build_auto_rollback_result,
 )
 from detect_observability_drift import compute_file_sha256
+from pilot_promotion_core import load_pilot_flags_state, is_legitimacy_enforcement_active
 from audit_logger import AuditLogger
 
 repo_root = Path(r'$RepoRoot')
@@ -132,6 +133,7 @@ review_path = Path(r'$ReviewRecordPath')
 schema_path = repo_root / 'infra' / 'monitoring' / 'governance' / 'threshold_proposal_schema_v1.json'
 target_path = repo_root / 'infra' / 'monitoring' / 'prometheus' / 'model_gateway_alerts.yaml'
 ledger_path = repo_root / 'infra' / 'monitoring' / 'baseline' / 'approved_checksums_ledger.jsonl'
+pilot_flags_state_path = repo_root / 'infra' / 'monitoring' / 'governance' / 'pilot_flags_state.json'
 out_dir = Path(r'$outDir')
 apply_mode = $(if ($Apply) { "True" } else { "False" })
 verify_reload = $(if ($VerifyReload) { "True" } else { "False" })
@@ -156,7 +158,30 @@ except (OSError, json.JSONDecodeError) as exc:
     print(f'BLOCKED: {outcome.reasons}')
     sys.exit(2)
 
-eligibility = check_apply_eligibility(proposal, review_record, schema)
+# v1.2 -> v1.3 terfi kapisi: GOV_EMERGENCY_LEGITIMACY_REQUIRED=1 TEK
+# BASINA YETERLI DEGILDIR -- pilot_flags_state.json'da
+# emergency_legitimacy_required.promoted=true da GEREKIR (bkz.
+# pilot_promotion_core.py::is_legitimacy_enforcement_active). Bu ikili
+# kapi, bir operatorun env var'i tek basina degistirerek GERCEK bir
+# PROMOTE karari OLMADAN zorlayici modu ETKINLESTIREMEMESINI garanti eder.
+pilot_flags_state = load_pilot_flags_state(pilot_flags_state_path)
+legitimacy_enforcement_active = is_legitimacy_enforcement_active(
+    pilot_flags_state, os.environ.get('GOV_EMERGENCY_LEGITIMACY_REQUIRED')
+)
+legitimacy_report = None
+if legitimacy_enforcement_active:
+    report_path_str = review_record.get('legitimacy_report_path')
+    if report_path_str:
+        try:
+            legitimacy_report = json.loads(Path(report_path_str).read_text(encoding='utf-8'))
+        except (OSError, json.JSONDecodeError):
+            legitimacy_report = None
+    print(f'!! GOV_EMERGENCY_LEGITIMACY_REQUIRED AKTIF (emergency_legitimacy_required PROMOTE edilmis) -- legitimacy_report_path={report_path_str}')
+
+eligibility = check_apply_eligibility(
+    proposal, review_record, schema,
+    legitimacy_enforcement_active=legitimacy_enforcement_active, legitimacy_report=legitimacy_report,
+)
 
 is_emergency = review_record.get('decision') == 'APPROVE_EMERGENCY'
 emergency_fields = None

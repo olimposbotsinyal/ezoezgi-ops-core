@@ -831,6 +831,39 @@ geçişi denetlenebilir kılar.
   BILEREK mutasyona ugramis biraktigini dogruladi. Ayrinti: `docs/ops/MONITORING_STACK_RUNBOOK.md`
   "Pilot Flags Matrix (default OFF)", "How to run v1.2 trials safely",
   "Promotion criteria from pilot to enforced".
+- **v1.2 pilot terfi (promotion) kapisi -- olculebilir kriter + evaluator
+  + kontrollu uygulama/geri alma:** `infra/monitoring/governance/pilot_promotion_criteria_v1.json`
+  (her ozellik icin `observation_min_days`/`min_runs`/`max_false_positive_rate`/
+  `max_unresolved_critical`/`required_evidence_paths`/`blocker_conditions`)
+  + `scripts/ops/evaluate_pilot_promotion.py` (GERCEK kanit dosyalarini
+  tarar, her ozellik icin PROMOTE/EXTEND_PILOT/REJECT karari + gerekce
+  uretir, `reports/pilot_promotion_<UTC>/promotion_report.md`+`.json`;
+  exit code 0/1/2). Blocker kosullari (ornegin `provider_is_stub_only`)
+  sayisal kriterlerden BAGIMSIZ olarak REJECT'e zorlar. Kalici terfi
+  durumu `infra/monitoring/governance/pilot_flags_state.json`'da
+  (normal `git add` ile izlenir) tutulur -- `scripts/ops/promote_pilot_flags.ps1`
+  (VARSAYILAN dry-run, `-Apply` yalnizca PROMOTE kararli ozellikleri
+  uygular, `data/audit/audit.log.jsonl`'e `task=pilot_flag_promoted`/
+  `pilot_flag_not_promoted` kaydi ekler) + `scripts/ops/rollback_pilot_flags.ps1`
+  (VARSAYILAN dry-run, `-Apply` bir onceki `flag_apply_report.json`'daki
+  `previous_state`'i BIREBIR geri yukler, `task=pilot_flag_rollback`
+  kaydi ekler). `threshold_governance_core.py::check_apply_eligibility`
+  yeni `legitimacy_enforcement_active`/`legitimacy_report` parametreleriyle
+  (GERIYE UYUMLU varsayilanlar) `emergency_legitimacy_required` icin
+  ciFT-KAPILI (double-gate) zorlama uygular -- `GOV_EMERGENCY_LEGITIMACY_REQUIRED=1`
+  TEK BASINA hicbir seyi degistirmez, `pilot_flags_state.json`'da
+  GERCEK bir PROMOTE kaydi da GEREKIR. Gercek uctan uca dogrulandi:
+  gercek kanitla evaluator calistirildi (chain_matching/auto_rollback
+  EXTEND_PILOT, legitimacy_required GERCEK bir REJECT -- `provider_is_stub_only`
+  blocker'i, tum kanit `mock`/`jira_stub` saglayici kullandigi icin
+  tetiklendi); izole sentetik-ama-gercek-kod-yollu kanitla iki ozellik
+  GERCEKTEN promote edildi, legitimacy blocking'in dort durumu (env=0,
+  env=1+rapor-yok, env=1+rapor-FAIL, env=1+rapor-PASS) TEK TEK
+  dogrulandi, ardindan HER IKI terfi de `rollback_pilot_flags.ps1` ile
+  BIREBIR geri alinip `pilot_flags_state.json` pristine durumuna
+  dondugu `git diff` ile teyit edildi. Ayrinti: `docs/ops/MONITORING_STACK_RUNBOOK.md`
+  "Pilot Promotion Policy", "Decision matrix and escalation path", "How
+  to revert promoted flags safely".
 
 ## Onay Gerektiren Aksiyonlar (Faz 4+ ile aktif olacak)
 

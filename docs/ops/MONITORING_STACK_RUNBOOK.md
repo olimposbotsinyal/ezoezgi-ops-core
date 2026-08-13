@@ -735,15 +735,98 @@ sağlanmalıdır:
 4. **Geri alma planı belgelenmiş olmalı** — terfi sonrası bir sorun
    çıkarsa, flag'i TEKRAR `0`'a çekmenin (veya kod satırını geri
    almanın) YOLU AÇIKÇA yazılmalı.
-5. **Özel olarak `GOV_EMERGENCY_LEGITIMACY_REQUIRED`** için: `enforced`
-   moda geçiş, `check_apply_eligibility`'ye YENİ bir kontrol EKLEMEYİ
-   gerektirir (şu an HİÇBİR yerde okunmuyor) — bu, kendi başına AYRI
-   bir görev/commit olarak ele alınmalı, bu belgedeki flag'in
-   `1` yapılması TEK BAŞINA yeterli DEĞİLDİR.
+5. **Özel olarak `GOV_EMERGENCY_LEGITIMACY_REQUIRED`** için: **GÜNCELLENDİ —
+   bu artık uygulandı** (bkz. aşağıdaki "Pilot Promotion Policy").
+   `check_apply_eligibility`, `legitimacy_enforcement_active`/`legitimacy_report`
+   parametrelerini kabul eder — ama bunlar YALNIZCA `apply_threshold_proposal.ps1`
+   tarafından, `emergency_legitimacy_required`'ın GERÇEKTEN PROMOTE
+   edildiği (bkz. `pilot_flags_state.json`) VE `GOV_EMERGENCY_LEGITIMACY_REQUIRED=1`
+   olduğu durumda True/gerçek rapor ile doldurulur — flag'in tek
+   başına `1` yapılması hâlâ YETERLİ DEĞİLDİR.
 
 Bu kriterler karşılanana kadar TÜM v1.2 özellikleri **KEEP PILOT**
 durumunda kalır (bkz. `reports/v1_2_pilot_<UTC>/pilot_summary.md`
 öneri alanı).
+
+## Pilot Promotion Policy
+
+v1.2 pilot özelliklerinin (chain-matching, auto-rollback, legitimacy)
+**PILOT → ENFORCED** geçişi artık tamamen **olay-tabanlı, ölçülebilir,
+denetlenebilir** bir kapıdan geçer — kimse "bence artık hazır" diyerek
+bir flag'i elle açamaz.
+
+**Bileşenler:**
+
+| Bileşen | Dosya | Rolü |
+|---|---|---|
+| Kriter manifestosu (policy-as-data) | `infra/monitoring/governance/pilot_promotion_criteria_v1.json` | Her özellik için `observation_min_days`, `min_runs`, `max_false_positive_rate`, `max_unresolved_critical`, `required_evidence_paths`, `blocker_conditions` tanımlar |
+| Değerlendirici | `scripts/ops/evaluate_pilot_promotion.py` | GERÇEK kanıt dosyalarını tarar, her özellik için `PROMOTE`/`EXTEND_PILOT`/`REJECT` kararı üretir (`reports/pilot_promotion_<UTC>/promotion_report.md`+`.json`) |
+| Kalıcı terfi durumu | `infra/monitoring/governance/pilot_flags_state.json` | Hangi özelliklerin GERÇEKTEN terfi ettiğinin TEK doğruluk kaynağı (source of truth) — normal `git add` ile izlenir |
+| Uygulama aracı | `scripts/ops/promote_pilot_flags.ps1` | `promotion_report.json`'daki `PROMOTE` kararlarını `pilot_flags_state.json`'a YAZAR (VARSAYILAN dry-run) |
+| Geri alma aracı | `scripts/ops/rollback_pilot_flags.ps1` | Bir terfiyi `flag_apply_report.json`'daki `previous_state`'e BİREBİR geri döndürür |
+
+**Kritik tasarım ilkesi — çift kapı (double-gate):** `GOV_EMERGENCY_LEGITIMACY_REQUIRED=1`
+ortam değişkenini elle ayarlamak TEK BAŞINA HİÇBİR ŞEYİ engellemez.
+Zorlayıcı (blocking) davranış YALNIZCA hem (a) bu ortam değişkeni `1`
+HEM DE (b) `pilot_flags_state.json`'da `emergency_legitimacy_required.promoted == true`
+olduğunda etkinleşir (bkz. `pilot_promotion_core.py::is_legitimacy_enforcement_active`).
+Bu, bir operatörün yanlışlıkla (veya kötü niyetle) tek bir ortam
+değişkeniyle üretim davranışını değiştirememesini GARANTİ eder — gerçek
+bir terfi kaydı (audit + `pilot_flags_state.json` güncellemesi)
+ZORUNLUDUR.
+
+**Blocker koşulları KOŞULSUZDUR:** Herhangi bir `blocker_condition`
+tetiklenirse (ör. `provider_is_stub_only` — legitimacy kontrolü hiç
+GERÇEK bir sağlayıcıyla test edilmemişse), sonuç sayısal kriterlerden
+BAĞIMSIZ olarak **REJECT**'tir. Hiçbir "yeterli çalışma sayısı" veya
+"yeterli gözlem süresi" bunu geri alamaz.
+
+## Decision matrix and escalation path
+
+| Değerlendirici kararı | Anlamı | Sonraki adım |
+|---|---|---|
+| `PROMOTE` | TÜM ölçülebilir kriterler karşılandı, hiçbir blocker tetiklenmedi | `promote_pilot_flags.ps1 -Apply` ile UYGULANABİLİR |
+| `EXTEND_PILOT` | En az bir kriter henüz karşılanmadı (yetersiz çalıştırma/gözlem penceresi/eksik false-positive verisi/vb.) | Pilot DEVAM EDER, `promote_pilot_flags.ps1` bu özelliğe DOKUNMAZ |
+| `REJECT` | Bir `blocker_condition` tetiklendi | `promote_pilot_flags.ps1` bu özelliğe ASLA dokunmaz — kök nedeni (`promotion_report.md`'deki gerekçe) ELLE çözün, sonra yeniden değerlendirin |
+
+**`evaluate_pilot_promotion.py` çıkış kodları:** `0` (tüm özellikler
+PROMOTE), `1` (en az biri EXTEND_PILOT, hiçbiri REJECT değil — normal/
+beklenen erken-pilot durumu), `2` (herhangi biri REJECT — bir CI/cron
+bağlamında bu, insan dikkatine escalate edilmelidir).
+
+**Eskalasyon:** Bir `REJECT` görüldüğünde, `docs/BACKLOG.md`'ye bir not
+düşün (hangi blocker, ne zaman, kim inceledi) — REJECT kararını
+"yoksaymak" veya kriterleri gevşeterek REJECT'i dolanmak (bkz.
+`infra/monitoring/governance/pilot_promotion_criteria_v1.json`'daki
+"guncelleme_proseduru") KESİNLİKLE aynı commit'te açık bir gerekçe
+gerektirir.
+
+## How to revert promoted flags safely
+
+1. **Hangi apply'ı geri alacağınızı bulun:** `reports/pilot_promotion_<UTC>/flag_apply_report.json`
+   (o TERFİ ANINDA üretilen rapor — `promote_pilot_flags.ps1 -Apply`'ın
+   çıktısındaki `evidence_dir` alanına bakın).
+2. **Önce dry-run:** `pwsh scripts/ops/rollback_pilot_flags.ps1 -FlagApplyReportPath <flag_apply_report.json>`
+   — mevcut durumu VE geri yüklenecek (önceki) durumu YAN YANA gösterir,
+   hiçbir şeyi DEĞİŞTİRMEZ.
+3. **Sonra gerçek geri alma:** AYNI komuta `-Apply` ekleyin —
+   `pilot_flags_state.json`'ı o apply'dan HEMEN ÖNCEKİ haline BİREBİR
+   döndürür, `data/audit/audit.log.jsonl`'e `task=pilot_flag_rollback`
+   kaydı ekler, `reports/pilot_flag_rollback_<UTC>/rollback_report.md`+`.json`
+   yazar.
+4. **Birden fazla terfiyi geri almanız gerekiyorsa**, EN SON yapılan
+   terfiden başlayarak (LIFO — son giren ilk çıkar) TEK TEK geri alın
+   — her `flag_apply_report.json` yalnızca KENDİ apply'ının değiştirdiği
+   özellik(ler)in `previous_state`'ini bilir.
+5. **Doğrulayın:** `cat infra/monitoring/governance/pilot_flags_state.json`
+   ile beklenen duruma döndüğünü teyit edin; `git diff` ile de
+   kontrol edilebilir (bu dosya normal `git add` ile izlenir).
+6. **`GOV_EMERGENCY_LEGITIMACY_REQUIRED` promote edilmişken geri
+   alınırsa:** çift-kapı tasarımı sayesinde, rollback SONRASI ortam
+   değişkeni hâlâ `1` olsa bile zorlayıcı davranış OTOMATİK olarak
+   devre dışı kalır (`is_feature_promoted` artık `False` döner) — EK
+   bir "env var'ı da kapat" adımı GEREKMEZ, ama netlik için yine de
+   kapatılması ÖNERİLİR.
 
 ## Kalıcı (persistent) izleme profili
 

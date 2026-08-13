@@ -19,6 +19,7 @@ from threshold_governance_core import (
     build_proposal,
     build_review_record,
     check_apply_eligibility,
+    check_legitimacy_requirement,
     compute_checksum,
     validate_against_schema,
     validate_emergency_fields,
@@ -455,3 +456,110 @@ def test_build_review_record_legitimacy_report_path_does_not_affect_eligibility(
     result_without = check_apply_eligibility(proposal, review_without, schema)
     result_with = check_apply_eligibility(proposal, review_with, schema)
     assert result_without.eligible == result_with.eligible is True
+
+
+# --- v1.2->v1.3 terfi kapisi: check_legitimacy_requirement + enforcement ---------
+
+
+def test_check_legitimacy_requirement_returns_empty_when_not_enforced():
+    """Gorev kisiti: varsayilan olarak (enforcement_active=False)
+    HICBIR zaman engellenmez -- legitimacy_report_path eksik/None olsa
+    bile."""
+    errors = check_legitimacy_requirement({}, enforcement_active=False, legitimacy_report=None)
+    assert errors == []
+
+
+def test_check_legitimacy_requirement_blocks_when_path_missing():
+    errors = check_legitimacy_requirement({}, enforcement_active=True, legitimacy_report=None)
+    assert len(errors) == 1
+    assert "legitimacy_report_path" in errors[0]
+    assert "YOK" in errors[0]
+
+
+def test_check_legitimacy_requirement_blocks_when_report_unreadable():
+    review = {"legitimacy_report_path": "reports/x/legitimacy_report.json"}
+    errors = check_legitimacy_requirement(review, enforcement_active=True, legitimacy_report=None)
+    assert len(errors) == 1
+    assert "OKUNAMADI" in errors[0]
+
+
+def test_check_legitimacy_requirement_blocks_when_status_fail_with_reason():
+    review = {"legitimacy_report_path": "reports/x/legitimacy_report.json"}
+    report = {"legitimacy_status": "FAIL", "reasons": ["ticket format gecersiz"]}
+    errors = check_legitimacy_requirement(review, enforcement_active=True, legitimacy_report=report)
+    assert len(errors) == 1
+    assert "ticket format gecersiz" in errors[0]
+    assert "PASS DEGIL" in errors[0]
+
+
+def test_check_legitimacy_requirement_blocks_when_status_skipped():
+    review = {"legitimacy_report_path": "reports/x/legitimacy_report.json"}
+    report = {"legitimacy_status": "SKIPPED", "reasons": ["incident_id saglanmadi"]}
+    errors = check_legitimacy_requirement(review, enforcement_active=True, legitimacy_report=report)
+    assert len(errors) == 1
+
+
+def test_check_legitimacy_requirement_passes_when_status_pass():
+    review = {"legitimacy_report_path": "reports/x/legitimacy_report.json"}
+    report = {"legitimacy_status": "PASS", "reasons": ["ticket format gecerli"]}
+    errors = check_legitimacy_requirement(review, enforcement_active=True, legitimacy_report=report)
+    assert errors == []
+
+
+def test_check_apply_eligibility_defaults_to_no_legitimacy_enforcement(schema):
+    """Gorev kisiti: eski cagiranlar (Commit S-X) DEGISIKLIKSIZ calisir --
+    legitimacy_enforcement_active/legitimacy_report parametreleri hic
+    verilmezse enforcement HICBIR ZAMAN aktif olmaz."""
+    proposal = _sample_proposal()
+    review = build_review_record(reviewer="alice", decision=DECISION_APPROVE, rationale="x", proposal=proposal)
+    result = check_apply_eligibility(proposal, review, schema)
+    assert result.eligible is True
+
+
+def test_check_apply_eligibility_blocks_when_enforcement_active_and_no_report(schema):
+    proposal = _sample_proposal()
+    review = build_review_record(reviewer="alice", decision=DECISION_APPROVE, rationale="x", proposal=proposal)
+    result = check_apply_eligibility(
+        proposal, review, schema, legitimacy_enforcement_active=True, legitimacy_report=None
+    )
+    assert result.eligible is False
+    assert any("legitimacy_report_path" in r for r in result.reasons)
+
+
+def test_check_apply_eligibility_blocks_when_enforcement_active_and_report_fails(schema):
+    proposal = _sample_proposal()
+    review = build_review_record(
+        reviewer="alice", decision=DECISION_APPROVE, rationale="x", proposal=proposal,
+        legitimacy_report_path="reports/x/legitimacy_report.json",
+    )
+    result = check_apply_eligibility(
+        proposal, review, schema, legitimacy_enforcement_active=True,
+        legitimacy_report={"legitimacy_status": "FAIL", "reasons": ["gecersiz"]},
+    )
+    assert result.eligible is False
+
+
+def test_check_apply_eligibility_passes_when_enforcement_active_and_report_passes(schema):
+    proposal = _sample_proposal()
+    review = build_review_record(
+        reviewer="alice", decision=DECISION_APPROVE, rationale="x", proposal=proposal,
+        legitimacy_report_path="reports/x/legitimacy_report.json",
+    )
+    result = check_apply_eligibility(
+        proposal, review, schema, legitimacy_enforcement_active=True,
+        legitimacy_report={"legitimacy_status": "PASS", "reasons": []},
+    )
+    assert result.eligible is True
+
+
+def test_check_apply_eligibility_legitimacy_failure_combines_with_other_reasons(schema):
+    """Legitimacy engeli, DIGER uygunluk kontrolleriyle (ornegin
+    checksum tahrifati) AYNI ANDA raporlanabilmelidir -- ilkinde
+    DURMAZ."""
+    proposal = _sample_proposal()
+    review = build_review_record(reviewer="alice", decision=DECISION_REJECT, rationale="x", proposal=proposal)
+    result = check_apply_eligibility(
+        proposal, review, schema, legitimacy_enforcement_active=True, legitimacy_report=None
+    )
+    assert result.eligible is False
+    assert len(result.reasons) >= 2  # hem "REJECT karari" hem "legitimacy_report_path yok"

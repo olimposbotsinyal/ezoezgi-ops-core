@@ -230,14 +230,69 @@ class ApplyEligibility:
     reasons: list[str] = field(default_factory=list)
 
 
+def check_legitimacy_requirement(
+    review_record: dict[str, Any],
+    *,
+    enforcement_active: bool,
+    legitimacy_report: dict[str, Any] | None,
+) -> list[str]:
+    """v1.2 -> v1.3 "promotion" gecisi: `emergency_legitimacy_required`
+    ozelligi GERCEKTEN PROMOTE edilmedikce (bkz. `pilot_promotion_core.py::is_legitimacy_enforcement_active`
+    -- HEM `GOV_EMERGENCY_LEGITIMACY_REQUIRED=1` HEM DE kalici terfi
+    kaydi GEREKIR) bu fonksiyon HER ZAMAN bos liste doner (non-blocking,
+    gorev v1.2 kisiti). `enforcement_active=True` cagirana AIT bir
+    karardir -- bu fonksiyonun KENDISI hicbir ortam degiskenini/durum
+    dosyasini OKUMAZ (saf kalir), yalnizca ONCEDEN hesaplanmis
+    `legitimacy_report` (veya `None`) ile karsilastirir.
+
+    Doner: hata nedenleri listesi (bos = mesruiyet kontrolu GECTI veya
+    zorlayici DEGIL). `legitimacy_report=None` -- rapor hic OKUNAMADI/
+    BULUNAMADI -- ile `legitimacy_report={"legitimacy_status": "FAIL", ...}`
+    -- rapor bulundu ama BASARISIZ -- AYRI, ACIK nedenlerle raporlanir
+    (gorev kisiti: "explicit error message when blocked: missing/failed
+    legitimacy report with reason")."""
+    if not enforcement_active:
+        return []
+
+    report_path = review_record.get("legitimacy_report_path")
+    if not report_path:
+        return [
+            "GOV_EMERGENCY_LEGITIMACY_REQUIRED aktif (emergency_legitimacy_required PROMOTE edilmis) ama "
+            "review_record'da 'legitimacy_report_path' YOK -- once scripts/ops/check_emergency_legitimacy.py "
+            "calistirip sonucu --legitimacy-report-path ile review_record'a ekleyin"
+        ]
+    if legitimacy_report is None:
+        return [f"legitimacy raporu OKUNAMADI/BULUNAMADI: {report_path}"]
+
+    status = legitimacy_report.get("legitimacy_status")
+    if status != "PASS":
+        report_reasons = legitimacy_report.get("reasons", [])
+        return [
+            f"legitimacy kontrolu PASS DEGIL (legitimacy_status={status!r}, rapor={report_path}): "
+            f"{'; '.join(report_reasons) if report_reasons else 'neden belirtilmemis'}"
+        ]
+    return []
+
+
 def check_apply_eligibility(
-    proposal: dict[str, Any], review_record: dict[str, Any], schema: dict[str, Any]
+    proposal: dict[str, Any],
+    review_record: dict[str, Any],
+    schema: dict[str, Any],
+    *,
+    legitimacy_enforcement_active: bool = False,
+    legitimacy_report: dict[str, Any] | None = None,
 ) -> ApplyEligibility:
     """Uygulamadan (apply) ONCE cagirilmasi ZORUNLU olan tum kontroller
     -- gorev kisitinin ("no auto-apply without explicit approval
     artifact") yapisal karsiligi. Herhangi bir kontrol basarisiz olursa
     `eligible=False` + tum nedenler doner (ilk basarisizlikta DURMAZ --
-    inceleyen kisiye TUM sorunlari BIRDEN gosterir)."""
+    inceleyen kisiye TUM sorunlari BIRDEN gosterir).
+
+    `legitimacy_enforcement_active`/`legitimacy_report`: GERIYE UYUMLU
+    varsayilanlarla (False/None) -- eski cagiranlar/testler (Commit S-X)
+    DEGISIKLIKSIZ calismaya devam eder. YALNIZCA `emergency_legitimacy_required`
+    GERCEKTEN PROMOTE edildiginde CAGIRAN taraf (apply_threshold_proposal.ps1)
+    bunlari True/gercek rapor ile GECER (bkz. check_legitimacy_requirement)."""
     reasons: list[str] = []
 
     schema_errors = validate_against_schema(proposal, schema)
@@ -265,5 +320,11 @@ def check_apply_eligibility(
                 f"proposal'in GERCEK (yeniden hesaplanmis) checksum'i={recomputed!r} -- proposal "
                 "review'dan SONRA degismis/tahrif edilmis olabilir"
             )
+
+    reasons.extend(
+        check_legitimacy_requirement(
+            review_record, enforcement_active=legitimacy_enforcement_active, legitimacy_report=legitimacy_report
+        )
+    )
 
     return ApplyEligibility(eligible=not reasons, reasons=reasons)
