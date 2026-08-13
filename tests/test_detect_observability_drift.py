@@ -24,7 +24,7 @@ from detect_observability_drift import (
     run_drift_detection,
 )
 from model_gateway.metrics_sink import JsonlAppendSink, MetricEvent
-from observability_drift_core import SEVERITY_CRITICAL, overall_drift_exit_code
+from observability_drift_core import CATEGORY_ALERT_RULES, SEVERITY_CRITICAL, SEVERITY_NONE, overall_drift_exit_code
 
 
 def test_load_baseline_manifest_parses_valid_json(tmp_path):
@@ -172,3 +172,44 @@ def test_run_drift_detection_tampered_alerts_file_is_critical(tmp_path):
     )
     assert overall_drift_exit_code(findings) == 2
     assert any(f.severity == SEVERITY_CRITICAL and f.category == "alert_rules" for f in findings)
+
+
+def test_run_drift_detection_recognizes_approved_change_via_ledger(tmp_path):
+    """Degisiklik `apply_threshold_proposal.ps1 -Apply` ile GERCEKTEN
+    onaylanip uygulanmis ve `approved_checksums_ledger.jsonl`'e
+    kaydedilmisse -- baseline'dan sapmis olsa bile CRITICAL DEGIL
+    (bkz. threshold_apply_core.build_ledger_entry ile ayni sekil)."""
+    tampered_alerts = tmp_path / "tampered.yaml"
+    real_alerts = (REPO_ROOT_DEFAULT / DEFAULT_ALERTS_PATH).read_text(encoding="utf-8")
+    tampered_alerts.write_text(real_alerts + "\n# onayli degisiklik\n", encoding="utf-8")
+    tampered_checksum = compute_file_sha256(tampered_alerts)
+
+    ledger_path = tmp_path / "approved_checksums_ledger.jsonl"
+    ledger_path.write_text(
+        json.dumps(
+            {
+                "timestamp": "2026-08-13T00:00:00+00:00",
+                "proposal_id": "HIGH_NULL_INTENT_RATE-20260813T000000",
+                "old_checksum": load_baseline_checksum(REPO_ROOT_DEFAULT / DEFAULT_CHECKSUM_PATH),
+                "new_checksum": tampered_checksum,
+                "apply_report_path": "reports/threshold_apply_20260813T000000Z/apply_report.json",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    empty_jsonl = tmp_path / "empty.jsonl"
+    findings, _ = run_drift_detection(
+        repo_root=REPO_ROOT_DEFAULT,
+        manifest_path=REPO_ROOT_DEFAULT / DEFAULT_MANIFEST_PATH,
+        checksum_path=REPO_ROOT_DEFAULT / DEFAULT_CHECKSUM_PATH,
+        alerts_path=tampered_alerts,
+        jsonl_path=empty_jsonl,
+        window_minutes=60,
+        ledger_path=ledger_path,
+    )
+
+    alert_finding = next(f for f in findings if f.category == CATEGORY_ALERT_RULES)
+    assert alert_finding.severity == SEVERITY_NONE
+    assert overall_drift_exit_code(findings) in (0, 1)

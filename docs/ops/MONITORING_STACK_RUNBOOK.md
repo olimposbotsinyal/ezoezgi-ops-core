@@ -459,7 +459,13 @@ bulunduğunda:
    o dosyanın "guncelleme_proseduru" notu) VE `docs/BACKLOG.md`'ye
    AÇIKÇA bir ADR/karar notu düşün.
 3. **`alert_rules` CRITICAL ise:** `infra/monitoring/prometheus/model_gateway_alerts.yaml`
-   onay dışı değişmiş demektir. `git log -p -- infra/monitoring/prometheus/model_gateway_alerts.yaml`
+   onay dışı değişmiş demektir. ÖNCE `infra/monitoring/baseline/approved_checksums_ledger.jsonl`'e
+   bakın — eğer gözlenen checksum orada `new_checksum` olarak KAYITLIYSA,
+   bu zaten `scripts/ops/apply_threshold_proposal.ps1 -Apply` ile
+   GERÇEKTEN onaylanıp uygulanmış bir eşik değişikliğidir ve drift
+   detector bunu OTOMATİK OLARAK CRITICAL'e DÜŞÜRMEZ (severity=NONE,
+   bkz. "Eşik Değişikliği SOP" bölümü) — bu durumda EK bir işlem
+   GEREKMEZ. Ledger'da YOKSA: `git log -p -- infra/monitoring/prometheus/model_gateway_alerts.yaml`
    ile SON değişikliği inceleyin — kasıtlı/incelenmiş bir değişiklikse
    `infra/monitoring/baseline/alerts_checksum_v1.txt`'i YENİDEN hesaplayıp
    güncelleyin (`sha256sum infra/monitoring/prometheus/model_gateway_alerts.yaml`);
@@ -476,6 +482,67 @@ bulunduğunda:
 6. **Her durumda:** Düzeltme/onay AYNI commit'te olmalı, "sessiz bir
    baseline düzeltme commit'i" ASLA olmamalı — değişiklik code review'da
    açıkça görülmelidir.
+
+## Eşik Değişikliği SOP (proposal → review → apply → rollback)
+
+Alert eşiklerini (`model_gateway_alerts.yaml`'deki sayısal değerler)
+DEĞİŞTİRMENİN TEK onaylı yolu bu iş akışıdır — dosyayı elle düzenlemek
+YASAKTIR (denetim izi bırakmaz, `alerts_checksum_v1.txt`/ledger ile
+senkron kalmaz).
+
+**Araçlar** (hepsi `scripts/ops/` altında):
+
+| Adım | Araç | Girdi | Çıktı |
+|---|---|---|---|
+| 1. Öneri (proposal) üret | `generate_threshold_proposals.py` | JSONL metrik verisi | `reports/threshold_proposals/<proposal_id>/proposal.json` |
+| 2. İnceleme (review) kaydet | `create_threshold_review_record.py` | proposal.json + karar (APPROVE/REJECT/NEEDS_DATA) | `reports/threshold_reviews/<proposal_id>/review_record.json` |
+| 3. Uygula (apply) | `apply_threshold_proposal.ps1` | proposal.json + review_record.json | `reports/threshold_apply_<UTC>/apply_report.md`+`.json`, gerçek dosya değişikliği (yalnızca `-Apply` ile) |
+| 4. Geri al (rollback, gerekirse) | `rollback_threshold_apply.ps1` | apply_report.json | `reports/threshold_rollback_<UTC>/rollback_report.md`+`.json`, dosya eski haline döner |
+
+**Uygunluk kuralları** (`apply_threshold_proposal.ps1`, TÜMÜ sağlanmalı,
+aksi halde exit code 2 ve HİÇBİR dosya değişmez):
+1. Proposal, `infra/monitoring/governance/threshold_proposal_schema_v1.json`
+   şemasına uygun olmalı.
+2. review_record'un `decision`'ı TAM OLARAK `APPROVE` olmalı.
+3. review_record'un `proposal_id`'si proposal ile eşleşmeli.
+4. review_record'daki `linked_proposal_checksum`, proposal'ın YENİDEN
+   HESAPLANMIŞ checksum'ıyla birebir eşleşmeli (review'dan SONRA proposal
+   değiştiyse apply REDDEDİLİR).
+
+**Varsayılan mod her zaman DRY-RUN'dır** — `apply_threshold_proposal.ps1`
+`-Apply` olmadan hiçbir dosyayı değiştirmez, yalnızca uygunluğu kontrol
+edip NE değişeceğini raporlar. Gerçek uygulama:
+- Hedef dosyanın bir YEDEĞİNİ alır (`reports/threshold_apply_<UTC>/backups/`).
+- YALNIZCA ilgili sayısal eşiği hedefli bir regex ile değiştirir (tam
+  YAML yeniden-serileştirme YAPILMAZ — dosyadaki açıklamalar korunur).
+- `infra/monitoring/baseline/approved_checksums_ledger.jsonl`'e bir
+  girdi ekler (drift detector'ın "onaylı değişiklik" istisnası bunu okur).
+- `data/audit/audit.log.jsonl`'e gerçek bir denetim kaydı ekler
+  (`task=THRESHOLD_CHANGE_APPLY`, `status=APPLIED`).
+
+**RACI:**
+
+| Rol | Kim | Sorumluluk |
+|---|---|---|
+| Proposer (Önerir) | On-call mühendis / kalibrasyon çalıştıran kişi | `generate_threshold_proposals.py` çalıştırır, öneriyi paylaşır |
+| Reviewer (İnceler/Onaylar) | On-call mühendisten FARKLI bir kişi (ikinci göz) | Öneriyi + kanıtı (`evidence_paths`) inceler, `create_threshold_review_record.py` ile APPROVE/REJECT/NEEDS_DATA kararını kaydeder |
+| Applier (Uygular) | Reviewer VEYA Proposer (ikisinden biri, ama Reviewer'ın kendi APPROVE'unu kendisi uygulaması TERCİH EDİLİR) | `apply_threshold_proposal.ps1 -Apply` çalıştırır, sonucu doğrular |
+| Accountable (Hesap verebilir) | Model Gateway sahibi/on-call lead | Ledger + audit log'un tutarlılığından, acil durum değişikliklerinin RETROAKTİF incelendiğinden sorumlu |
+
+**Acil durum değişiklik yolu (time-boxed, zorunlu retroaktif inceleme):**
+Bir alert gerçek bir olayda gürültü yapıyorsa VE normal review turu
+(saatler) beklenemeyecek kadar acilse:
+1. On-call mühendis, review_record'u KENDİSİ oluşturabilir
+   (`--reviewer` alanına kendi adını + `"AJANDA: ACİL"` ön ekiyle
+   `--rationale` yazar) ve HEMEN `-Apply` ile uygular.
+2. Bu, NORMAL onay akışını BYPASS ETMEZ — review_record ZORUNLUDUR,
+   yalnızca "farklı bir kişi onaylasın" kısıtı GEÇİCİ olarak esnetilir.
+3. **48 SAAT İÇİNDE** ikinci bir mühendis, uygulanan değişikliği
+   RETROAKTİF olarak inceler (audit log + apply_report.json'a bakarak)
+   ve `docs/BACKLOG.md`'ye bir not düşer: onaylandı (kalıcı) veya geri
+   alındı (`rollback_threshold_apply.ps1 -Apply`).
+4. Bu yol, `docs/ops/ALERT_PLAYBOOK_MODEL_GATEWAY.md`'deki ilgili alert
+   playbook'unda AYRICA belgelenir.
 
 ## Kalıcı (persistent) izleme profili
 

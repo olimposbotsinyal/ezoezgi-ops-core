@@ -8,6 +8,7 @@ from __future__ import annotations
 import pytest
 
 from observability_drift_core import (
+    CATEGORY_ALERT_RULES,
     EXIT_CRITICAL,
     EXIT_NO_DRIFT,
     EXIT_NON_CRITICAL,
@@ -129,6 +130,41 @@ def test_alert_checksum_mismatch_is_critical():
 
 def test_alert_checksum_comparison_is_case_and_whitespace_insensitive():
     finding = check_alert_rules_checksum_drift("ABC123\n", " abc123 ")
+    assert finding.severity == SEVERITY_NONE
+
+
+# --- Onayli-degisiklik istisnasi (approved_checksums_ledger.jsonl entegrasyonu) --
+
+
+def test_alert_checksum_mismatch_with_matching_approved_checksum_is_none_severity():
+    """`apply_threshold_proposal.ps1 -Apply` ile GERCEKTEN onaylanip
+    uygulanmis bir degisiklik -- ledger'da kayitli -- CRITICAL DEGIL,
+    bilgilendirici (NONE) olmali."""
+    finding = check_alert_rules_checksum_drift("newhash123", "oldhash456", approved_checksums=["newhash123"])
+    assert finding.severity == SEVERITY_NONE
+    assert finding.category == CATEGORY_ALERT_RULES
+
+
+def test_alert_checksum_mismatch_without_matching_approved_checksum_is_still_critical():
+    """Ledger var ama gozlenen checksum ORADA DA yok -- gercekten
+    onaysiz bir degisiklik -- CRITICAL kalmali."""
+    finding = check_alert_rules_checksum_drift(
+        "unexpectedhash789", "oldhash456", approved_checksums=["someotherhash"]
+    )
+    assert finding.severity == SEVERITY_CRITICAL
+
+
+def test_alert_checksum_backward_compatible_when_approved_checksums_omitted():
+    """Yeni parametre GERIYE UYUMLU -- eski (2-pozisyonel-argumanli)
+    cagiranlar (mevcut testler/CLI) DAVRANIS DEGISIKLIGI YASAMAMALI."""
+    finding = check_alert_rules_checksum_drift("abc123", "def456")
+    assert finding.severity == SEVERITY_CRITICAL
+
+
+def test_alert_checksum_approved_list_comparison_is_case_and_whitespace_insensitive():
+    finding = check_alert_rules_checksum_drift(
+        "NewHash123\n", "oldhash456", approved_checksums=[" NEWHASH123 "]
+    )
     assert finding.severity == SEVERITY_NONE
 
 

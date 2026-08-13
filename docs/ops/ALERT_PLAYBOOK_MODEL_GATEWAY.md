@@ -239,45 +239,56 @@ gözden geçirme ritüelinin** (bkz. `docs/ops/MONITORING_STACK_RUNBOOK.md`
 
 ## Eşik güncellemelerini nasıl onaylarım (approval SOP)
 
-**Politika koruması (yapısal, yalnızca belgesel değil):**
-`calibrate_alert_thresholds.py`'de config'i/ortam değişkenini
-OTOMATİK OLARAK değiştiren HİÇBİR kod yolu YOKTUR — script yalnızca bir
-`proposed_threshold_patch.yaml` **ÖNERİ dosyası** üretir
-(`policy: NEVER_AUTO_APPLY`, `status: PROPOSAL_ONLY_NOT_APPLIED`). Bir
-eşik güncellemesini UYGULAMAK her zaman aşağıdaki ELLE, insan onaylı
-adımlardır:
+**Politika koruması (yapısal, yalnızca belgesel değil):** Ne
+`calibrate_alert_thresholds.py`'de ne de `generate_threshold_proposals.py`'de
+config'i/dosyayı OTOMATİK OLARAK değiştiren HİÇBİR kod yolu YOKTUR —
+her ikisi de yalnızca birer **ÖNERİ** üretir. Bir eşiği GERÇEKTEN
+uygulamanın TEK onaylı yolu, `scripts/ops/apply_threshold_proposal.ps1`'in
+**dört zorunlu uygunluk kuralını** (şema geçerli + review=APPROVE +
+proposal_id eşleşiyor + checksum eşleşiyor) sağladığı, insan onaylı bir
+proposal → review → apply zinciridir (tam RACI + acil durum yolu için
+bkz. `docs/ops/MONITORING_STACK_RUNBOOK.md` "Eşik Değişikliği SOP").
 
-1. **Çalıştırın:** `python scripts/ops/calibrate_alert_thresholds.py`
-   — `reports/alert_calibration_<UTC>/` altında üç dosya üretir:
-   `calibration_v1.md` (insan-okur özet + gerekçe + yanlış-pozitif
-   riski + değişiklik-etkisi notu), `calibration_v1.json` (ham veri),
-   `proposed_threshold_patch.yaml` (uygulanabilir öneri).
-2. **İnceleyin:** `calibration_v1.md`'deki her alert için:
-   - **Güven skoru HIGH mı?** (birden fazla pencerede yeterli VE
-     tutarlı veri) — değilse (LOW/MEDIUM), uygulamadan önce EK bir
-     gözlem penceresi (bir sonraki haftalık çalıştırma) bekleyin.
-   - **Örnek boyutu yeterliliği** "YETERLİ" mi, yoksa "SINIRDA" mı?
-   - **Değişiklik-etkisi notu**'nu okuyun — eşik gevşetiliyor mu
-     (daha az alarm) yoksa sıkılaştırılıyor mu (daha fazla alarm)?
-   - **Yanlış-pozitif riski** notunu okuyun.
-3. **Onaylayın:** Yukarıdaki 4 kriterin hepsi tatmin ediciyse
-   (özellikle güven=HIGH), `proposed_threshold_patch.yaml`'daki
-   `env_vars` değerlerini KENDİNİZ, ELLE uygulayın — `config/model_gateway.yaml`'a
-   ekleyin VEYA gerçek ortam değişkeni olarak ayarlayın. Onaylayan kişi
-   bu adımı GERÇEKLEŞTİREN kişi olmalıdır (bir script'in "otomatik
-   uygulama" yapması ASLA beklenmez/desteklenmez).
-4. **Kaydedin:** `docs/BACKLOG.md`'ye uygulanan değişikliği (eski
-   değer → yeni değer, gerekçe, hangi `calibration_v1.json` çalıştırmasına
-   dayandığı) not düşün.
-5. **Doğrulayın:** Bir sonraki haftalık gözden geçirmede (`weekly_observability_review.ps1`),
+1. **Öneri üretin:** `python scripts/ops/generate_threshold_proposals.py`
+   — gerçek JSONL metrik verisinden (`calibrate_alert_thresholds.py`'nin
+   24h/7d/14d kalibrasyon mantığını sarmalar) `reports/threshold_proposals/<proposal_id>/proposal.json`
+   üretir. Yalnızca güven=CALIBRATED VE mevcut değerden GERÇEKTEN farklı
+   öneriler için proposal üretilir.
+2. **İnceleyin:** `proposal.json`'daki her alan için:
+   - **`confidence` HIGH mı?** — değilse (LOW/MEDIUM), uygulamadan önce
+     EK bir gözlem penceresi (bir sonraki haftalık çalıştırma) bekleyin.
+   - **`sample_adequacy`** "YETERLİ" mi, yoksa "SINIRDA" mı?
+   - **`risk_note`**'u okuyun — yanlış-pozitif riski + değişiklik-etkisi
+     bir arada.
+   - **`evidence_paths`**'teki kalibrasyon çıktısına bakarak eşiğin
+     gevşetildiğini mi sıkılaştırıldığını mı doğrulayın.
+3. **Onaylayın (review_record oluşturun):** Yukarıdaki kriterler
+   tatmin ediciyse, `python scripts/ops/create_threshold_review_record.py
+   --proposal-path <proposal.json> --reviewer <adınız> --decision APPROVE
+   --rationale "<gerekçe>"` çalıştırın — `reports/threshold_reviews/<proposal_id>/review_record.json`
+   üretir. Onaylayan, öneriyi üretenden FARKLI bir kişi olmalıdır (ikinci
+   göz ilkesi — bkz. RACI tablosu).
+4. **Önce dry-run, sonra gerçek uygulama:** `pwsh scripts/ops/apply_threshold_proposal.ps1
+   -ProposalPath <proposal.json> -ReviewRecordPath <review_record.json>`
+   (VARSAYILAN: dry-run, hiçbir dosya değişmez) — çıktıyı kontrol edin,
+   ardından AYNI komutu `-Apply` ekleyerek tekrar çalıştırın. Başarılı
+   bir apply: dosyayı yamalar, yedek alır, `approved_checksums_ledger.jsonl`'e
+   kaydeder (drift detector artık bunu CRITICAL SAYMAZ), gerçek bir
+   denetim kaydı (`data/audit/audit.log.jsonl`) ekler.
+5. **Kaydedin:** `docs/BACKLOG.md`'ye uygulanan değişikliği (eski
+   değer → yeni değer, gerekçe, `proposal_id`) not düşün.
+6. **Doğrulayın:** Bir sonraki haftalık gözden geçirmede (`weekly_observability_review.ps1`),
    yeni eşiğin beklenen davranışı (daha az/çok alarm) gösterip
-   göstermediğini kontrol edin — beklenmedik bir sonuç varsa geri alın.
+   göstermediğini kontrol edin — beklenmedik bir sonuç varsa
+   `rollback_threshold_apply.ps1 -ApplyReportPath <apply_report.json> -Apply`
+   ile geri alın.
 
-**Reddetme kriterleri (uygulamayın):** güven LOW ise; örnek boyutu
-"YETERSİZ" ise; önerilen değer mevcut değerin ÇOK altındaysa (aşırı
-hassas eşik riski — script zaten bunu `max(gözlenen*çarpan, mevcut)`
-ile önler, ama yine de gözden geçirin); yakın zamanda (son 48 saat)
-büyük bir trafik-deseni değişikliği (ör. yeni bir entegrasyon,
+**Reddetme kriterleri (REJECT/NEEDS_DATA verin, apply hiçbir zaman
+çalışmaz çünkü decision≠APPROVE ile engellenir):** güven LOW ise; örnek
+boyutu "YETERSİZ" ise; önerilen değer mevcut değerin ÇOK altındaysa
+(aşırı hassas eşik riski — script zaten bunu `max(gözlenen*çarpan,
+mevcut)` ile önler, ama yine de gözden geçirin); yakın zamanda (son 48
+saat) büyük bir trafik-deseni değişikliği (ör. yeni bir entegrasyon,
 sağlayıcı değişikliği) olduysa.
 
 ## Bilinen sınırlamalar

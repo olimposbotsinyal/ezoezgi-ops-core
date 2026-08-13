@@ -33,6 +33,7 @@ REPO_ROOT_DEFAULT = Path("d:/Projects/ezoezgi-ops")
 DEFAULT_MANIFEST_PATH = "infra/monitoring/baseline/metrics_manifest_v1.json"
 DEFAULT_CHECKSUM_PATH = "infra/monitoring/baseline/alerts_checksum_v1.txt"
 DEFAULT_ALERTS_PATH = "infra/monitoring/prometheus/model_gateway_alerts.yaml"
+DEFAULT_LEDGER_PATH = "infra/monitoring/baseline/approved_checksums_ledger.jsonl"
 
 
 def load_baseline_manifest(path: Path) -> dict[str, Any]:
@@ -112,6 +113,7 @@ def run_drift_detection(
     alerts_path: Path,
     jsonl_path: Path,
     window_minutes: int,
+    ledger_path: Path | None = None,
 ) -> tuple[list, str]:
     from observability_drift_core import (
         check_alert_rules_checksum_drift,
@@ -119,6 +121,7 @@ def run_drift_detection(
         check_strict_flag_drift,
         compare_metrics_schema,
     )
+    from threshold_apply_core import load_approved_checksums
 
     baseline = load_baseline_manifest(manifest_path)
     baseline_checksum = load_baseline_checksum(checksum_path)
@@ -129,7 +132,14 @@ def run_drift_detection(
     findings.extend(compare_metrics_schema(observed_schema, baseline))
 
     observed_checksum = compute_file_sha256(alerts_path)
-    findings.append(check_alert_rules_checksum_drift(observed_checksum, baseline_checksum))
+    # `ledger_path=None` (varsayilan) -- ONAYLI DEGISIKLIK YOK sayilir, eski
+    # (Commit R) davranisiyla BIREBIR ayni: baseline'dan HERHANGI bir sapma
+    # dogrudan CRITICAL'dir. Bir ledger yolu verildiginde (bkz. main()'deki
+    # varsayilan CLI davranisi), o defterde KAYITLI (yani GERCEKTEN
+    # `apply_threshold_proposal.ps1 -Apply` ile onaylanip uygulanmis) bir
+    # checksum CRITICAL'e DUSURULMEZ (bkz. check_alert_rules_checksum_drift).
+    approved_checksums = load_approved_checksums(ledger_path) if ledger_path is not None else []
+    findings.append(check_alert_rules_checksum_drift(observed_checksum, baseline_checksum, approved_checksums))
 
     config_defaults = read_config_source_defaults(repo_root)
     findings.append(check_remote_default_drift(config_defaults["remote_enabled"], baseline))
@@ -147,6 +157,7 @@ def main() -> int:
     parser.add_argument("--checksum-path", default=None)
     parser.add_argument("--alerts-path", default=None)
     parser.add_argument("--jsonl-path", default=None)
+    parser.add_argument("--ledger-path", default=None)
     parser.add_argument("--output-dir", default=None)
     args = parser.parse_args()
 
@@ -154,6 +165,7 @@ def main() -> int:
     manifest_path = Path(args.manifest_path) if args.manifest_path else repo_root / DEFAULT_MANIFEST_PATH
     checksum_path = Path(args.checksum_path) if args.checksum_path else repo_root / DEFAULT_CHECKSUM_PATH
     alerts_path = Path(args.alerts_path) if args.alerts_path else repo_root / DEFAULT_ALERTS_PATH
+    ledger_path = Path(args.ledger_path) if args.ledger_path else repo_root / DEFAULT_LEDGER_PATH
 
     if args.jsonl_path:
         jsonl_path = Path(args.jsonl_path)
@@ -172,6 +184,7 @@ def main() -> int:
         alerts_path=alerts_path,
         jsonl_path=jsonl_path,
         window_minutes=args.window_minutes,
+        ledger_path=ledger_path,
     )
 
     generated_at = datetime.now(timezone.utc).isoformat()

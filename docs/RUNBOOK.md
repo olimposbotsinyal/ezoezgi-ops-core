@@ -763,6 +763,23 @@ geçişi denetlenebilir kılar.
   `docs/ops/MONITORING_STACK_RUNBOOK.md` "Post-GO weekly ritual",
   "Drift response SOP"; `docs/ops/ALERT_PLAYBOOK_MODEL_GATEWAY.md`
   "Eşik güncellemelerini nasıl onaylarım".
+- **İnsan onaylı eşik değişikliği iş akışı (proposal → review → apply →
+  rollback):** `scripts/ops/generate_threshold_proposals.py` (JSONL
+  veriden şema-uyumlu `proposal.json` üretir) →
+  `scripts/ops/create_threshold_review_record.py` (APPROVE/REJECT/
+  NEEDS_DATA kararı + gerekçe, `linked_proposal_checksum` ile proposal'a
+  bağlanır) → `scripts/ops/apply_threshold_proposal.ps1` (VARSAYILAN
+  dry-run; `-Apply` yalnızca şema+onay+checksum eşleşirse gerçek dosya
+  değişikliği yapar — yedek + `approved_checksums_ledger.jsonl` girdisi
+  + gerçek `AuditLogger` denetim kaydı ile) →
+  `scripts/ops/rollback_threshold_apply.ps1` (VARSAYILAN dry-run;
+  `-Apply` yedekten checksum-birebir geri yükler). Drift detector,
+  ledger'da kayıtlı onaylı değişiklikleri artık CRITICAL SAYMAZ. Gerçek
+  uçtan uca doğrulandı (dry-run mutasyonsuzluğu, gerçek apply +
+  `promtool check rules` ile geçerlilik, gerçek rollback + checksum
+  eşleşmesi, REJECT/tahrif edilmiş-checksum senaryolarının engellenmesi).
+  Ayrıntı + RACI + acil durum yolu: `docs/ops/MONITORING_STACK_RUNBOOK.md`
+  "Eşik Değişikliği SOP".
 
 ## Onay Gerektiren Aksiyonlar (Faz 4+ ile aktif olacak)
 

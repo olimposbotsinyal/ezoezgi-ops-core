@@ -51,9 +51,29 @@ reports/rollback_drill_*/
 reports/gate_d_real_validation_*/
 reports/drift_*/
 
+# Esik degisikligi onay is akisi (proposal -> review -> apply -> rollback)
+# ciktilari -- ayni gerekce: her calistirmada yeniden uretilebilir kanit
+# paketleri, repoya birikmesin. GERCEK onayli bir esik degisikliginin
+# KALICI kaydi zaten `infra/monitoring/baseline/approved_checksums_ledger.jsonl`
+# (asagidaki NOT'a bkz. -- o dosya BURADA YOK, normal `git add` ile
+# izlenir) ve `data/audit/audit.log.jsonl`'de (gitignored ama append-only)
+# tutulur; bu yuzden tek bir apply/rollback raporunu ayrica commit'lemek
+# GEREKMEZ. Genuinely onemli bir vakanin kaniti gerekiyorsa `git add -f`.
+reports/threshold_proposals/
+reports/threshold_reviews/
+reports/threshold_apply_*/
+reports/threshold_rollback_*/
+
 # NOT: reports/weekly_observability_<YYYY-WW>/ KASITLI olarak burada
 # YOK -- bu, "Post-GO weekly ritual"in kalici governance gunlugudur
 # (her hafta EKLENIR, uzerine yazilmaz), diger raporlar gibi rutin/
 # tek-seferlik-atilabilir DEGILDIR. Normal `git add` ile izlenmesi
 # ONERILIR (bkz. docs/ops/MONITORING_STACK_RUNBOOK.md "Post-GO weekly
 # ritual").
+#
+# NOT: infra/monitoring/baseline/approved_checksums_ledger.jsonl da AYNI
+# gerekceyle KASITLI olarak burada YOK -- bu, GERCEKTEN onaylanip
+# uygulanmis esik degisikliklerinin KALICI, append-only defteridir
+# (drift tespitinin "onayli degisiklik" istisnasi bunu okur, bkz.
+# scripts/ops/threshold_apply_core.py::load_approved_checksums). Normal
+# `git add` ile izlenmesi ONERILIR.

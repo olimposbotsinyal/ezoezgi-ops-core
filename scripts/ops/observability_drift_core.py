@@ -141,17 +141,40 @@ def compare_metrics_schema(
 # ---------------------------------------------------------------------------
 
 
-def check_alert_rules_checksum_drift(observed_checksum: str, baseline_checksum: str) -> DriftFinding:
+def check_alert_rules_checksum_drift(
+    observed_checksum: str,
+    baseline_checksum: str,
+    approved_checksums: list[str] | None = None,
+) -> DriftFinding:
+    """`approved_checksums`: `infra/monitoring/baseline/approved_checksums_ledger.jsonl`'den
+    yuklenmis, GECMISTE `apply_threshold_proposal.ps1 -Apply` ile GERCEKTEN
+    onaylanip uygulanmis tum `new_checksum` degerleri (bkz.
+    `threshold_apply_core.load_approved_checksums`). Statik baseline'dan
+    FARKLI ama bu listede BULUNAN bir checksum, "beklenmedik" degil
+    "onayli/bilinen esik degisikligi" anlamina gelir -- CRITICAL yerine
+    NONE (bilgilendirici) doner. Parametre GERIYE UYUMLU (varsayilan
+    None) -- mevcut 2-pozisyonel-argumanli cagricilar/testler bozulmaz."""
     baseline_checksum = baseline_checksum.strip().lower()
     observed_checksum = observed_checksum.strip().lower()
+    approved = {c.strip().lower() for c in (approved_checksums or [])}
+
     if observed_checksum == baseline_checksum:
         return DriftFinding(
             CATEGORY_ALERT_RULES, SEVERITY_NONE, "Alert kurallari checksum'i onayli durumla eslesiyor"
         )
+    if observed_checksum in approved:
+        return DriftFinding(
+            CATEGORY_ALERT_RULES,
+            SEVERITY_NONE,
+            "Alert kurallari dosyasi degismis, ancak bu degisiklik ONAYLI DEGISIKLIK DEFTERINDE "
+            "(approved_checksums_ledger.jsonl) kayitli -- beklenen/onayli bir esik degisikligi",
+            evidence={"baseline_checksum": baseline_checksum, "observed_checksum": observed_checksum},
+        )
     return DriftFinding(
         CATEGORY_ALERT_RULES,
         SEVERITY_CRITICAL,
-        "Alert kurallari dosyasi ONAY DISI degismis (checksum uyusmuyor) -- inceleme gerekli",
+        "Alert kurallari dosyasi ONAY DISI degismis (checksum ne statik baseline'a ne de onayli "
+        "degisiklik defterine uyuyor) -- inceleme gerekli",
         evidence={"expected_checksum": baseline_checksum, "observed_checksum": observed_checksum},
     )
 
