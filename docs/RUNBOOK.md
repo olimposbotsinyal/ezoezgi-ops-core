@@ -534,6 +534,39 @@ olarak kalır.**
 - Sonraki aksiyon: kontrollü bir runtime stabilizasyon deney partisi
   (Post-upstream Experiment Batch #1) — bkz. aşağıdaki bölüm.
 
+### Post-upstream Experiment Batch #1 — 2026-08-13T02:33Z
+
+Kontrollü, 5 senaryolu (A-E), senaryo başına 20 çağrılık (toplam **n=100**)
+bir stabilizasyon deney partisi çalıştırıldı — amaç, önceki küçük
+örneklemli (n=5) bulguyu istatistiksel olarak daha güçlü bir örneklemle
+doğrulamak ve upstream issue #17716 için ek kanıt üretmek. Artifact klasörü:
+`reports/runtime_incident_20260813T004855Z/exp_01_post_upstream/`
+(`test_matrix.md`, `results.jsonl`, `summary.md`, `env_snapshot.txt`,
+`raw_logs/`). Script: `scripts/repro_b036_batch.ps1`.
+
+| Senaryo | Açıklama | n | crash_count | success_rate | p50 | p95 |
+|---|---|---|---|---|---|---|
+| A | Vulkan ON, baseline | 20 | 20 | %0.0 | 8.04s | 9.71s |
+| B | Vulkan OFF (CPU-only) | 20 | 0 | %100.0 | 9.58s | 14.48s |
+| C | Vulkan ON + `OLLAMA_NUM_PARALLEL=1` | 20 | 20 | %0.0 | 8.17s | 9.00s |
+| D | Vulkan ON + `num_ctx=256` | 20 | 20 | %0.0 | 8.33s | 9.22s |
+| E | Vulkan ON + her çağrı öncesi temiz restart | 20 | 20 | %0.0 | 10.88s | 13.29s |
+
+**Toplam: 100 çağrı, 80 çöküş, 20 başarı — başarıların tamamı Senaryo
+B'den (CPU-only).** A/C/D/E'de **20/20 çöküş, istisnasız** — önceki
+küçük örneklemli bulgu (5/5 çöküş) tam olarak doğrulandı; çöküş aralıklı
+değil, deterministik. Eşzamanlılığı azaltmak (C), context'i küçültmek (D)
+ve her çağrıda temiz restart yapmak (E), hiçbiri çöküşü önlemedi — yalnızca
+Vulkan cihazını tamamen devre dışı bırakmak (B) önlüyor.
+
+**B036 kararı: IN_PROGRESS (değişmedi).** Hiçbir Vulkan-etkin senaryo
+crash-free çıkmadığından `READY_FOR_RETEST`'e geçilmedi; B036 **RESOLVED
+yapılmadı**.
+
+**B031 gate:** Atlandı — neden: `blocked_by_runtime_instability` (crash-free/
+reproducible bir Vulkan-etkin senaryo bulunamadı). B031 resmi durumu
+değişmeden **BLOCKED_BY_RUNTIME** kalıyor.
+
 ## Onay Gerektiren Aksiyonlar (Faz 4+ ile aktif olacak)
 
 - Risk seviyesi `high` veya `irreversible` olan her aksiyon, kullanıcı onayı

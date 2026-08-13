@@ -1,0 +1,631 @@
+time=2026-08-13T05:18:42.547+03:00 level=INFO source=routes.go:1933 msg="server config" env="map[CUDA_VISIBLE_DEVICES: GGML_VK_VISIBLE_DEVICES: GPU_DEVICE_ORDINAL: HIP_VISIBLE_DEVICES: HSA_OVERRIDE_GFX_VERSION: HTTPS_PROXY: HTTP_PROXY: LLAMA_ARG_FIT: LLAMA_ARG_FIT_TARGET: NO_PROXY: OLLAMA_CONTEXT_LENGTH:0 OLLAMA_DEBUG:INFO OLLAMA_DEBUG_LOG_REQUESTS:false OLLAMA_EDITOR: OLLAMA_FLASH_ATTENTION:false OLLAMA_GO_TEMPLATE:true OLLAMA_GPU_OVERHEAD:0 OLLAMA_HOST:http://127.0.0.1:11434 OLLAMA_IGPU_ENABLE: OLLAMA_KEEP_ALIVE:5m0s OLLAMA_KV_CACHE_TYPE: OLLAMA_LLM_LIBRARY: OLLAMA_LOAD_TIMEOUT:5m0s OLLAMA_MAX_LOADED_MODELS:0 OLLAMA_MAX_QUEUE:512 OLLAMA_MAX_TRANSFER_STREAMS:4 OLLAMA_MODELS:C:\\Users\\Serkan\\.ollama\\models OLLAMA_NOHISTORY:false OLLAMA_NOPRUNE:false OLLAMA_NO_CLOUD:false OLLAMA_NUM_PARALLEL:1 OLLAMA_ORIGINS:[http://localhost https://localhost http://localhost:* https://localhost:* http://127.0.0.1 https://127.0.0.1 http://127.0.0.1:* https://127.0.0.1:* http://0.0.0.0 https://0.0.0.0 http://0.0.0.0:* https://0.0.0.0:* app://* file://* tauri://* vscode-webview://* vscode-file://*] OLLAMA_REMOTES:[ollama.com] OLLAMA_SCHED_SPREAD:false OLLAMA_VULKAN:true ROCR_VISIBLE_DEVICES:]"
+time=2026-08-13T05:18:42.605+03:00 level=INFO source=routes.go:1935 msg="Ollama cloud disabled: false"
+time=2026-08-13T05:18:42.609+03:00 level=INFO source=images.go:911 msg="total blobs: 10"
+time=2026-08-13T05:18:42.612+03:00 level=INFO source=images.go:918 msg="total unused blobs removed: 0"
+time=2026-08-13T05:18:42.614+03:00 level=INFO source=routes.go:1990 msg="Listening on 127.0.0.1:11434 (version 0.32.9)"
+time=2026-08-13T05:18:42.618+03:00 level=INFO source=model_list_cache.go:112 msg="model list cache hydration complete" models=2 failures=0 elapsed=2.6554ms
+time=2026-08-13T05:18:42.618+03:00 level=INFO source=runner.go:60 msg="discovering available GPUs..."
+time=2026-08-13T05:18:43.206+03:00 level=INFO source=model_recommendations.go:177 msg="model recommendations cache sleep scheduled" wait=3h52m11.284994102s consecutive_failures=0
+time=2026-08-13T05:18:48.113+03:00 level=INFO source=runner.go:405 msg="dropping integrated GPU; to enable, set OLLAMA_IGPU_ENABLE=1" id=0 library=Vulkan compute=0.0 name=Vulkan0 description="Intel(R) UHD Graphics" pci_id=""
+time=2026-08-13T05:18:48.115+03:00 level=INFO source=types.go:32 msg="inference compute" id=0 filter_id=1 library=Vulkan compute=0.0 name=Vulkan1 description="Quadro RTX 3000" libdirs=ollama,vulkan driver=0.0 pci_id=0000:01:00.0 type=discrete total="5.8 GiB" available="5.1 GiB"
+time=2026-08-13T05:18:48.116+03:00 level=INFO source=routes.go:2040 msg="vram-based default context" total_vram="5.8 GiB" default_num_ctx=4096
+time=2026-08-13T05:18:51.505+03:00 level=INFO source=server.go:109 msg="using llama-server for model" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6
+time=2026-08-13T05:18:51.531+03:00 level=INFO source=llama_server.go:431 msg="starting llama-server" cmd="C:\\Users\\Serkan\\AppData\\Local\\Programs\\Ollama\\lib\\ollama\\llama-server.exe --model C:\\Users\\Serkan\\.ollama\\models\\blobs\\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6 --port 51205 --host 127.0.0.1 --no-webui --offline -c 4096 -np 1 --log-verbosity 4 --no-log-prefix --no-log-timestamps --no-jinja --chat-template chatml --flash-attn auto -b 512 -ub 512 --context-shift --keep 4"
+time=2026-08-13T05:18:51.535+03:00 level=INFO source=sched.go:613 msg="system memory" total="63.8 GiB" free="14.4 GiB" free_swap="39.0 GiB"
+time=2026-08-13T05:18:51.536+03:00 level=INFO source=sched.go:620 msg="gpu memory" id=0 library=Vulkan available="4.6 GiB" free="5.1 GiB" minimum="457.0 MiB" overhead="0 B"
+time=2026-08-13T05:18:51.536+03:00 level=INFO source=llama_server.go:1046 msg="loading model via llama-server" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6
+time=2026-08-13T05:18:51.538+03:00 level=INFO source=llama_server.go:1293 msg="waiting for llama-server to start responding"
+time=2026-08-13T05:18:51.542+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server error"
+cmn  common_param: common_params_print_info: build 1 (f8def7fe1) with Clang 18.1.8 for Windows AMD64
+cmn  common_param: common_params_print_info: verbosity = 4 (adjust with the `-lv N` CLI arg)
+cmn  common_param: device_info:
+cmn  common_param:   - CPU     : Intel(R) Core(TM) i9-10980HK CPU @ 2.40GHz (65337 MiB, 14689 MiB free)
+cmn  common_param:   - Vulkan0 : Quadro RTX 3000 (5980 MiB, 5212 MiB free)
+cmn  common_param: system_info: n_threads = 8 (n_threads_batch = 8) / 16 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+srv          init: using 15 threads for HTTP server
+srv          init: The UI is disabled
+srv          init: Use --ui/--no-ui (or deprecated --webui/--no-webui) to enable/disable
+srv  llama_server: -----------------
+srv  llama_server: CORS is set to allow all origins ('*') and no API key is set
+srv  llama_server: this can be a security risk (cross-origin attacks)
+srv  llama_server: more info: https://github.com/ggml-org/llama.cpp/pull/25655
+srv  llama_server: -----------------
+srv         start: binding port with default address family
+srv    load_model: loading model 'C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6'
+srv    load_model: local path 'C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6'
+cmn  common_init_: fitting params to device memory ...
+cmn  common_init_: (for bugs during this step try to reproduce them with -fit off, or provide --verbose logs if the bug only occurs with -fit on)
+common_params_fit_impl: getting device memory data for initial parameters:
+time=2026-08-13T05:18:52.547+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server loading model"
+time=2026-08-13T05:18:53.504+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server not responding"
+time=2026-08-13T05:18:55.598+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server loading model"
+time=2026-08-13T05:18:55.923+03:00 level=INFO source=sched.go:641 msg="Load failed" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6 error="llama-server process has terminated: exit status 0xc0000005: The instruction at 0xp referenced memory at 0xp. The memory could not be s."
+time=2026-08-13T05:18:59.220+03:00 level=INFO source=server.go:109 msg="using llama-server for model" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6
+time=2026-08-13T05:18:59.228+03:00 level=INFO source=llama_server.go:431 msg="starting llama-server" cmd="C:\\Users\\Serkan\\AppData\\Local\\Programs\\Ollama\\lib\\ollama\\llama-server.exe --model C:\\Users\\Serkan\\.ollama\\models\\blobs\\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6 --port 56681 --host 127.0.0.1 --no-webui --offline -c 4096 -np 1 --log-verbosity 4 --no-log-prefix --no-log-timestamps --no-jinja --chat-template chatml --flash-attn auto -b 512 -ub 512 --context-shift --keep 4"
+time=2026-08-13T05:18:59.230+03:00 level=INFO source=sched.go:613 msg="system memory" total="63.8 GiB" free="14.4 GiB" free_swap="38.8 GiB"
+time=2026-08-13T05:18:59.231+03:00 level=INFO source=sched.go:620 msg="gpu memory" id=0 library=Vulkan available="4.6 GiB" free="5.1 GiB" minimum="457.0 MiB" overhead="0 B"
+time=2026-08-13T05:18:59.231+03:00 level=INFO source=llama_server.go:1046 msg="loading model via llama-server" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6
+time=2026-08-13T05:18:59.231+03:00 level=INFO source=llama_server.go:1293 msg="waiting for llama-server to start responding"
+time=2026-08-13T05:18:59.232+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server error"
+cmn  common_param: common_params_print_info: build 1 (f8def7fe1) with Clang 18.1.8 for Windows AMD64
+cmn  common_param: common_params_print_info: verbosity = 4 (adjust with the `-lv N` CLI arg)
+cmn  common_param: device_info:
+cmn  common_param:   - CPU     : Intel(R) Core(TM) i9-10980HK CPU @ 2.40GHz (65337 MiB, 14786 MiB free)
+cmn  common_param:   - Vulkan0 : Quadro RTX 3000 (5980 MiB, 5212 MiB free)
+cmn  common_param: system_info: n_threads = 8 (n_threads_batch = 8) / 16 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+srv          init: using 15 threads for HTTP server
+srv          init: The UI is disabled
+srv          init: Use --ui/--no-ui (or deprecated --webui/--no-webui) to enable/disable
+srv  llama_server: -----------------
+srv  llama_server: CORS is set to allow all origins ('*') and no API key is set
+srv  llama_server: this can be a security risk (cross-origin attacks)
+srv  llama_server: more info: https://github.com/ggml-org/llama.cpp/pull/25655
+srv  llama_server: -----------------
+srv         start: binding port with default address family
+srv    load_model: loading model 'C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6'
+srv    load_model: local path 'C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6'
+cmn  common_init_: fitting params to device memory ...
+cmn  common_init_: (for bugs during this step try to reproduce them with -fit off, or provide --verbose logs if the bug only occurs with -fit on)
+common_params_fit_impl: getting device memory data for initial parameters:
+time=2026-08-13T05:19:00.236+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server loading model"
+time=2026-08-13T05:19:01.195+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server not responding"
+time=2026-08-13T05:19:03.153+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server loading model"
+time=2026-08-13T05:19:03.511+03:00 level=INFO source=sched.go:641 msg="Load failed" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6 error="llama-server process has terminated: exit status 0xc0000005: The instruction at 0xp referenced memory at 0xp. The memory could not be s."
+time=2026-08-13T05:19:06.889+03:00 level=INFO source=server.go:109 msg="using llama-server for model" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6
+time=2026-08-13T05:19:07.045+03:00 level=INFO source=llama_server.go:431 msg="starting llama-server" cmd="C:\\Users\\Serkan\\AppData\\Local\\Programs\\Ollama\\lib\\ollama\\llama-server.exe --model C:\\Users\\Serkan\\.ollama\\models\\blobs\\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6 --port 50064 --host 127.0.0.1 --no-webui --offline -c 4096 -np 1 --log-verbosity 4 --no-log-prefix --no-log-timestamps --no-jinja --chat-template chatml --flash-attn auto -b 512 -ub 512 --context-shift --keep 4"
+time=2026-08-13T05:19:07.078+03:00 level=INFO source=sched.go:613 msg="system memory" total="63.8 GiB" free="14.6 GiB" free_swap="38.9 GiB"
+time=2026-08-13T05:19:07.113+03:00 level=INFO source=sched.go:620 msg="gpu memory" id=0 library=Vulkan available="4.6 GiB" free="5.1 GiB" minimum="457.0 MiB" overhead="0 B"
+time=2026-08-13T05:19:07.180+03:00 level=INFO source=llama_server.go:1046 msg="loading model via llama-server" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6
+time=2026-08-13T05:19:07.214+03:00 level=INFO source=llama_server.go:1293 msg="waiting for llama-server to start responding"
+time=2026-08-13T05:19:07.215+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server error"
+cmn  common_param: common_params_print_info: build 1 (f8def7fe1) with Clang 18.1.8 for Windows AMD64
+cmn  common_param: common_params_print_info: verbosity = 4 (adjust with the `-lv N` CLI arg)
+cmn  common_param: device_info:
+cmn  common_param:   - CPU     : Intel(R) Core(TM) i9-10980HK CPU @ 2.40GHz (65337 MiB, 14902 MiB free)
+cmn  common_param:   - Vulkan0 : Quadro RTX 3000 (5980 MiB, 5212 MiB free)
+cmn  common_param: system_info: n_threads = 8 (n_threads_batch = 8) / 16 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+srv          init: using 15 threads for HTTP server
+srv          init: The UI is disabled
+srv          init: Use --ui/--no-ui (or deprecated --webui/--no-webui) to enable/disable
+srv  llama_server: -----------------
+srv  llama_server: CORS is set to allow all origins ('*') and no API key is set
+srv  llama_server: this can be a security risk (cross-origin attacks)
+srv  llama_server: more info: https://github.com/ggml-org/llama.cpp/pull/25655
+srv  llama_server: -----------------
+srv         start: binding port with default address family
+srv    load_model: loading model 'C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6'
+srv    load_model: local path 'C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6'
+cmn  common_init_: fitting params to device memory ...
+cmn  common_init_: (for bugs during this step try to reproduce them with -fit off, or provide --verbose logs if the bug only occurs with -fit on)
+common_params_fit_impl: getting device memory data for initial parameters:
+time=2026-08-13T05:19:07.968+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server loading model"
+time=2026-08-13T05:19:08.770+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server not responding"
+time=2026-08-13T05:19:10.909+03:00 level=INFO source=sched.go:641 msg="Load failed" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6 error="llama-server process has terminated: exit status 0xc0000005: The instruction at 0xp referenced memory at 0xp. The memory could not be s."
+time=2026-08-13T05:19:14.152+03:00 level=INFO source=server.go:109 msg="using llama-server for model" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6
+time=2026-08-13T05:19:14.510+03:00 level=INFO source=llama_server.go:431 msg="starting llama-server" cmd="C:\\Users\\Serkan\\AppData\\Local\\Programs\\Ollama\\lib\\ollama\\llama-server.exe --model C:\\Users\\Serkan\\.ollama\\models\\blobs\\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6 --port 56079 --host 127.0.0.1 --no-webui --offline -c 4096 -np 1 --log-verbosity 4 --no-log-prefix --no-log-timestamps --no-jinja --chat-template chatml --flash-attn auto -b 512 -ub 512 --context-shift --keep 4"
+time=2026-08-13T05:19:14.749+03:00 level=INFO source=sched.go:613 msg="system memory" total="63.8 GiB" free="14.6 GiB" free_swap="38.9 GiB"
+time=2026-08-13T05:19:14.988+03:00 level=INFO source=sched.go:620 msg="gpu memory" id=0 library=Vulkan available="4.6 GiB" free="5.1 GiB" minimum="457.0 MiB" overhead="0 B"
+time=2026-08-13T05:19:15.223+03:00 level=INFO source=llama_server.go:1046 msg="loading model via llama-server" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6
+time=2026-08-13T05:19:15.433+03:00 level=INFO source=llama_server.go:1293 msg="waiting for llama-server to start responding"
+cmn  common_param: common_params_print_info: build 1 (f8def7fe1) with Clang 18.1.8 for Windows AMD64
+time=2026-08-13T05:19:15.638+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server loading model"
+cmn  common_param: common_params_print_info: verbosity = 4 (adjust with the `-lv N` CLI arg)
+cmn  common_param: device_info:
+cmn  common_param:   - CPU     : Intel(R) Core(TM) i9-10980HK CPU @ 2.40GHz (65337 MiB, 14974 MiB free)
+cmn  common_param:   - Vulkan0 : Quadro RTX 3000 (5980 MiB, 5212 MiB free)
+cmn  common_param: system_info: n_threads = 8 (n_threads_batch = 8) / 16 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+srv          init: using 15 threads for HTTP server
+srv          init: The UI is disabled
+srv          init: Use --ui/--no-ui (or deprecated --webui/--no-webui) to enable/disable
+srv  llama_server: -----------------
+srv  llama_server: CORS is set to allow all origins ('*') and no API key is set
+srv  llama_server: this can be a security risk (cross-origin attacks)
+srv  llama_server: more info: https://github.com/ggml-org/llama.cpp/pull/25655
+srv  llama_server: -----------------
+srv         start: binding port with default address family
+srv    load_model: loading model 'C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6'
+srv    load_model: local path 'C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6'
+cmn  common_init_: fitting params to device memory ...
+cmn  common_init_: (for bugs during this step try to reproduce them with -fit off, or provide --verbose logs if the bug only occurs with -fit on)
+common_params_fit_impl: getting device memory data for initial parameters:
+time=2026-08-13T05:19:16.803+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server not responding"
+time=2026-08-13T05:19:19.009+03:00 level=INFO source=sched.go:641 msg="Load failed" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6 error="llama-server process has terminated: exit status 0xc0000005: The instruction at 0xp referenced memory at 0xp. The memory could not be s."
+time=2026-08-13T05:19:22.645+03:00 level=INFO source=server.go:109 msg="using llama-server for model" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6
+time=2026-08-13T05:19:22.789+03:00 level=INFO source=llama_server.go:431 msg="starting llama-server" cmd="C:\\Users\\Serkan\\AppData\\Local\\Programs\\Ollama\\lib\\ollama\\llama-server.exe --model C:\\Users\\Serkan\\.ollama\\models\\blobs\\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6 --port 64559 --host 127.0.0.1 --no-webui --offline -c 4096 -np 1 --log-verbosity 4 --no-log-prefix --no-log-timestamps --no-jinja --chat-template chatml --flash-attn auto -b 512 -ub 512 --context-shift --keep 4"
+time=2026-08-13T05:19:22.896+03:00 level=INFO source=sched.go:613 msg="system memory" total="63.8 GiB" free="14.7 GiB" free_swap="38.9 GiB"
+time=2026-08-13T05:19:23.076+03:00 level=INFO source=sched.go:620 msg="gpu memory" id=0 library=Vulkan available="4.6 GiB" free="5.1 GiB" minimum="457.0 MiB" overhead="0 B"
+time=2026-08-13T05:19:23.217+03:00 level=INFO source=llama_server.go:1046 msg="loading model via llama-server" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6
+time=2026-08-13T05:19:23.297+03:00 level=INFO source=llama_server.go:1293 msg="waiting for llama-server to start responding"
+time=2026-08-13T05:19:23.377+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server error"
+cmn  common_param: common_params_print_info: build 1 (f8def7fe1) with Clang 18.1.8 for Windows AMD64
+cmn  common_param: common_params_print_info: verbosity = 4 (adjust with the `-lv N` CLI arg)
+cmn  common_param: device_info:
+cmn  common_param:   - CPU     : Intel(R) Core(TM) i9-10980HK CPU @ 2.40GHz (65337 MiB, 15035 MiB free)
+cmn  common_param:   - Vulkan0 : Quadro RTX 3000 (5980 MiB, 5212 MiB free)
+cmn  common_param: system_info: n_threads = 8 (n_threads_batch = 8) / 16 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+srv          init: using 15 threads for HTTP server
+srv          init: The UI is disabled
+srv          init: Use --ui/--no-ui (or deprecated --webui/--no-webui) to enable/disable
+srv  llama_server: -----------------
+srv  llama_server: CORS is set to allow all origins ('*') and no API key is set
+srv  llama_server: this can be a security risk (cross-origin attacks)
+srv  llama_server: more info: https://github.com/ggml-org/llama.cpp/pull/25655
+srv  llama_server: -----------------
+srv         start: binding port with default address family
+srv    load_model: loading model 'C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6'
+srv    load_model: local path 'C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6'
+cmn  common_init_: fitting params to device memory ...
+cmn  common_init_: (for bugs during this step try to reproduce them with -fit off, or provide --verbose logs if the bug only occurs with -fit on)
+common_params_fit_impl: getting device memory data for initial parameters:
+time=2026-08-13T05:19:23.769+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server loading model"
+time=2026-08-13T05:19:24.618+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server not responding"
+time=2026-08-13T05:19:27.213+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server error"
+time=2026-08-13T05:19:27.508+03:00 level=INFO source=sched.go:641 msg="Load failed" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6 error="llama-server process has terminated: exit status 0xc0000005: The instruction at 0xp referenced memory at 0xp. The memory could not be s."
+time=2026-08-13T05:19:30.946+03:00 level=INFO source=server.go:109 msg="using llama-server for model" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6
+time=2026-08-13T05:19:31.057+03:00 level=INFO source=llama_server.go:431 msg="starting llama-server" cmd="C:\\Users\\Serkan\\AppData\\Local\\Programs\\Ollama\\lib\\ollama\\llama-server.exe --model C:\\Users\\Serkan\\.ollama\\models\\blobs\\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6 --port 59622 --host 127.0.0.1 --no-webui --offline -c 4096 -np 1 --log-verbosity 4 --no-log-prefix --no-log-timestamps --no-jinja --chat-template chatml --flash-attn auto -b 512 -ub 512 --context-shift --keep 4"
+time=2026-08-13T05:19:31.060+03:00 level=INFO source=sched.go:613 msg="system memory" total="63.8 GiB" free="14.9 GiB" free_swap="38.8 GiB"
+time=2026-08-13T05:19:31.060+03:00 level=INFO source=sched.go:620 msg="gpu memory" id=0 library=Vulkan available="4.6 GiB" free="5.1 GiB" minimum="457.0 MiB" overhead="0 B"
+time=2026-08-13T05:19:31.060+03:00 level=INFO source=llama_server.go:1046 msg="loading model via llama-server" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6
+time=2026-08-13T05:19:31.061+03:00 level=INFO source=llama_server.go:1293 msg="waiting for llama-server to start responding"
+time=2026-08-13T05:19:31.061+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server error"
+cmn  common_param: common_params_print_info: build 1 (f8def7fe1) with Clang 18.1.8 for Windows AMD64
+cmn  common_param: common_params_print_info: verbosity = 4 (adjust with the `-lv N` CLI arg)
+cmn  common_param: device_info:
+cmn  common_param:   - CPU     : Intel(R) Core(TM) i9-10980HK CPU @ 2.40GHz (65337 MiB, 15248 MiB free)
+cmn  common_param:   - Vulkan0 : Quadro RTX 3000 (5980 MiB, 5212 MiB free)
+cmn  common_param: system_info: n_threads = 8 (n_threads_batch = 8) / 16 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+srv          init: using 15 threads for HTTP server
+srv          init: The UI is disabled
+srv          init: Use --ui/--no-ui (or deprecated --webui/--no-webui) to enable/disable
+srv  llama_server: -----------------
+srv  llama_server: CORS is set to allow all origins ('*') and no API key is set
+srv  llama_server: this can be a security risk (cross-origin attacks)
+srv  llama_server: more info: https://github.com/ggml-org/llama.cpp/pull/25655
+srv  llama_server: -----------------
+srv         start: binding port with default address family
+srv    load_model: loading model 'C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6'
+srv    load_model: local path 'C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6'
+cmn  common_init_: fitting params to device memory ...
+cmn  common_init_: (for bugs during this step try to reproduce them with -fit off, or provide --verbose logs if the bug only occurs with -fit on)
+common_params_fit_impl: getting device memory data for initial parameters:
+time=2026-08-13T05:19:32.066+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server loading model"
+time=2026-08-13T05:19:33.021+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server not responding"
+time=2026-08-13T05:19:35.164+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server loading model"
+time=2026-08-13T05:19:35.419+03:00 level=INFO source=sched.go:641 msg="Load failed" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6 error="llama-server process has terminated: exit status 0xc0000005: The instruction at 0xp referenced memory at 0xp. The memory could not be s."
+time=2026-08-13T05:19:38.828+03:00 level=WARN source=runner.go:584 msg="llama-server GPU discovery watchdog timed out" OLLAMA_LIBRARY_PATH="[C:\\Users\\Serkan\\AppData\\Local\\Programs\\Ollama\\lib\\ollama C:\\Users\\Serkan\\AppData\\Local\\Programs\\Ollama\\lib\\ollama\\vulkan]" extra_envs=map[GGML_VK_VISIBLE_DEVICES:1] error="context deadline exceeded"
+time=2026-08-13T05:19:38.830+03:00 level=INFO source=runner.go:522 msg="failure during llama-server GPU discovery" OLLAMA_LIBRARY_PATH="[C:\\Users\\Serkan\\AppData\\Local\\Programs\\Ollama\\lib\\ollama C:\\Users\\Serkan\\AppData\\Local\\Programs\\Ollama\\lib\\ollama\\vulkan]" extra_envs=map[GGML_VK_VISIBLE_DEVICES:1] error="context deadline exceeded" detail=""
+time=2026-08-13T05:19:38.832+03:00 level=WARN source=runner.go:364 msg="unable to refresh free memory, using old values"
+time=2026-08-13T05:19:38.912+03:00 level=INFO source=server.go:109 msg="using llama-server for model" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6
+time=2026-08-13T05:19:38.920+03:00 level=INFO source=llama_server.go:431 msg="starting llama-server" cmd="C:\\Users\\Serkan\\AppData\\Local\\Programs\\Ollama\\lib\\ollama\\llama-server.exe --model C:\\Users\\Serkan\\.ollama\\models\\blobs\\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6 --port 63659 --host 127.0.0.1 --no-webui --offline -c 4096 -np 1 --log-verbosity 4 --no-log-prefix --no-log-timestamps --no-jinja --chat-template chatml --flash-attn auto -b 512 -ub 512 --context-shift --keep 4"
+time=2026-08-13T05:19:38.923+03:00 level=INFO source=sched.go:613 msg="system memory" total="63.8 GiB" free="14.5 GiB" free_swap="38.9 GiB"
+time=2026-08-13T05:19:38.924+03:00 level=INFO source=sched.go:620 msg="gpu memory" id=0 library=Vulkan available="4.6 GiB" free="5.1 GiB" minimum="457.0 MiB" overhead="0 B"
+time=2026-08-13T05:19:38.925+03:00 level=INFO source=llama_server.go:1046 msg="loading model via llama-server" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6
+time=2026-08-13T05:19:38.926+03:00 level=INFO source=llama_server.go:1293 msg="waiting for llama-server to start responding"
+time=2026-08-13T05:19:38.929+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server error"
+cmn  common_param: common_params_print_info: build 1 (f8def7fe1) with Clang 18.1.8 for Windows AMD64
+cmn  common_param: common_params_print_info: verbosity = 4 (adjust with the `-lv N` CLI arg)
+cmn  common_param: device_info:
+cmn  common_param:   - CPU     : Intel(R) Core(TM) i9-10980HK CPU @ 2.40GHz (65337 MiB, 14805 MiB free)
+cmn  common_param:   - Vulkan0 : Quadro RTX 3000 (5980 MiB, 5212 MiB free)
+cmn  common_param: system_info: n_threads = 8 (n_threads_batch = 8) / 16 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+srv          init: using 15 threads for HTTP server
+srv          init: The UI is disabled
+srv          init: Use --ui/--no-ui (or deprecated --webui/--no-webui) to enable/disable
+srv  llama_server: -----------------
+srv  llama_server: CORS is set to allow all origins ('*') and no API key is set
+srv  llama_server: this can be a security risk (cross-origin attacks)
+srv  llama_server: more info: https://github.com/ggml-org/llama.cpp/pull/25655
+srv  llama_server: -----------------
+srv         start: binding port with default address family
+srv    load_model: loading model 'C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6'
+srv    load_model: local path 'C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6'
+cmn  common_init_: fitting params to device memory ...
+cmn  common_init_: (for bugs during this step try to reproduce them with -fit off, or provide --verbose logs if the bug only occurs with -fit on)
+common_params_fit_impl: getting device memory data for initial parameters:
+time=2026-08-13T05:19:39.933+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server loading model"
+time=2026-08-13T05:19:40.889+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server not responding"
+time=2026-08-13T05:19:43.450+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server loading model"
+time=2026-08-13T05:19:43.732+03:00 level=INFO source=sched.go:641 msg="Load failed" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6 error="llama-server process has terminated: exit status 0xc0000005: The instruction at 0xp referenced memory at 0xp. The memory could not be s."
+time=2026-08-13T05:19:47.080+03:00 level=INFO source=server.go:109 msg="using llama-server for model" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6
+time=2026-08-13T05:19:47.132+03:00 level=INFO source=llama_server.go:431 msg="starting llama-server" cmd="C:\\Users\\Serkan\\AppData\\Local\\Programs\\Ollama\\lib\\ollama\\llama-server.exe --model C:\\Users\\Serkan\\.ollama\\models\\blobs\\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6 --port 56657 --host 127.0.0.1 --no-webui --offline -c 4096 -np 1 --log-verbosity 4 --no-log-prefix --no-log-timestamps --no-jinja --chat-template chatml --flash-attn auto -b 512 -ub 512 --context-shift --keep 4"
+time=2026-08-13T05:19:47.134+03:00 level=INFO source=sched.go:613 msg="system memory" total="63.8 GiB" free="14.6 GiB" free_swap="38.8 GiB"
+time=2026-08-13T05:19:47.134+03:00 level=INFO source=sched.go:620 msg="gpu memory" id=0 library=Vulkan available="4.6 GiB" free="5.1 GiB" minimum="457.0 MiB" overhead="0 B"
+time=2026-08-13T05:19:47.135+03:00 level=INFO source=llama_server.go:1046 msg="loading model via llama-server" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6
+time=2026-08-13T05:19:47.136+03:00 level=INFO source=llama_server.go:1293 msg="waiting for llama-server to start responding"
+time=2026-08-13T05:19:47.137+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server error"
+cmn  common_param: common_params_print_info: build 1 (f8def7fe1) with Clang 18.1.8 for Windows AMD64
+time=2026-08-13T05:19:47.891+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server loading model"
+cmn  common_param: common_params_print_info: verbosity = 4 (adjust with the `-lv N` CLI arg)
+cmn  common_param: device_info:
+cmn  common_param:   - CPU     : Intel(R) Core(TM) i9-10980HK CPU @ 2.40GHz (65337 MiB, 14949 MiB free)
+cmn  common_param:   - Vulkan0 : Quadro RTX 3000 (5980 MiB, 5212 MiB free)
+cmn  common_param: system_info: n_threads = 8 (n_threads_batch = 8) / 16 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+srv          init: using 15 threads for HTTP server
+srv          init: The UI is disabled
+srv          init: Use --ui/--no-ui (or deprecated --webui/--no-webui) to enable/disable
+srv  llama_server: -----------------
+srv  llama_server: CORS is set to allow all origins ('*') and no API key is set
+srv  llama_server: this can be a security risk (cross-origin attacks)
+srv  llama_server: more info: https://github.com/ggml-org/llama.cpp/pull/25655
+srv  llama_server: -----------------
+srv         start: binding port with default address family
+srv    load_model: loading model 'C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6'
+srv    load_model: local path 'C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6'
+cmn  common_init_: fitting params to device memory ...
+cmn  common_init_: (for bugs during this step try to reproduce them with -fit off, or provide --verbose logs if the bug only occurs with -fit on)
+common_params_fit_impl: getting device memory data for initial parameters:
+time=2026-08-13T05:19:48.848+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server not responding"
+time=2026-08-13T05:19:51.365+03:00 level=INFO source=sched.go:641 msg="Load failed" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6 error="llama-server process has terminated: exit status 0xc0000005: The instruction at 0xp referenced memory at 0xp. The memory could not be s."
+time=2026-08-13T05:19:54.664+03:00 level=INFO source=server.go:109 msg="using llama-server for model" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6
+time=2026-08-13T05:19:54.673+03:00 level=INFO source=llama_server.go:431 msg="starting llama-server" cmd="C:\\Users\\Serkan\\AppData\\Local\\Programs\\Ollama\\lib\\ollama\\llama-server.exe --model C:\\Users\\Serkan\\.ollama\\models\\blobs\\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6 --port 60207 --host 127.0.0.1 --no-webui --offline -c 4096 -np 1 --log-verbosity 4 --no-log-prefix --no-log-timestamps --no-jinja --chat-template chatml --flash-attn auto -b 512 -ub 512 --context-shift --keep 4"
+time=2026-08-13T05:19:54.677+03:00 level=INFO source=sched.go:613 msg="system memory" total="63.8 GiB" free="14.6 GiB" free_swap="38.9 GiB"
+time=2026-08-13T05:19:54.677+03:00 level=INFO source=sched.go:620 msg="gpu memory" id=0 library=Vulkan available="4.6 GiB" free="5.1 GiB" minimum="457.0 MiB" overhead="0 B"
+time=2026-08-13T05:19:54.677+03:00 level=INFO source=llama_server.go:1046 msg="loading model via llama-server" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6
+time=2026-08-13T05:19:54.678+03:00 level=INFO source=llama_server.go:1293 msg="waiting for llama-server to start responding"
+time=2026-08-13T05:19:54.679+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server error"
+cmn  common_param: common_params_print_info: build 1 (f8def7fe1) with Clang 18.1.8 for Windows AMD64
+cmn  common_param: common_params_print_info: verbosity = 4 (adjust with the `-lv N` CLI arg)
+cmn  common_param: device_info:
+cmn  common_param:   - CPU     : Intel(R) Core(TM) i9-10980HK CPU @ 2.40GHz (65337 MiB, 14982 MiB free)
+cmn  common_param:   - Vulkan0 : Quadro RTX 3000 (5980 MiB, 5212 MiB free)
+cmn  common_param: system_info: n_threads = 8 (n_threads_batch = 8) / 16 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+srv          init: using 15 threads for HTTP server
+srv          init: The UI is disabled
+srv          init: Use --ui/--no-ui (or deprecated --webui/--no-webui) to enable/disable
+srv  llama_server: -----------------
+srv  llama_server: CORS is set to allow all origins ('*') and no API key is set
+srv  llama_server: this can be a security risk (cross-origin attacks)
+srv  llama_server: more info: https://github.com/ggml-org/llama.cpp/pull/25655
+srv  llama_server: -----------------
+srv         start: binding port with default address family
+srv    load_model: loading model 'C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6'
+srv    load_model: local path 'C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6'
+cmn  common_init_: fitting params to device memory ...
+cmn  common_init_: (for bugs during this step try to reproduce them with -fit off, or provide --verbose logs if the bug only occurs with -fit on)
+common_params_fit_impl: getting device memory data for initial parameters:
+time=2026-08-13T05:19:55.684+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server loading model"
+time=2026-08-13T05:19:56.638+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server not responding"
+time=2026-08-13T05:19:59.605+03:00 level=INFO source=sched.go:641 msg="Load failed" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6 error="llama-server process has terminated: exit status 0xc0000005: The instruction at 0xp referenced memory at 0xp. The memory could not be s."
+time=2026-08-13T05:20:03.045+03:00 level=INFO source=server.go:109 msg="using llama-server for model" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6
+time=2026-08-13T05:20:03.082+03:00 level=INFO source=llama_server.go:431 msg="starting llama-server" cmd="C:\\Users\\Serkan\\AppData\\Local\\Programs\\Ollama\\lib\\ollama\\llama-server.exe --model C:\\Users\\Serkan\\.ollama\\models\\blobs\\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6 --port 51230 --host 127.0.0.1 --no-webui --offline -c 4096 -np 1 --log-verbosity 4 --no-log-prefix --no-log-timestamps --no-jinja --chat-template chatml --flash-attn auto -b 512 -ub 512 --context-shift --keep 4"
+time=2026-08-13T05:20:03.084+03:00 level=INFO source=sched.go:613 msg="system memory" total="63.8 GiB" free="14.4 GiB" free_swap="38.9 GiB"
+time=2026-08-13T05:20:03.086+03:00 level=INFO source=sched.go:620 msg="gpu memory" id=0 library=Vulkan available="4.6 GiB" free="5.1 GiB" minimum="457.0 MiB" overhead="0 B"
+time=2026-08-13T05:20:03.087+03:00 level=INFO source=llama_server.go:1046 msg="loading model via llama-server" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6
+time=2026-08-13T05:20:03.089+03:00 level=INFO source=llama_server.go:1293 msg="waiting for llama-server to start responding"
+time=2026-08-13T05:20:03.092+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server error"
+cmn  common_param: common_params_print_info: build 1 (f8def7fe1) with Clang 18.1.8 for Windows AMD64
+cmn  common_param: common_params_print_info: verbosity = 4 (adjust with the `-lv N` CLI arg)
+cmn  common_param: device_info:
+cmn  common_param:   - CPU     : Intel(R) Core(TM) i9-10980HK CPU @ 2.40GHz (65337 MiB, 14822 MiB free)
+cmn  common_param:   - Vulkan0 : Quadro RTX 3000 (5980 MiB, 5212 MiB free)
+cmn  common_param: system_info: n_threads = 8 (n_threads_batch = 8) / 16 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+srv          init: using 15 threads for HTTP server
+srv          init: The UI is disabled
+srv          init: Use --ui/--no-ui (or deprecated --webui/--no-webui) to enable/disable
+srv  llama_server: -----------------
+srv  llama_server: CORS is set to allow all origins ('*') and no API key is set
+srv  llama_server: this can be a security risk (cross-origin attacks)
+srv  llama_server: more info: https://github.com/ggml-org/llama.cpp/pull/25655
+srv  llama_server: -----------------
+srv         start: binding port with default address family
+srv    load_model: loading model 'C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6'
+srv    load_model: local path 'C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6'
+cmn  common_init_: fitting params to device memory ...
+cmn  common_init_: (for bugs during this step try to reproduce them with -fit off, or provide --verbose logs if the bug only occurs with -fit on)
+common_params_fit_impl: getting device memory data for initial parameters:
+time=2026-08-13T05:20:04.097+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server loading model"
+time=2026-08-13T05:20:05.053+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server not responding"
+time=2026-08-13T05:20:07.751+03:00 level=INFO source=sched.go:641 msg="Load failed" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6 error="llama-server process has terminated: exit status 0xc0000005: The instruction at 0xp referenced memory at 0xp. The memory could not be s."
+time=2026-08-13T05:20:11.094+03:00 level=INFO source=server.go:109 msg="using llama-server for model" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6
+time=2026-08-13T05:20:11.140+03:00 level=INFO source=llama_server.go:431 msg="starting llama-server" cmd="C:\\Users\\Serkan\\AppData\\Local\\Programs\\Ollama\\lib\\ollama\\llama-server.exe --model C:\\Users\\Serkan\\.ollama\\models\\blobs\\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6 --port 56320 --host 127.0.0.1 --no-webui --offline -c 4096 -np 1 --log-verbosity 4 --no-log-prefix --no-log-timestamps --no-jinja --chat-template chatml --flash-attn auto -b 512 -ub 512 --context-shift --keep 4"
+time=2026-08-13T05:20:11.145+03:00 level=INFO source=sched.go:613 msg="system memory" total="63.8 GiB" free="14.6 GiB" free_swap="38.9 GiB"
+time=2026-08-13T05:20:11.148+03:00 level=INFO source=sched.go:620 msg="gpu memory" id=0 library=Vulkan available="4.6 GiB" free="5.1 GiB" minimum="457.0 MiB" overhead="0 B"
+time=2026-08-13T05:20:11.149+03:00 level=INFO source=llama_server.go:1046 msg="loading model via llama-server" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6
+time=2026-08-13T05:20:11.149+03:00 level=INFO source=llama_server.go:1293 msg="waiting for llama-server to start responding"
+time=2026-08-13T05:20:11.150+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server error"
+cmn  common_param: common_params_print_info: build 1 (f8def7fe1) with Clang 18.1.8 for Windows AMD64
+cmn  common_param: common_params_print_info: verbosity = 4 (adjust with the `-lv N` CLI arg)
+cmn  common_param: device_info:
+cmn  common_param:   - CPU     : Intel(R) Core(TM) i9-10980HK CPU @ 2.40GHz (65337 MiB, 14932 MiB free)
+cmn  common_param:   - Vulkan0 : Quadro RTX 3000 (5980 MiB, 5212 MiB free)
+cmn  common_param: system_info: n_threads = 8 (n_threads_batch = 8) / 16 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+srv          init: using 15 threads for HTTP server
+srv          init: The UI is disabled
+srv          init: Use --ui/--no-ui (or deprecated --webui/--no-webui) to enable/disable
+srv  llama_server: -----------------
+srv  llama_server: CORS is set to allow all origins ('*') and no API key is set
+srv  llama_server: this can be a security risk (cross-origin attacks)
+srv  llama_server: more info: https://github.com/ggml-org/llama.cpp/pull/25655
+srv  llama_server: -----------------
+srv         start: binding port with default address family
+srv    load_model: loading model 'C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6'
+srv    load_model: local path 'C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6'
+cmn  common_init_: fitting params to device memory ...
+cmn  common_init_: (for bugs during this step try to reproduce them with -fit off, or provide --verbose logs if the bug only occurs with -fit on)
+common_params_fit_impl: getting device memory data for initial parameters:
+time=2026-08-13T05:20:12.155+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server loading model"
+time=2026-08-13T05:20:13.110+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server not responding"
+time=2026-08-13T05:20:15.782+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server loading model"
+time=2026-08-13T05:20:16.038+03:00 level=INFO source=sched.go:641 msg="Load failed" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6 error="llama-server process has terminated: exit status 0xc0000005: The instruction at 0xp referenced memory at 0xp. The memory could not be s."
+time=2026-08-13T05:20:19.582+03:00 level=INFO source=server.go:109 msg="using llama-server for model" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6
+time=2026-08-13T05:20:19.593+03:00 level=INFO source=llama_server.go:431 msg="starting llama-server" cmd="C:\\Users\\Serkan\\AppData\\Local\\Programs\\Ollama\\lib\\ollama\\llama-server.exe --model C:\\Users\\Serkan\\.ollama\\models\\blobs\\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6 --port 56313 --host 127.0.0.1 --no-webui --offline -c 4096 -np 1 --log-verbosity 4 --no-log-prefix --no-log-timestamps --no-jinja --chat-template chatml --flash-attn auto -b 512 -ub 512 --context-shift --keep 4"
+time=2026-08-13T05:20:19.595+03:00 level=INFO source=sched.go:613 msg="system memory" total="63.8 GiB" free="14.8 GiB" free_swap="39.0 GiB"
+time=2026-08-13T05:20:19.596+03:00 level=INFO source=sched.go:620 msg="gpu memory" id=0 library=Vulkan available="4.6 GiB" free="5.1 GiB" minimum="457.0 MiB" overhead="0 B"
+time=2026-08-13T05:20:19.596+03:00 level=INFO source=llama_server.go:1046 msg="loading model via llama-server" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6
+time=2026-08-13T05:20:19.597+03:00 level=INFO source=llama_server.go:1293 msg="waiting for llama-server to start responding"
+time=2026-08-13T05:20:19.598+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server error"
+cmn  common_param: common_params_print_info: build 1 (f8def7fe1) with Clang 18.1.8 for Windows AMD64
+cmn  common_param: common_params_print_info: verbosity = 4 (adjust with the `-lv N` CLI arg)
+cmn  common_param: device_info:
+cmn  common_param:   - CPU     : Intel(R) Core(TM) i9-10980HK CPU @ 2.40GHz (65337 MiB, 15069 MiB free)
+cmn  common_param:   - Vulkan0 : Quadro RTX 3000 (5980 MiB, 5212 MiB free)
+cmn  common_param: system_info: n_threads = 8 (n_threads_batch = 8) / 16 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+srv          init: using 15 threads for HTTP server
+srv          init: The UI is disabled
+srv          init: Use --ui/--no-ui (or deprecated --webui/--no-webui) to enable/disable
+srv  llama_server: -----------------
+srv  llama_server: CORS is set to allow all origins ('*') and no API key is set
+srv  llama_server: this can be a security risk (cross-origin attacks)
+srv  llama_server: more info: https://github.com/ggml-org/llama.cpp/pull/25655
+srv  llama_server: -----------------
+srv         start: binding port with default address family
+srv    load_model: loading model 'C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6'
+srv    load_model: local path 'C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6'
+cmn  common_init_: fitting params to device memory ...
+cmn  common_init_: (for bugs during this step try to reproduce them with -fit off, or provide --verbose logs if the bug only occurs with -fit on)
+common_params_fit_impl: getting device memory data for initial parameters:
+time=2026-08-13T05:20:20.602+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server loading model"
+time=2026-08-13T05:20:21.560+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server not responding"
+time=2026-08-13T05:20:23.801+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server loading model"
+time=2026-08-13T05:20:24.063+03:00 level=INFO source=sched.go:641 msg="Load failed" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6 error="llama-server process has terminated: exit status 0xc0000005: The instruction at 0xp referenced memory at 0xp. The memory could not be s."
+time=2026-08-13T05:20:27.411+03:00 level=INFO source=server.go:109 msg="using llama-server for model" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6
+time=2026-08-13T05:20:27.442+03:00 level=INFO source=llama_server.go:431 msg="starting llama-server" cmd="C:\\Users\\Serkan\\AppData\\Local\\Programs\\Ollama\\lib\\ollama\\llama-server.exe --model C:\\Users\\Serkan\\.ollama\\models\\blobs\\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6 --port 62675 --host 127.0.0.1 --no-webui --offline -c 4096 -np 1 --log-verbosity 4 --no-log-prefix --no-log-timestamps --no-jinja --chat-template chatml --flash-attn auto -b 512 -ub 512 --context-shift --keep 4"
+time=2026-08-13T05:20:27.446+03:00 level=INFO source=sched.go:613 msg="system memory" total="63.8 GiB" free="14.5 GiB" free_swap="38.9 GiB"
+time=2026-08-13T05:20:27.447+03:00 level=INFO source=sched.go:620 msg="gpu memory" id=0 library=Vulkan available="4.6 GiB" free="5.1 GiB" minimum="457.0 MiB" overhead="0 B"
+time=2026-08-13T05:20:27.448+03:00 level=INFO source=llama_server.go:1046 msg="loading model via llama-server" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6
+time=2026-08-13T05:20:27.450+03:00 level=INFO source=llama_server.go:1293 msg="waiting for llama-server to start responding"
+time=2026-08-13T05:20:27.452+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server error"
+cmn  common_param: common_params_print_info: build 1 (f8def7fe1) with Clang 18.1.8 for Windows AMD64
+cmn  common_param: common_params_print_info: verbosity = 4 (adjust with the `-lv N` CLI arg)
+cmn  common_param: device_info:
+cmn  common_param:   - CPU     : Intel(R) Core(TM) i9-10980HK CPU @ 2.40GHz (65337 MiB, 14884 MiB free)
+cmn  common_param:   - Vulkan0 : Quadro RTX 3000 (5980 MiB, 5212 MiB free)
+cmn  common_param: system_info: n_threads = 8 (n_threads_batch = 8) / 16 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+srv          init: using 15 threads for HTTP server
+srv          init: The UI is disabled
+srv          init: Use --ui/--no-ui (or deprecated --webui/--no-webui) to enable/disable
+srv  llama_server: -----------------
+srv  llama_server: CORS is set to allow all origins ('*') and no API key is set
+srv  llama_server: this can be a security risk (cross-origin attacks)
+srv  llama_server: more info: https://github.com/ggml-org/llama.cpp/pull/25655
+srv  llama_server: -----------------
+srv         start: binding port with default address family
+srv    load_model: loading model 'C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6'
+srv    load_model: local path 'C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6'
+cmn  common_init_: fitting params to device memory ...
+cmn  common_init_: (for bugs during this step try to reproduce them with -fit off, or provide --verbose logs if the bug only occurs with -fit on)
+common_params_fit_impl: getting device memory data for initial parameters:
+time=2026-08-13T05:20:28.457+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server loading model"
+time=2026-08-13T05:20:29.412+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server not responding"
+time=2026-08-13T05:20:31.925+03:00 level=INFO source=sched.go:641 msg="Load failed" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6 error="llama-server process has terminated: exit status 0xc0000005: The instruction at 0xp referenced memory at 0xp. The memory could not be s."
+time=2026-08-13T05:20:35.327+03:00 level=INFO source=server.go:109 msg="using llama-server for model" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6
+time=2026-08-13T05:20:35.348+03:00 level=INFO source=llama_server.go:431 msg="starting llama-server" cmd="C:\\Users\\Serkan\\AppData\\Local\\Programs\\Ollama\\lib\\ollama\\llama-server.exe --model C:\\Users\\Serkan\\.ollama\\models\\blobs\\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6 --port 64335 --host 127.0.0.1 --no-webui --offline -c 4096 -np 1 --log-verbosity 4 --no-log-prefix --no-log-timestamps --no-jinja --chat-template chatml --flash-attn auto -b 512 -ub 512 --context-shift --keep 4"
+time=2026-08-13T05:20:35.351+03:00 level=INFO source=sched.go:613 msg="system memory" total="63.8 GiB" free="14.6 GiB" free_swap="38.9 GiB"
+time=2026-08-13T05:20:35.351+03:00 level=INFO source=sched.go:620 msg="gpu memory" id=0 library=Vulkan available="4.6 GiB" free="5.1 GiB" minimum="457.0 MiB" overhead="0 B"
+time=2026-08-13T05:20:35.352+03:00 level=INFO source=llama_server.go:1046 msg="loading model via llama-server" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6
+time=2026-08-13T05:20:35.353+03:00 level=INFO source=llama_server.go:1293 msg="waiting for llama-server to start responding"
+time=2026-08-13T05:20:35.354+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server error"
+cmn  common_param: common_params_print_info: build 1 (f8def7fe1) with Clang 18.1.8 for Windows AMD64
+cmn  common_param: common_params_print_info: verbosity = 4 (adjust with the `-lv N` CLI arg)
+cmn  common_param: device_info:
+cmn  common_param:   - CPU     : Intel(R) Core(TM) i9-10980HK CPU @ 2.40GHz (65337 MiB, 14863 MiB free)
+cmn  common_param:   - Vulkan0 : Quadro RTX 3000 (5980 MiB, 5212 MiB free)
+cmn  common_param: system_info: n_threads = 8 (n_threads_batch = 8) / 16 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+srv          init: using 15 threads for HTTP server
+srv          init: The UI is disabled
+srv          init: Use --ui/--no-ui (or deprecated --webui/--no-webui) to enable/disable
+srv  llama_server: -----------------
+srv  llama_server: CORS is set to allow all origins ('*') and no API key is set
+srv  llama_server: this can be a security risk (cross-origin attacks)
+srv  llama_server: more info: https://github.com/ggml-org/llama.cpp/pull/25655
+srv  llama_server: -----------------
+srv         start: binding port with default address family
+srv    load_model: loading model 'C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6'
+srv    load_model: local path 'C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6'
+cmn  common_init_: fitting params to device memory ...
+cmn  common_init_: (for bugs during this step try to reproduce them with -fit off, or provide --verbose logs if the bug only occurs with -fit on)
+common_params_fit_impl: getting device memory data for initial parameters:
+time=2026-08-13T05:20:36.609+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server loading model"
+time=2026-08-13T05:20:37.565+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server not responding"
+time=2026-08-13T05:20:40.118+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server loading model"
+time=2026-08-13T05:20:40.726+03:00 level=INFO source=sched.go:641 msg="Load failed" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6 error="llama-server process has terminated: exit status 0xc0000005: The instruction at 0xp referenced memory at 0xp. The memory could not be s."
+time=2026-08-13T05:20:43.933+03:00 level=INFO source=server.go:109 msg="using llama-server for model" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6
+time=2026-08-13T05:20:44.460+03:00 level=INFO source=llama_server.go:431 msg="starting llama-server" cmd="C:\\Users\\Serkan\\AppData\\Local\\Programs\\Ollama\\lib\\ollama\\llama-server.exe --model C:\\Users\\Serkan\\.ollama\\models\\blobs\\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6 --port 50060 --host 127.0.0.1 --no-webui --offline -c 4096 -np 1 --log-verbosity 4 --no-log-prefix --no-log-timestamps --no-jinja --chat-template chatml --flash-attn auto -b 512 -ub 512 --context-shift --keep 4"
+time=2026-08-13T05:20:44.555+03:00 level=INFO source=sched.go:613 msg="system memory" total="63.8 GiB" free="14.7 GiB" free_swap="38.8 GiB"
+time=2026-08-13T05:20:44.622+03:00 level=INFO source=sched.go:620 msg="gpu memory" id=0 library=Vulkan available="4.6 GiB" free="5.1 GiB" minimum="457.0 MiB" overhead="0 B"
+time=2026-08-13T05:20:44.690+03:00 level=INFO source=llama_server.go:1046 msg="loading model via llama-server" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6
+time=2026-08-13T05:20:44.835+03:00 level=INFO source=llama_server.go:1293 msg="waiting for llama-server to start responding"
+time=2026-08-13T05:20:44.971+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server error"
+cmn  common_param: common_params_print_info: build 1 (f8def7fe1) with Clang 18.1.8 for Windows AMD64
+cmn  common_param: common_params_print_info: verbosity = 4 (adjust with the `-lv N` CLI arg)
+cmn  common_param: device_info:
+cmn  common_param:   - CPU     : Intel(R) Core(TM) i9-10980HK CPU @ 2.40GHz (65337 MiB, 14979 MiB free)
+cmn  common_param:   - Vulkan0 : Quadro RTX 3000 (5980 MiB, 5212 MiB free)
+cmn  common_param: system_info: n_threads = 8 (n_threads_batch = 8) / 16 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+srv          init: using 15 threads for HTTP server
+srv          init: The UI is disabled
+srv          init: Use --ui/--no-ui (or deprecated --webui/--no-webui) to enable/disable
+srv  llama_server: -----------------
+srv  llama_server: CORS is set to allow all origins ('*') and no API key is set
+srv  llama_server: this can be a security risk (cross-origin attacks)
+srv  llama_server: more info: https://github.com/ggml-org/llama.cpp/pull/25655
+srv  llama_server: -----------------
+srv         start: binding port with default address family
+srv    load_model: loading model 'C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6'
+srv    load_model: local path 'C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6'
+cmn  common_init_: fitting params to device memory ...
+cmn  common_init_: (for bugs during this step try to reproduce them with -fit off, or provide --verbose logs if the bug only occurs with -fit on)
+common_params_fit_impl: getting device memory data for initial parameters:
+time=2026-08-13T05:20:45.540+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server loading model"
+time=2026-08-13T05:20:46.381+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server not responding"
+time=2026-08-13T05:20:48.725+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server loading model"
+time=2026-08-13T05:20:49.143+03:00 level=INFO source=sched.go:641 msg="Load failed" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6 error="llama-server process has terminated: exit status 0xc0000005: The instruction at 0xp referenced memory at 0xp. The memory could not be s."
+time=2026-08-13T05:20:52.724+03:00 level=INFO source=server.go:109 msg="using llama-server for model" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6
+time=2026-08-13T05:20:52.754+03:00 level=INFO source=llama_server.go:431 msg="starting llama-server" cmd="C:\\Users\\Serkan\\AppData\\Local\\Programs\\Ollama\\lib\\ollama\\llama-server.exe --model C:\\Users\\Serkan\\.ollama\\models\\blobs\\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6 --port 50271 --host 127.0.0.1 --no-webui --offline -c 4096 -np 1 --log-verbosity 4 --no-log-prefix --no-log-timestamps --no-jinja --chat-template chatml --flash-attn auto -b 512 -ub 512 --context-shift --keep 4"
+time=2026-08-13T05:20:52.851+03:00 level=INFO source=sched.go:613 msg="system memory" total="63.8 GiB" free="14.8 GiB" free_swap="38.9 GiB"
+time=2026-08-13T05:20:52.916+03:00 level=INFO source=sched.go:620 msg="gpu memory" id=0 library=Vulkan available="4.6 GiB" free="5.1 GiB" minimum="457.0 MiB" overhead="0 B"
+time=2026-08-13T05:20:52.982+03:00 level=INFO source=llama_server.go:1046 msg="loading model via llama-server" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6
+time=2026-08-13T05:20:53.047+03:00 level=INFO source=llama_server.go:1293 msg="waiting for llama-server to start responding"
+time=2026-08-13T05:20:53.188+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server error"
+cmn  common_param: common_params_print_info: build 1 (f8def7fe1) with Clang 18.1.8 for Windows AMD64
+cmn  common_param: common_params_print_info: verbosity = 4 (adjust with the `-lv N` CLI arg)
+cmn  common_param: device_info:
+cmn  common_param:   - CPU     : Intel(R) Core(TM) i9-10980HK CPU @ 2.40GHz (65337 MiB, 15111 MiB free)
+cmn  common_param:   - Vulkan0 : Quadro RTX 3000 (5980 MiB, 5212 MiB free)
+cmn  common_param: system_info: n_threads = 8 (n_threads_batch = 8) / 16 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+srv          init: using 15 threads for HTTP server
+srv          init: The UI is disabled
+srv          init: Use --ui/--no-ui (or deprecated --webui/--no-webui) to enable/disable
+srv  llama_server: -----------------
+srv  llama_server: CORS is set to allow all origins ('*') and no API key is set
+srv  llama_server: this can be a security risk (cross-origin attacks)
+srv  llama_server: more info: https://github.com/ggml-org/llama.cpp/pull/25655
+srv  llama_server: -----------------
+srv         start: binding port with default address family
+srv    load_model: loading model 'C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6'
+srv    load_model: local path 'C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6'
+cmn  common_init_: fitting params to device memory ...
+cmn  common_init_: (for bugs during this step try to reproduce them with -fit off, or provide --verbose logs if the bug only occurs with -fit on)
+common_params_fit_impl: getting device memory data for initial parameters:
+time=2026-08-13T05:20:53.854+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server loading model"
+time=2026-08-13T05:20:54.643+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server not responding"
+time=2026-08-13T05:20:56.830+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server error"
+time=2026-08-13T05:20:57.134+03:00 level=INFO source=sched.go:641 msg="Load failed" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6 error="llama-server process has terminated: exit status 0xc0000005: The instruction at 0xp referenced memory at 0xp. The memory could not be s."
+time=2026-08-13T05:21:00.437+03:00 level=INFO source=server.go:109 msg="using llama-server for model" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6
+time=2026-08-13T05:21:00.584+03:00 level=INFO source=llama_server.go:431 msg="starting llama-server" cmd="C:\\Users\\Serkan\\AppData\\Local\\Programs\\Ollama\\lib\\ollama\\llama-server.exe --model C:\\Users\\Serkan\\.ollama\\models\\blobs\\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6 --port 62197 --host 127.0.0.1 --no-webui --offline -c 4096 -np 1 --log-verbosity 4 --no-log-prefix --no-log-timestamps --no-jinja --chat-template chatml --flash-attn auto -b 512 -ub 512 --context-shift --keep 4"
+time=2026-08-13T05:21:00.652+03:00 level=INFO source=sched.go:613 msg="system memory" total="63.8 GiB" free="14.8 GiB" free_swap="38.9 GiB"
+time=2026-08-13T05:21:00.841+03:00 level=INFO source=sched.go:620 msg="gpu memory" id=0 library=Vulkan available="4.6 GiB" free="5.1 GiB" minimum="457.0 MiB" overhead="0 B"
+time=2026-08-13T05:21:00.956+03:00 level=INFO source=llama_server.go:1046 msg="loading model via llama-server" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6
+time=2026-08-13T05:21:01.037+03:00 level=INFO source=llama_server.go:1293 msg="waiting for llama-server to start responding"
+time=2026-08-13T05:21:01.179+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server error"
+cmn  common_param: common_params_print_info: build 1 (f8def7fe1) with Clang 18.1.8 for Windows AMD64
+cmn  common_param: common_params_print_info: verbosity = 4 (adjust with the `-lv N` CLI arg)
+cmn  common_param: device_info:
+cmn  common_param:   - CPU     : Intel(R) Core(TM) i9-10980HK CPU @ 2.40GHz (65337 MiB, 15094 MiB free)
+cmn  common_param:   - Vulkan0 : Quadro RTX 3000 (5980 MiB, 5212 MiB free)
+cmn  common_param: system_info: n_threads = 8 (n_threads_batch = 8) / 16 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+srv          init: using 15 threads for HTTP server
+srv          init: The UI is disabled
+srv          init: Use --ui/--no-ui (or deprecated --webui/--no-webui) to enable/disable
+srv  llama_server: -----------------
+srv  llama_server: CORS is set to allow all origins ('*') and no API key is set
+srv  llama_server: this can be a security risk (cross-origin attacks)
+srv  llama_server: more info: https://github.com/ggml-org/llama.cpp/pull/25655
+srv  llama_server: -----------------
+srv         start: binding port with default address family
+srv    load_model: loading model 'C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6'
+srv    load_model: local path 'C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6'
+cmn  common_init_: fitting params to device memory ...
+cmn  common_init_: (for bugs during this step try to reproduce them with -fit off, or provide --verbose logs if the bug only occurs with -fit on)
+common_params_fit_impl: getting device memory data for initial parameters:
+time=2026-08-13T05:21:01.544+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server loading model"
+time=2026-08-13T05:21:02.425+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server not responding"
+time=2026-08-13T05:21:05.111+03:00 level=INFO source=sched.go:641 msg="Load failed" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6 error="llama-server process has terminated: exit status 0xc0000005: The instruction at 0xp referenced memory at 0xp. The memory could not be s."
+time=2026-08-13T05:21:08.727+03:00 level=INFO source=server.go:109 msg="using llama-server for model" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6
+time=2026-08-13T05:21:08.869+03:00 level=INFO source=llama_server.go:431 msg="starting llama-server" cmd="C:\\Users\\Serkan\\AppData\\Local\\Programs\\Ollama\\lib\\ollama\\llama-server.exe --model C:\\Users\\Serkan\\.ollama\\models\\blobs\\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6 --port 62673 --host 127.0.0.1 --no-webui --offline -c 4096 -np 1 --log-verbosity 4 --no-log-prefix --no-log-timestamps --no-jinja --chat-template chatml --flash-attn auto -b 512 -ub 512 --context-shift --keep 4"
+time=2026-08-13T05:21:08.960+03:00 level=INFO source=sched.go:613 msg="system memory" total="63.8 GiB" free="14.8 GiB" free_swap="38.7 GiB"
+time=2026-08-13T05:21:09.020+03:00 level=INFO source=sched.go:620 msg="gpu memory" id=0 library=Vulkan available="4.6 GiB" free="5.1 GiB" minimum="457.0 MiB" overhead="0 B"
+time=2026-08-13T05:21:09.020+03:00 level=INFO source=llama_server.go:1046 msg="loading model via llama-server" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6
+time=2026-08-13T05:21:09.082+03:00 level=INFO source=llama_server.go:1293 msg="waiting for llama-server to start responding"
+time=2026-08-13T05:21:09.083+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server error"
+cmn  common_param: common_params_print_info: build 1 (f8def7fe1) with Clang 18.1.8 for Windows AMD64
+cmn  common_param: common_params_print_info: verbosity = 4 (adjust with the `-lv N` CLI arg)
+cmn  common_param: device_info:
+cmn  common_param:   - CPU     : Intel(R) Core(TM) i9-10980HK CPU @ 2.40GHz (65337 MiB, 15183 MiB free)
+cmn  common_param:   - Vulkan0 : Quadro RTX 3000 (5980 MiB, 5212 MiB free)
+cmn  common_param: system_info: n_threads = 8 (n_threads_batch = 8) / 16 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+srv          init: using 15 threads for HTTP server
+srv          init: The UI is disabled
+srv          init: Use --ui/--no-ui (or deprecated --webui/--no-webui) to enable/disable
+srv  llama_server: -----------------
+srv  llama_server: CORS is set to allow all origins ('*') and no API key is set
+srv  llama_server: this can be a security risk (cross-origin attacks)
+srv  llama_server: more info: https://github.com/ggml-org/llama.cpp/pull/25655
+srv  llama_server: -----------------
+srv         start: binding port with default address family
+srv    load_model: loading model 'C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6'
+srv    load_model: local path 'C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6'
+cmn  common_init_: fitting params to device memory ...
+cmn  common_init_: (for bugs during this step try to reproduce them with -fit off, or provide --verbose logs if the bug only occurs with -fit on)
+common_params_fit_impl: getting device memory data for initial parameters:
+time=2026-08-13T05:21:09.896+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server loading model"
+time=2026-08-13T05:21:10.850+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server not responding"
+time=2026-08-13T05:21:13.820+03:00 level=INFO source=sched.go:641 msg="Load failed" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6 error="llama-server process has terminated: exit status 0xc0000005: The instruction at 0xp referenced memory at 0xp. The memory could not be s."
+time=2026-08-13T05:21:17.451+03:00 level=WARN source=runner.go:584 msg="llama-server GPU discovery watchdog timed out" OLLAMA_LIBRARY_PATH="[C:\\Users\\Serkan\\AppData\\Local\\Programs\\Ollama\\lib\\ollama C:\\Users\\Serkan\\AppData\\Local\\Programs\\Ollama\\lib\\ollama\\vulkan]" extra_envs=map[GGML_VK_VISIBLE_DEVICES:1] error="context deadline exceeded"
+time=2026-08-13T05:21:17.473+03:00 level=INFO source=runner.go:522 msg="failure during llama-server GPU discovery" OLLAMA_LIBRARY_PATH="[C:\\Users\\Serkan\\AppData\\Local\\Programs\\Ollama\\lib\\ollama C:\\Users\\Serkan\\AppData\\Local\\Programs\\Ollama\\lib\\ollama\\vulkan]" extra_envs=map[GGML_VK_VISIBLE_DEVICES:1] error="context deadline exceeded" detail=""
+time=2026-08-13T05:21:17.474+03:00 level=WARN source=runner.go:364 msg="unable to refresh free memory, using old values"
+time=2026-08-13T05:21:17.564+03:00 level=INFO source=server.go:109 msg="using llama-server for model" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6
+time=2026-08-13T05:21:17.573+03:00 level=INFO source=llama_server.go:431 msg="starting llama-server" cmd="C:\\Users\\Serkan\\AppData\\Local\\Programs\\Ollama\\lib\\ollama\\llama-server.exe --model C:\\Users\\Serkan\\.ollama\\models\\blobs\\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6 --port 62925 --host 127.0.0.1 --no-webui --offline -c 4096 -np 1 --log-verbosity 4 --no-log-prefix --no-log-timestamps --no-jinja --chat-template chatml --flash-attn auto -b 512 -ub 512 --context-shift --keep 4"
+time=2026-08-13T05:21:17.589+03:00 level=INFO source=sched.go:613 msg="system memory" total="63.8 GiB" free="14.8 GiB" free_swap="38.7 GiB"
+time=2026-08-13T05:21:17.589+03:00 level=INFO source=sched.go:620 msg="gpu memory" id=0 library=Vulkan available="4.6 GiB" free="5.1 GiB" minimum="457.0 MiB" overhead="0 B"
+time=2026-08-13T05:21:17.589+03:00 level=INFO source=llama_server.go:1046 msg="loading model via llama-server" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6
+time=2026-08-13T05:21:17.589+03:00 level=INFO source=llama_server.go:1293 msg="waiting for llama-server to start responding"
+time=2026-08-13T05:21:17.590+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server error"
+cmn  common_param: common_params_print_info: build 1 (f8def7fe1) with Clang 18.1.8 for Windows AMD64
+time=2026-08-13T05:21:18.594+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server loading model"
+cmn  common_param: common_params_print_info: verbosity = 4 (adjust with the `-lv N` CLI arg)
+cmn  common_param: device_info:
+cmn  common_param:   - CPU     : Intel(R) Core(TM) i9-10980HK CPU @ 2.40GHz (65337 MiB, 15084 MiB free)
+cmn  common_param:   - Vulkan0 : Quadro RTX 3000 (5980 MiB, 5212 MiB free)
+cmn  common_param: system_info: n_threads = 8 (n_threads_batch = 8) / 16 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+srv          init: using 15 threads for HTTP server
+srv          init: The UI is disabled
+srv          init: Use --ui/--no-ui (or deprecated --webui/--no-webui) to enable/disable
+srv  llama_server: -----------------
+srv  llama_server: CORS is set to allow all origins ('*') and no API key is set
+srv  llama_server: this can be a security risk (cross-origin attacks)
+srv  llama_server: more info: https://github.com/ggml-org/llama.cpp/pull/25655
+srv  llama_server: -----------------
+srv         start: binding port with default address family
+srv    load_model: loading model 'C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6'
+srv    load_model: local path 'C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6'
+cmn  common_init_: fitting params to device memory ...
+cmn  common_init_: (for bugs during this step try to reproduce them with -fit off, or provide --verbose logs if the bug only occurs with -fit on)
+common_params_fit_impl: getting device memory data for initial parameters:
+time=2026-08-13T05:21:19.572+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server not responding"
+time=2026-08-13T05:21:22.540+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server error"
+time=2026-08-13T05:21:22.792+03:00 level=INFO source=sched.go:641 msg="Load failed" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6 error="llama-server process has terminated: exit status 0xc0000005: The instruction at 0xp referenced memory at 0xp. The memory could not be s."
+time=2026-08-13T05:21:26.180+03:00 level=WARN source=runner.go:584 msg="llama-server GPU discovery watchdog timed out" OLLAMA_LIBRARY_PATH="[C:\\Users\\Serkan\\AppData\\Local\\Programs\\Ollama\\lib\\ollama C:\\Users\\Serkan\\AppData\\Local\\Programs\\Ollama\\lib\\ollama\\vulkan]" extra_envs=map[GGML_VK_VISIBLE_DEVICES:1] error="context deadline exceeded"
+time=2026-08-13T05:21:26.195+03:00 level=INFO source=runner.go:522 msg="failure during llama-server GPU discovery" OLLAMA_LIBRARY_PATH="[C:\\Users\\Serkan\\AppData\\Local\\Programs\\Ollama\\lib\\ollama C:\\Users\\Serkan\\AppData\\Local\\Programs\\Ollama\\lib\\ollama\\vulkan]" extra_envs=map[GGML_VK_VISIBLE_DEVICES:1] error="context deadline exceeded" detail=""
+time=2026-08-13T05:21:26.195+03:00 level=WARN source=runner.go:364 msg="unable to refresh free memory, using old values"
+time=2026-08-13T05:21:26.277+03:00 level=INFO source=server.go:109 msg="using llama-server for model" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6
+time=2026-08-13T05:21:26.285+03:00 level=INFO source=llama_server.go:431 msg="starting llama-server" cmd="C:\\Users\\Serkan\\AppData\\Local\\Programs\\Ollama\\lib\\ollama\\llama-server.exe --model C:\\Users\\Serkan\\.ollama\\models\\blobs\\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6 --port 52574 --host 127.0.0.1 --no-webui --offline -c 4096 -np 1 --log-verbosity 4 --no-log-prefix --no-log-timestamps --no-jinja --chat-template chatml --flash-attn auto -b 512 -ub 512 --context-shift --keep 4"
+time=2026-08-13T05:21:26.288+03:00 level=INFO source=sched.go:613 msg="system memory" total="63.8 GiB" free="14.5 GiB" free_swap="38.8 GiB"
+time=2026-08-13T05:21:26.288+03:00 level=INFO source=sched.go:620 msg="gpu memory" id=0 library=Vulkan available="4.6 GiB" free="5.1 GiB" minimum="457.0 MiB" overhead="0 B"
+time=2026-08-13T05:21:26.288+03:00 level=INFO source=llama_server.go:1046 msg="loading model via llama-server" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6
+time=2026-08-13T05:21:26.289+03:00 level=INFO source=llama_server.go:1293 msg="waiting for llama-server to start responding"
+time=2026-08-13T05:21:26.290+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server error"
+cmn  common_param: common_params_print_info: build 1 (f8def7fe1) with Clang 18.1.8 for Windows AMD64
+cmn  common_param: common_params_print_info: verbosity = 4 (adjust with the `-lv N` CLI arg)
+cmn  common_param: device_info:
+cmn  common_param:   - CPU     : Intel(R) Core(TM) i9-10980HK CPU @ 2.40GHz (65337 MiB, 14885 MiB free)
+cmn  common_param:   - Vulkan0 : Quadro RTX 3000 (5980 MiB, 5212 MiB free)
+cmn  common_param: system_info: n_threads = 8 (n_threads_batch = 8) / 16 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+srv          init: using 15 threads for HTTP server
+srv          init: The UI is disabled
+srv          init: Use --ui/--no-ui (or deprecated --webui/--no-webui) to enable/disable
+srv  llama_server: -----------------
+srv  llama_server: CORS is set to allow all origins ('*') and no API key is set
+srv  llama_server: this can be a security risk (cross-origin attacks)
+srv  llama_server: more info: https://github.com/ggml-org/llama.cpp/pull/25655
+srv  llama_server: -----------------
+srv         start: binding port with default address family
+srv    load_model: loading model 'C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6'
+srv    load_model: local path 'C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6'
+cmn  common_init_: fitting params to device memory ...
+cmn  common_init_: (for bugs during this step try to reproduce them with -fit off, or provide --verbose logs if the bug only occurs with -fit on)
+common_params_fit_impl: getting device memory data for initial parameters:
+time=2026-08-13T05:21:27.294+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server loading model"
+time=2026-08-13T05:21:28.500+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server not responding"
+time=2026-08-13T05:21:31.079+03:00 level=INFO source=llama_server.go:1348 msg="waiting for llama-server to become available" status="llm server error"
+time=2026-08-13T05:21:31.334+03:00 level=INFO source=sched.go:641 msg="Load failed" model=C:\Users\Serkan\.ollama\models\blobs\sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6 error="llama-server process has terminated: exit status 0xc0000005: The instruction at 0xp referenced memory at 0xp. The memory could not be s."

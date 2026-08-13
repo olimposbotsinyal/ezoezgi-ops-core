@@ -1,0 +1,4 @@
+﻿Zaman (UTC): 2026-08-13T02:12:38.8003239Z
+Warning: could not connect to a running Ollama instance
+Warning: client version is 0.32.9
+Not: Donanim/surucu bilgisi degismedi, bkz. host_fingerprint.md (ayni klasorun bir ust seviyesinde).
