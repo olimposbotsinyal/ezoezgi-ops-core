@@ -59,14 +59,19 @@ class GatewayConfig:
     # docs/ops/MODEL_FALLBACK_RUNBOOK.md'de acikca belgelendi -- operator
     # eylemi (marker dosyasi) olmadan pratik varsayilan davranis
     # degisebilir, bu KASITLI ve DOKUMANTE bir tasarim karari.
-    ollama_cpu_verify_enabled: bool
-    ollama_cpu_verify_strict: bool
-    ollama_cpu_verify_timeout_ms: int
-    ollama_cpu_verify_methods: tuple[str, ...]
-    ollama_cpu_marker_file: str
-    ollama_on_unverified: str
-    startup_preflight_required: bool
-    ollama_cpu_verify_cache_ttl_sec: int
+    # Varsayilanlar burada da tanimli (load_config()'inkiyle ayni) --
+    # GatewayConfig'i dogrudan (load_config() disinda, ornegin testlerde)
+    # olusturan mevcut kodun bu alanlari bilmesi gerekmesin diye. Gercek
+    # `load_config()` yolu zaten hepsini acikca set eder, bu varsayilanlar
+    # yalnizca dogrudan constructor cagrilari icin bir guvenlik agi.
+    ollama_cpu_verify_enabled: bool = True
+    ollama_cpu_verify_strict: bool = True
+    ollama_cpu_verify_timeout_ms: int = 1200
+    ollama_cpu_verify_methods: tuple[str, ...] = ("http", "process", "marker")
+    ollama_cpu_marker_file: str = "./runtime/ollama_cpu_mode.ok"
+    ollama_on_unverified: str = "RESTRICT_PRIMARY"
+    startup_preflight_required: bool = True
+    ollama_cpu_verify_cache_ttl_sec: int = 60
 
 
 def _load_yaml_overrides(path: Path) -> dict[str, Any]:
