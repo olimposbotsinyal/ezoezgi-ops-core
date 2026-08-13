@@ -116,6 +116,87 @@ haline döndürür (bkz. bu runbook'un dayandığı commit çifti: Commit A
 altyapı, Commit B entegrasyon — yalnızca Commit B'yi revert etmek
 yeterlidir, Commit A'nın varlığı davranışı değiştirmez).
 
+## CPU-only doğrulama kanıt temellidir, sihirli değildir
+
+> **Durum notu:** Bu bölüm `runtime_verify.py`'nin (bağımsız) doğrulama
+> yeteneğini anlatır. Router entegrasyonunun (STRICT modda Ollama'nın
+> birincil olarak ne zaman seçilmediği, yayılan audit event'leri) tam
+> davranışsal sonuçları için bu bölümün devamına ve "Olay aksiyonları"
+> tablosuna bakın.
+
+Önceki bölümde belirtildiği gibi, `OLLAMA_VULKAN=false` zorlaması yalnızca
+bu Python sürecinin kendi ortamına yazılır — harici, zaten çalışan bir
+`ollama serve` sürecini **etkilemez**. `model_gateway/runtime_verify.py`,
+bu operasyonel güvenlik açığını **kapatmaz** (kapatamaz) — yalnızca
+**kanıt toplar** ve o kanıda göre bir karar verir. Kesinlik iddia etmez.
+
+Üç kanıt kaynağı (`OLLAMA_CPU_VERIFY_METHODS` ile yapılandırılabilir):
+
+| Yöntem | Kanıt türü | Ne zaman güvenilir |
+|---|---|---|
+| `marker` | **Pozitif** — operatörün elle oluşturduğu bir dosya | Operatör gerçekten doğru env ile başlattıysa |
+| `process` | **Negatif** — Windows Event Viewer'da yakın zamanlı `llama-server.exe`/`0xc0000005` kaydı | Yalnızca Windows'ta, yalnızca bir çöküş zaten OLDUYSA |
+| `http` | **Zayıf negatif** — `/api/ps` üzerinden yüklü bir modelin VRAM kullanıp kullanmadığı | Yalnızca bir model zaten yüklüyse |
+
+**Neden otomatik pozitif doğrulama yok:** Python'dan/PowerShell'den harici,
+zaten çalışan bir sürecin ortam değişkenlerini okumenin genel, ayrıcalık
+gerektirmeyen bir yolu yoktur (.NET `Process.StartInfo.EnvironmentVariables`
+yalnızca SİZİN başlattığınız süreçler için doludur). Bu yüzden tek
+güvenilir pozitif sinyal, operatörün kendi beyanıdır (marker dosyası).
+
+### Operatör kontrol listesi: marker dosyası oluşturma/doğrulama
+
+1. Ollama sunucusunu doğru şekilde başlattığınızdan emin olun:
+   ```bash
+   set OLLAMA_VULKAN=false
+   ollama serve
+   ```
+2. Gerçekten çöküşsüz çalıştığını doğrulayın (en az bir başarılı
+   `/api/generate` çağrısı, bkz. `scripts/repro_ollama_crash.ps1`).
+3. Marker dosyasını oluşturun (yol: `OLLAMA_CPU_MARKER_FILE`, varsayılan
+   `./runtime/ollama_cpu_mode.ok`):
+   ```powershell
+   New-Item -ItemType Directory -Force -Path .\runtime | Out-Null
+   '{"verified_at":"<ISO8601>","method":"manual","operator":"<isminiz>"}' | Set-Content .\runtime\ollama_cpu_mode.ok
+   ```
+4. Marker dosyası **24 saat** taze sayılır (`runtime_verify.py`'deki
+   `MARKER_MAX_AGE_SECONDS` sabiti) — bu süre sonunda operatörün tekrar
+   doğrulayıp dosyayı yeniden oluşturması gerekir (basitçe `Set-Content`
+   ile üzerine yazmak, mtime'ı günceller, yeterlidir).
+
+### Bağımsız doğrulama kontrolünü çalıştırma
+
+```bash
+python -c "
+from model_gateway.runtime_verify import verify_ollama_cpu_mode
+r = verify_ollama_cpu_mode(
+    ollama_healthy=True,  # veya gercek bir health_check() sonucu
+    base_url='http://localhost:11434',
+    marker_file='./runtime/ollama_cpu_mode.ok',
+    methods=('http', 'process', 'marker'),
+    timeout_ms=1200,
+)
+print(r.status, r.reason_code)
+print(r.evidence)
+"
+```
+
+### UNVERIFIED/UNKNOWN durumunda ne yapmalı
+
+- **Beklenen bir durumdur, hata değildir** — operatör marker dosyası
+  oluşturmadıysa (yukarıya bakın) bu, `OLLAMA_CPU_VERIFY_STRICT=true`
+  varsayılanıyla **normaldir**.
+- STRICT modda kalmak isteniyorsa: marker dosyasını oluşturun (yukarıdaki
+  kontrol listesi).
+- Geçici olarak eski (workaround öncesi) davranışa dönmek isteniyorsa:
+  `OLLAMA_CPU_VERIFY_ENABLED=false` (dogrulama tamamen kapanir) veya
+  `OLLAMA_CPU_VERIFY_STRICT=false` (dogrulanamasa bile Ollama yine de
+  denenir, yalnizca uyari loglanir).
+- `reason_code=ENV_MISMATCH` görürseniz bu **negatif kanıttır** (yakın
+  zamanlı çöküş veya VRAM kullanımı tespit edildi) — bu durumda marker
+  dosyası oluşturmak yerine önce gerçek sorunu çözün
+  (`docs/ops/OLLAMA_WORKAROUND_CPU_ONLY.md`).
+
 ## Bilinen sınırlamalar
 
 - `remote_provider.py` yalnızca OpenAI-uyumlu `/v1/chat/completions`

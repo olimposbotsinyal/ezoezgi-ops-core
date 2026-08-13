@@ -50,6 +50,24 @@ class GatewayConfig:
     circuit_breaker_fails: int
     circuit_breaker_reset_sec: int
 
+    # CPU-only calisma zamani dogrulamasi (bkz. runtime_verify.py) --
+    # KANIT TEMELLI, sihirli/kesin bir garanti degil. Varsayilanlar
+    # bilerek muhafazakar (STRICT=true): operator bir marker dosyasi
+    # olusturmadikca, dogrulama genellikle UNKNOWN doner ve STRICT modda
+    # bu, Ollama'nin birincil olarak SECILMEMESI anlamina gelir. Bu,
+    # "sessiz davranis degisikligi yok" ilkesiyle celismemesi icin
+    # docs/ops/MODEL_FALLBACK_RUNBOOK.md'de acikca belgelendi -- operator
+    # eylemi (marker dosyasi) olmadan pratik varsayilan davranis
+    # degisebilir, bu KASITLI ve DOKUMANTE bir tasarim karari.
+    ollama_cpu_verify_enabled: bool
+    ollama_cpu_verify_strict: bool
+    ollama_cpu_verify_timeout_ms: int
+    ollama_cpu_verify_methods: tuple[str, ...]
+    ollama_cpu_marker_file: str
+    ollama_on_unverified: str
+    startup_preflight_required: bool
+    ollama_cpu_verify_cache_ttl_sec: int
+
 
 def _load_yaml_overrides(path: Path) -> dict[str, Any]:
     if not path.exists():
@@ -130,4 +148,39 @@ def load_config(yaml_path: Path | None = None) -> GatewayConfig:
         circuit_breaker_reset_sec=_get_int(
             "CIRCUIT_BREAKER_RESET_SEC", overrides, "circuit_breaker_reset_sec", 120
         ),
+        ollama_cpu_verify_enabled=_get_bool(
+            "OLLAMA_CPU_VERIFY_ENABLED", overrides, "ollama_cpu_verify_enabled", True
+        ),
+        ollama_cpu_verify_strict=_get_bool(
+            "OLLAMA_CPU_VERIFY_STRICT", overrides, "ollama_cpu_verify_strict", True
+        ),
+        ollama_cpu_verify_timeout_ms=_get_int(
+            "OLLAMA_CPU_VERIFY_TIMEOUT_MS", overrides, "ollama_cpu_verify_timeout_ms", 1200
+        ),
+        ollama_cpu_verify_methods=_get_methods_tuple(
+            "OLLAMA_CPU_VERIFY_METHODS", overrides, "ollama_cpu_verify_methods", "http,process,marker"
+        ),
+        ollama_cpu_marker_file=_get_str(
+            "OLLAMA_CPU_MARKER_FILE",
+            overrides,
+            "ollama_cpu_marker_file",
+            "./runtime/ollama_cpu_mode.ok",
+        ),
+        ollama_on_unverified=_get_str(
+            "OLLAMA_ON_UNVERIFIED", overrides, "ollama_on_unverified", "RESTRICT_PRIMARY"
+        ),
+        startup_preflight_required=_get_bool(
+            "STARTUP_PREFLIGHT_REQUIRED", overrides, "startup_preflight_required", True
+        ),
+        ollama_cpu_verify_cache_ttl_sec=_get_int(
+            "OLLAMA_CPU_VERIFY_CACHE_TTL_SEC", overrides, "ollama_cpu_verify_cache_ttl_sec", 60
+        ),
     )
+
+
+def _get_methods_tuple(
+    env_key: str, yaml_overrides: dict[str, Any], yaml_key: str, default: str
+) -> tuple[str, ...]:
+    raw = _get_str(env_key, yaml_overrides, yaml_key, default)
+    methods = tuple(m.strip() for m in raw.split(",") if m.strip())
+    return methods or tuple(m.strip() for m in default.split(","))
