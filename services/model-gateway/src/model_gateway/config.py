@@ -98,6 +98,16 @@ class GatewayConfig:
     metrics_jsonl_retention_days: int = 7
     metrics_agg_window_min: int = 60
 
+    # Artimli (incremental) aggregator + TTL onbellek performans ayarlari
+    # (bkz. metrics_index.py, metrics_aggregate.IncrementalAggregator,
+    # metrics_cache.CachedMetricsRenderer). Varsayilanlar dusuk/orta
+    # trafik icin makuldur -- yuksek trafik icin ayar rehberi:
+    # docs/ops/MONITORING_STACK_RUNBOOK.md "Performans ayar rehberi".
+    metrics_agg_cache_ttl_sec: float = 5.0
+    metrics_agg_state_path: str = "./data/metrics/model_gateway_metrics.state.json"
+    metrics_agg_max_series: int = 2000
+    metrics_agg_max_events_per_scrape: int = 5000
+
 
 def _load_yaml_overrides(path: Path) -> dict[str, Any]:
     if not path.exists():
@@ -237,6 +247,21 @@ def load_config(yaml_path: Path | None = None) -> GatewayConfig:
         ),
         metrics_agg_window_min=_get_int(
             "METRICS_AGG_WINDOW_MIN", overrides, "metrics_agg_window_min", 60
+        ),
+        metrics_agg_cache_ttl_sec=_get_float(
+            "METRICS_AGG_CACHE_TTL_SEC", overrides, "metrics_agg_cache_ttl_sec", 5.0
+        ),
+        metrics_agg_state_path=_get_str(
+            "METRICS_AGG_STATE_PATH",
+            overrides,
+            "metrics_agg_state_path",
+            "./data/metrics/model_gateway_metrics.state.json",
+        ),
+        metrics_agg_max_series=_get_int(
+            "METRICS_AGG_MAX_SERIES", overrides, "metrics_agg_max_series", 2000
+        ),
+        metrics_agg_max_events_per_scrape=_get_int(
+            "METRICS_AGG_MAX_EVENTS_PER_SCRAPE", overrides, "metrics_agg_max_events_per_scrape", 5000
         ),
     )
 
