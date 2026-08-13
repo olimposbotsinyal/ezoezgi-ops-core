@@ -15,6 +15,7 @@ import logging
 from typing import Any
 
 from model_gateway.base import REASON_FALLBACK_EXHAUSTED, AllProvidersFailedError, GenerateRequest
+from model_gateway.metrics import MetricsRegistry, get_metrics
 from model_gateway.router import ModelGatewayRouter, get_router
 
 logger = logging.getLogger("model_gateway.compat")
@@ -24,14 +25,18 @@ class RouterBackedClient:
     """`OllamaModelClient` ile ayni `.generate(prompt)` sozlesmesini
     router uzerinden saglayan adaptor."""
 
-    def __init__(self, router: ModelGatewayRouter | None = None) -> None:
+    def __init__(self, router: ModelGatewayRouter | None = None, metrics: MetricsRegistry | None = None) -> None:
         self._router = router or get_router()
+        self._metrics = metrics or get_metrics()
 
     def generate(self, prompt: str) -> dict[str, Any]:
         try:
             response = self._router.generate(GenerateRequest(prompt=prompt))
         except AllProvidersFailedError as exc:
             logger.warning("Tum saglayicilar basarisiz, fallback=True donuluyor: %s", exc)
+            self._metrics.inc_counter(
+                "model_gateway_null_intent_total", {"terminal_reason": REASON_FALLBACK_EXHAUSTED}
+            )
             # ollama_nlu.py entegrasyon yolu icin: trace_id + terminal
             # reason_code tek bir debug satirinda -- audit.log.jsonl'deki
             # ilgili OLLAMA_CPU_PREFLIGHT_CHECKED/MODEL_GATEWAY_GENERATE

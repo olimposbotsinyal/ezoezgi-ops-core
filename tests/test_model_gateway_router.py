@@ -29,6 +29,7 @@ from model_gateway.runtime_verify import (
 )
 from model_gateway.config import GatewayConfig
 from model_gateway.health import CircuitBreaker
+from model_gateway.metrics import MetricsRegistry
 from model_gateway.router import ModelGatewayRouter
 
 
@@ -108,7 +109,13 @@ def _make_config(**overrides) -> GatewayConfig:
     return GatewayConfig(**base)
 
 
-def _make_router(config: GatewayConfig, providers: dict, audit_logger: _FakeAuditLogger, policy_check=None) -> ModelGatewayRouter:
+def _make_router(
+    config: GatewayConfig,
+    providers: dict,
+    audit_logger: _FakeAuditLogger,
+    policy_check=None,
+    metrics: MetricsRegistry | None = None,
+) -> ModelGatewayRouter:
     return ModelGatewayRouter(
         config=config,
         providers=providers,
@@ -118,6 +125,11 @@ def _make_router(config: GatewayConfig, providers: dict, audit_logger: _FakeAudi
             reset_seconds=config.circuit_breaker_reset_sec,
         ),
         policy_check=policy_check,
+        # Testler arasi paylasilan global metrik durumunu (get_metrics()
+        # singleton) kirletmemek icin her router'a taze, izole bir kayit
+        # defteri verilir -- testler metrik durumunu kontrol etmiyor bile
+        # olsa, bu iyi test hijyeni.
+        metrics=metrics if metrics is not None else MetricsRegistry(enabled=True),
     )
 
 

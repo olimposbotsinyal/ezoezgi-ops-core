@@ -45,6 +45,7 @@ from model_gateway.base import (
 )
 from model_gateway.config import GatewayConfig, load_config
 from model_gateway.health import CircuitBreaker
+from model_gateway.metrics import MetricsRegistry, get_metrics
 from model_gateway.policy import is_remote_allowed
 from model_gateway.runtime_verify import STATUS_VERIFIED, VerificationResult, verify_ollama_cpu_mode
 
@@ -85,6 +86,7 @@ class ModelGatewayRouter:
         circuit_breaker: CircuitBreaker | None = None,
         policy_check: Callable[[], tuple[bool, str]] | None = None,
         verify_fn: Callable[..., VerificationResult] | None = None,
+        metrics: MetricsRegistry | None = None,
     ) -> None:
         self._config = config or load_config()
         self._providers = providers or _build_providers(self._config)
@@ -97,6 +99,12 @@ class ModelGatewayRouter:
         self._verify_fn = verify_fn or verify_ollama_cpu_mode
         self._verification_cache: VerificationResult | None = None
         self._verification_cached_at: float | None = None
+        if metrics is not None:
+            self._metrics = metrics
+        elif self._config.metrics_enabled:
+            self._metrics = get_metrics()
+        else:
+            self._metrics = MetricsRegistry(enabled=False)
 
     def _is_enabled(self, name: str) -> bool:
         c = self._config
@@ -126,6 +134,9 @@ class ModelGatewayRouter:
 
     def _skip(self, name: str, reason_code: str, detail: str, attempts: list, trace_id: str) -> None:
         logger.info("Saglayici atlandi: %s (%s) -- %s", name, reason_code, detail)
+        self._metrics.inc_counter(
+            "model_gateway_restrictions_total", {"provider": name, "reason_code": reason_code}
+        )
         self._audit(
             task="MODEL_GATEWAY_GENERATE",
             event="SKIPPED",
@@ -159,12 +170,16 @@ class ModelGatewayRouter:
 
         ollama = self._providers.get("ollama")
         health = ollama.healthcheck() if ollama is not None else None
+        self._metrics.set_gauge(
+            "model_gateway_provider_health", {"provider": "ollama"}, 1.0 if health and health.healthy else 0.0
+        )
         result = self._verify_fn(
             ollama_healthy=bool(health and health.healthy),
             base_url=self._config.ollama_host,
             marker_file=self._config.ollama_cpu_marker_file,
             methods=self._config.ollama_cpu_verify_methods,
             timeout_ms=self._config.ollama_cpu_verify_timeout_ms,
+            metrics=self._metrics,
         )
         self._verification_cache = result
         self._verification_cached_at = now
@@ -268,7 +283,9 @@ class ModelGatewayRouter:
                     self._skip(name, reason_code, detail, attempts, trace_id)
                     continue
 
-            if self._circuit_breaker.is_open(name):
+            circuit_open = self._circuit_breaker.is_open(name)
+            self._metrics.set_gauge("model_gateway_circuit_open", {"provider": name}, 1.0 if circuit_open else 0.0)
+            if circuit_open:
                 self._skip(name, REASON_CIRCUIT_OPEN, "devre acik (art arda hata esigi asildi)", attempts, trace_id)
                 continue
 
@@ -277,9 +294,21 @@ class ModelGatewayRouter:
                 break
 
             real_attempts += 1
+            call_started_at = time.monotonic()
             try:
                 response = provider.generate(request)
             except ProviderError as exc:
+                latency_ms = (time.monotonic() - call_started_at) * 1000.0
+                self._metrics.observe_histogram("model_gateway_generate_latency_ms", {"provider": name}, latency_ms)
+                self._metrics.inc_counter("model_gateway_requests_total", {"provider": name, "result": "failure"})
+                self._metrics.inc_counter(
+                    "model_gateway_fallback_total",
+                    {
+                        "from_provider": name,
+                        "to_provider": _next_provider_name(self._config.provider_order, name),
+                        "reason_code": exc.reason_code,
+                    },
+                )
                 self._circuit_breaker.record_failure(name)
                 logger.warning("Saglayici basarisiz: %s (%s) -- %s", name, exc.reason_code, exc.detail)
                 self._audit(
@@ -297,6 +326,9 @@ class ModelGatewayRouter:
                 attempts.append((name, exc.reason_code, exc.detail))
                 continue
 
+            latency_ms = (time.monotonic() - call_started_at) * 1000.0
+            self._metrics.observe_histogram("model_gateway_generate_latency_ms", {"provider": name}, latency_ms)
+            self._metrics.inc_counter("model_gateway_requests_total", {"provider": name, "result": "success"})
             self._circuit_breaker.record_success(name)
             logger.info("Saglayici basarili: %s", name)
             self._audit(
@@ -327,7 +359,23 @@ class ModelGatewayRouter:
         raise AllProvidersFailedError(attempts, trace_id=trace_id)
 
     def healthcheck_all(self) -> dict[str, Any]:
-        return {name: p.healthcheck() for name, p in self._providers.items()}
+        results = {name: p.healthcheck() for name, p in self._providers.items()}
+        for name, status in results.items():
+            self._metrics.set_gauge("model_gateway_provider_health", {"provider": name}, 1.0 if status.healthy else 0.0)
+        return results
+
+
+def _next_provider_name(provider_order: tuple[str, ...], current: str) -> str:
+    """`fallback_total`'in `to_provider` etiketi icin -- siradaki
+    ADAY saglayici (henuz denenip denenmeyecegi bilinmez, yalnizca
+    provider_order'daki bir sonraki giris)."""
+    try:
+        idx = provider_order.index(current)
+    except ValueError:
+        return "none"
+    if idx + 1 < len(provider_order):
+        return provider_order[idx + 1]
+    return "none"
 
 
 _default_router: ModelGatewayRouter | None = None

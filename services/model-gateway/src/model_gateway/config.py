@@ -73,6 +73,17 @@ class GatewayConfig:
     startup_preflight_required: bool = True
     ollama_cpu_verify_cache_ttl_sec: int = 60
 
+    # Gozlemlenebilirlik (metrics.py) + SLO/alert esikleri -- bkz.
+    # docs/ops/SLO_MODEL_GATEWAY.md, docs/ops/ALERT_PLAYBOOK_MODEL_GATEWAY.md.
+    # Metrik kaydi ASLA yonlendirme davranisini etkilemez -- yalnizca gozlem.
+    metrics_enabled: bool = True
+    metrics_exporter: str = "noop"  # "noop" | "prometheus"
+    slo_window_days: int = 7
+    alert_null_intent_warn: float = 0.01
+    alert_null_intent_crit: float = 0.02
+    alert_fallback_spike_multiplier: float = 3.0
+    daily_smoke_enabled: bool = True
+
 
 def _load_yaml_overrides(path: Path) -> dict[str, Any]:
     if not path.exists():
@@ -180,7 +191,37 @@ def load_config(yaml_path: Path | None = None) -> GatewayConfig:
         ollama_cpu_verify_cache_ttl_sec=_get_int(
             "OLLAMA_CPU_VERIFY_CACHE_TTL_SEC", overrides, "ollama_cpu_verify_cache_ttl_sec", 60
         ),
+        metrics_enabled=_get_bool("METRICS_ENABLED", overrides, "metrics_enabled", True),
+        metrics_exporter=_get_str("METRICS_EXPORTER", overrides, "metrics_exporter", "noop"),
+        slo_window_days=_get_int("SLO_WINDOW_DAYS", overrides, "slo_window_days", 7),
+        alert_null_intent_warn=_get_float(
+            "ALERT_NULL_INTENT_WARN", overrides, "alert_null_intent_warn", 0.01
+        ),
+        alert_null_intent_crit=_get_float(
+            "ALERT_NULL_INTENT_CRIT", overrides, "alert_null_intent_crit", 0.02
+        ),
+        alert_fallback_spike_multiplier=_get_float(
+            "ALERT_FALLBACK_SPIKE_MULTIPLIER", overrides, "alert_fallback_spike_multiplier", 3.0
+        ),
+        daily_smoke_enabled=_get_bool(
+            "DAILY_SMOKE_ENABLED", overrides, "daily_smoke_enabled", True
+        ),
     )
+
+
+def _get_float(env_key: str, yaml_overrides: dict[str, Any], yaml_key: str, default: float) -> float:
+    raw = os.getenv(env_key)
+    if raw is not None:
+        try:
+            return float(raw)
+        except ValueError:
+            return default
+    if yaml_key in yaml_overrides:
+        try:
+            return float(yaml_overrides[yaml_key])
+        except (TypeError, ValueError):
+            return default
+    return default
 
 
 def _get_methods_tuple(

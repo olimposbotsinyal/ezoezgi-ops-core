@@ -32,7 +32,10 @@ import urllib.request
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from model_gateway.metrics import MetricsRegistry
 
 logger = logging.getLogger("model_gateway.runtime_verify")
 
@@ -165,6 +168,7 @@ def verify_ollama_cpu_mode(
     marker_file: str,
     methods: tuple[str, ...],
     timeout_ms: int,
+    metrics: "MetricsRegistry | None" = None,
 ) -> VerificationResult:
     """Ollama'nin CPU-only modda calistigina dair kanit toplar ve
     VERIFIED/UNVERIFIED/UNKNOWN sonucuna varir. Hicbir zaman exception
@@ -173,18 +177,27 @@ def verify_ollama_cpu_mode(
     `ollama_healthy`, caller (router) tarafindan zaten yapilmis olan
     health check sonucudur -- burada tekrarlanmaz (gereksiz agirlik/cifte
     network cagrisini onlemek icin).
+
+    `metrics`, opsiyoneldir ve VARSAYILAN OLARAK None'dir -- yani bu
+    fonksiyon varsayilan olarak tamamen yan-etkisiz/saf kalir (mevcut
+    testler etkilenmez). Router, uretim yolunda gercek registry'yi acikca
+    gecirir. Metrik kaydi asla dogrulama SONUCUNU etkilemez -- yalnizca
+    gozlem amaclidir.
     """
     checked_at = _now_iso()
     deadline = time.monotonic() + max(timeout_ms, 1) / 1000.0
+    result: VerificationResult
 
     try:
         if not ollama_healthy:
-            return VerificationResult(
+            result = VerificationResult(
                 status=STATUS_UNVERIFIED,
                 reason_code=REASON_OLLAMA_UNREACHABLE,
                 evidence={"ollama_healthy": False},
                 checked_at=checked_at,
             )
+            _record_preflight_metric(metrics, result)
+            return result
 
         evidence: dict[str, Any] = {}
         crash_found = False
@@ -197,9 +210,11 @@ def verify_ollama_cpu_mode(
         # (starvation) anlamsiz olurdu. Bu, en guvenilir pozitif kanit
         # kaynagi oldugu icin ozellikle onemli.
         if "marker" in methods:
-            result = _check_marker_file(marker_file)
-            evidence["marker"] = result
-            marker_fresh = bool(result.get("fresh"))
+            t0 = time.monotonic()
+            probe_result = _check_marker_file(marker_file)
+            _observe_probe_latency(metrics, "marker", t0)
+            evidence["marker"] = probe_result
+            marker_fresh = bool(probe_result.get("fresh"))
 
         for method in methods:
             if method == "marker":
@@ -210,46 +225,67 @@ def verify_ollama_cpu_mode(
                 evidence[method] = {"skipped": True, "reason": "zaman butcesi doldu"}
                 continue
 
+            t0 = time.monotonic()
             if method == "process":
-                result = _check_recent_crash_evidence(remaining)
-                evidence["process"] = result
-                if result.get("available") and result.get("crash_count", 0) > 0:
+                probe_result = _check_recent_crash_evidence(remaining)
+                _observe_probe_latency(metrics, "process", t0)
+                evidence["process"] = probe_result
+                if probe_result.get("available") and probe_result.get("crash_count", 0) > 0:
                     crash_found = True
             elif method == "http":
-                result = _check_http_diagnostic(base_url, remaining)
-                evidence["http"] = result
-                if result.get("available") and result.get("any_vram_used"):
+                probe_result = _check_http_diagnostic(base_url, remaining)
+                _observe_probe_latency(metrics, "http", t0)
+                evidence["http"] = probe_result
+                if probe_result.get("available") and probe_result.get("any_vram_used"):
                     vram_used = True
             else:
                 evidence[method] = {"skipped": True, "reason": "bilinmeyen yontem"}
 
         if crash_found or vram_used:
-            return VerificationResult(
+            result = VerificationResult(
                 status=STATUS_UNVERIFIED,
                 reason_code=REASON_ENV_MISMATCH,
                 evidence=evidence,
                 checked_at=checked_at,
             )
-
-        if marker_fresh:
-            return VerificationResult(
+        elif marker_fresh:
+            result = VerificationResult(
                 status=STATUS_VERIFIED,
                 reason_code=REASON_CPU_MODE_VERIFIED,
                 evidence=evidence,
                 checked_at=checked_at,
             )
-
-        return VerificationResult(
-            status=STATUS_UNKNOWN,
-            reason_code=REASON_SIGNAL_NOT_AVAILABLE,
-            evidence=evidence,
-            checked_at=checked_at,
-        )
+        else:
+            result = VerificationResult(
+                status=STATUS_UNKNOWN,
+                reason_code=REASON_SIGNAL_NOT_AVAILABLE,
+                evidence=evidence,
+                checked_at=checked_at,
+            )
     except Exception as exc:  # beklenmeyen herhangi bir hata -- guvenli tarafa dus
         logger.warning("CPU-mode dogrulamasi beklenmedik hatayla basarisiz: %s", exc)
-        return VerificationResult(
+        result = VerificationResult(
             status=STATUS_UNKNOWN,
             reason_code=REASON_CHECK_ERROR,
             evidence={"error": str(exc)},
             checked_at=checked_at,
         )
+
+    _record_preflight_metric(metrics, result)
+    return result
+
+
+def _observe_probe_latency(metrics: "MetricsRegistry | None", method: str, started_at: float) -> None:
+    if metrics is None:
+        return
+    elapsed_ms = (time.monotonic() - started_at) * 1000.0
+    metrics.observe_histogram("model_gateway_preflight_latency_ms", {"method": method}, elapsed_ms)
+
+
+def _record_preflight_metric(metrics: "MetricsRegistry | None", result: VerificationResult) -> None:
+    if metrics is None:
+        return
+    metrics.inc_counter(
+        "model_gateway_preflight_total",
+        {"status": result.status, "reason_code": result.reason_code},
+    )
