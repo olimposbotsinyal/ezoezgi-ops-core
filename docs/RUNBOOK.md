@@ -567,6 +567,18 @@ yapılmadı**.
 reproducible bir Vulkan-etkin senaryo bulunamadı). B031 resmi durumu
 değişmeden **BLOCKED_BY_RUNTIME** kalıyor.
 
+### Upstream Follow-up Prepared (#17716) — 2026-08-13 ~05:37 (+03:00)
+
+Post-upstream Experiment Batch #1'in (n=100) sonuçlarını issue
+<https://github.com/ollama/ollama/issues/17716>'a ek yorum olarak iletmek
+üzere bir taslak hazırlandı:
+`reports/runtime_incident_20260813T004855Z/exp_01_post_upstream/upstream_comment_draft_17716.md`.
+
+**Gönderim durumu: MANUAL_POST_REQUIRED.** Bu ortamda `gh` CLI kurulu
+değil ve `GITHUB_TOKEN`/`GH_TOKEN` tanımlı değil — otomatik gönderim
+yapılmadı, sahte "gönderildi" iddiası yok. Kullanıcı taslağı manuel
+olarak issue'ya yorum ekleyerek gönderebilir.
+
 ## Onay Gerektiren Aksiyonlar (Faz 4+ ile aktif olacak)
 
 - Risk seviyesi `high` veya `irreversible` olan her aksiyon, kullanıcı onayı
