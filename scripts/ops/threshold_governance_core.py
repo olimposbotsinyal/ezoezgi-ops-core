@@ -29,7 +29,18 @@ from typing import Any
 DECISION_APPROVE = "APPROVE"
 DECISION_REJECT = "REJECT"
 DECISION_NEEDS_DATA = "NEEDS_DATA"
-VALID_DECISIONS = (DECISION_APPROVE, DECISION_REJECT, DECISION_NEEDS_DATA)
+DECISION_APPROVE_EMERGENCY = "APPROVE_EMERGENCY"
+VALID_DECISIONS = (DECISION_APPROVE, DECISION_REJECT, DECISION_NEEDS_DATA, DECISION_APPROVE_EMERGENCY)
+
+# `APPROVE` ile AYNI sekilde apply'a izin veren kararlar -- APPROVE_EMERGENCY
+# EK OLARAK `validate_emergency_fields()`'i de gecmek ZORUNDADIR (bkz.
+# check_apply_eligibility).
+APPROVED_DECISIONS = (DECISION_APPROVE, DECISION_APPROVE_EMERGENCY)
+
+# Acil durum (APPROVE_EMERGENCY) icin ZORUNLU alanlar -- gorev tanimindan
+# BIREBIR: incident_id, justification, timebox_hours (maks 24), retro_review_due_utc.
+EMERGENCY_REQUIRED_FIELDS = ("incident_id", "justification", "timebox_hours", "retro_review_due_utc")
+EMERGENCY_MAX_TIMEBOX_HOURS = 24
 
 _TYPE_MAP: dict[str, Any] = {
     "string": str,
@@ -123,11 +134,20 @@ def build_review_record(
     rationale: str,
     proposal: dict[str, Any],
     approved_at_utc: str | None = None,
+    incident_id: str | None = None,
+    justification: str | None = None,
+    timebox_hours: float | None = None,
+    retro_review_due_utc: str | None = None,
 ) -> dict[str, Any]:
+    """`incident_id`/`justification`/`timebox_hours`/`retro_review_due_utc`
+    yalnizca `decision == DECISION_APPROVE_EMERGENCY` ise kayda EKLENIR --
+    normal APPROVE/REJECT/NEEDS_DATA icin review_record.json'un ALANLARI
+    (Commit S/T ile AYNI sekil) DEGISMEZ, bu da mevcut proposal/review
+    artefaktlariyla geriye donuk uyumlulugu korur."""
     if decision not in VALID_DECISIONS:
         raise ValueError(f"gecersiz karar: {decision!r} (gecerli: {VALID_DECISIONS})")
 
-    return {
+    record: dict[str, Any] = {
         "proposal_id": proposal["proposal_id"],
         "reviewer": reviewer,
         "decision": decision,
@@ -135,6 +155,63 @@ def build_review_record(
         "approved_at_utc": approved_at_utc or datetime.now(timezone.utc).isoformat(),
         "linked_proposal_checksum": proposal["checksum"],
     }
+    if decision == DECISION_APPROVE_EMERGENCY:
+        record["incident_id"] = incident_id
+        record["justification"] = justification
+        record["timebox_hours"] = timebox_hours
+        record["retro_review_due_utc"] = retro_review_due_utc
+    return record
+
+
+def validate_emergency_fields(review_record: dict[str, Any]) -> list[str]:
+    """`review_record.decision == DECISION_APPROVE_EMERGENCY` icin
+    ZORUNLU alanlarin varligini/gecerliligini kontrol eder. Hata
+    mesajlari listesi doner (bos = gecerli). `check_apply_eligibility`
+    tarafindan APPLY ONCESI cagirilir -- review_record.json elle
+    duzenlenmis/bozuk olsa bile GUVENLI (asla exception firlatmaz)."""
+    errors: list[str] = []
+
+    incident_id = review_record.get("incident_id")
+    if not isinstance(incident_id, str) or not incident_id.strip():
+        errors.append("APPROVE_EMERGENCY icin 'incident_id' zorunlu ve bos olamaz")
+
+    justification = review_record.get("justification")
+    if not isinstance(justification, str) or not justification.strip():
+        errors.append("APPROVE_EMERGENCY icin 'justification' zorunlu ve bos olamaz")
+
+    timebox_hours = review_record.get("timebox_hours")
+    if isinstance(timebox_hours, bool) or not isinstance(timebox_hours, (int, float)):
+        errors.append(f"APPROVE_EMERGENCY icin 'timebox_hours' sayisal olmali (gozlenen: {timebox_hours!r})")
+    elif not (0 < timebox_hours <= EMERGENCY_MAX_TIMEBOX_HOURS):
+        errors.append(
+            f"APPROVE_EMERGENCY icin 'timebox_hours' (0, {EMERGENCY_MAX_TIMEBOX_HOURS}] araliginda olmali "
+            f"(gozlenen: {timebox_hours})"
+        )
+
+    retro_raw = review_record.get("retro_review_due_utc")
+    if not retro_raw or not isinstance(retro_raw, str):
+        errors.append("APPROVE_EMERGENCY icin 'retro_review_due_utc' zorunlu ve eksik/bos olamaz")
+    else:
+        try:
+            retro_dt = datetime.fromisoformat(retro_raw)
+            if retro_dt.tzinfo is None:
+                errors.append(f"'retro_review_due_utc' saat dilimi (timezone) bilgisi icermeli: {retro_raw!r}")
+            else:
+                approved_raw = review_record.get("approved_at_utc")
+                if isinstance(approved_raw, str) and approved_raw:
+                    try:
+                        approved_dt = datetime.fromisoformat(approved_raw)
+                        if retro_dt <= approved_dt:
+                            errors.append(
+                                f"'retro_review_due_utc' ({retro_raw}) 'approved_at_utc' ({approved_raw}) "
+                                "ile AYNI veya ONDAN ONCE olamaz -- gelecege donuk bir vade olmali"
+                            )
+                    except ValueError:
+                        pass  # approved_at_utc'nin kendisi bozuksa bu, retro alanini gecersiz kilmaz
+        except ValueError:
+            errors.append(f"'retro_review_due_utc' gecersiz ISO8601 tarih: {retro_raw!r}")
+
+    return errors
 
 
 @dataclass
@@ -158,8 +235,10 @@ def check_apply_eligibility(
         reasons.extend(f"proposal semasi gecersiz: {e}" for e in schema_errors)
 
     decision = review_record.get("decision")
-    if decision != DECISION_APPROVE:
-        reasons.append(f"review karari APPROVE degil: {decision!r}")
+    if decision not in APPROVED_DECISIONS:
+        reasons.append(f"review karari APPROVE degil (APPROVE_EMERGENCY de kabul edilir): {decision!r}")
+    elif decision == DECISION_APPROVE_EMERGENCY:
+        reasons.extend(validate_emergency_fields(review_record))
 
     if review_record.get("proposal_id") != proposal.get("proposal_id"):
         reasons.append(

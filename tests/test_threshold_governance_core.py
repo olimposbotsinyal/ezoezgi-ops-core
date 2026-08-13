@@ -12,13 +12,16 @@ import pytest
 
 from threshold_governance_core import (
     DECISION_APPROVE,
+    DECISION_APPROVE_EMERGENCY,
     DECISION_NEEDS_DATA,
     DECISION_REJECT,
+    EMERGENCY_MAX_TIMEBOX_HOURS,
     build_proposal,
     build_review_record,
     check_apply_eligibility,
     compute_checksum,
     validate_against_schema,
+    validate_emergency_fields,
 )
 
 SCHEMA_PATH = Path("infra/monitoring/governance/threshold_proposal_schema_v1.json")
@@ -242,3 +245,178 @@ def test_apply_eligibility_reports_all_failures_at_once(schema):
     result = check_apply_eligibility(tampered, review, schema)
     assert result.eligible is False
     assert len(result.reasons) >= 2
+
+
+# --- Acil durum (APPROVE_EMERGENCY) alan dogrulama matrisi (v1.1) --------------
+
+
+def _emergency_review(proposal, **overrides):
+    kwargs = dict(
+        reviewer="alice",
+        decision=DECISION_APPROVE_EMERGENCY,
+        rationale="acil",
+        proposal=proposal,
+        approved_at_utc="2026-08-13T00:00:00+00:00",
+        incident_id="INC-1",
+        justification="Prod'da gurultu, hemen mudahale gerekiyor",
+        timebox_hours=6,
+        retro_review_due_utc="2026-08-15T00:00:00+00:00",
+    )
+    kwargs.update(overrides)
+    return build_review_record(**kwargs)
+
+
+def test_build_review_record_includes_emergency_fields_for_approve_emergency():
+    proposal = _sample_proposal()
+    review = _emergency_review(proposal)
+    assert review["decision"] == DECISION_APPROVE_EMERGENCY
+    assert review["incident_id"] == "INC-1"
+    assert review["justification"]
+    assert review["timebox_hours"] == 6
+    assert review["retro_review_due_utc"] == "2026-08-15T00:00:00+00:00"
+
+
+def test_build_review_record_omits_emergency_fields_for_normal_approve():
+    """Normal APPROVE/REJECT/NEEDS_DATA icin review_record.json'un ALANLARI
+    (Commit S/T ile AYNI sekil) DEGISMEMELI -- geriye donuk uyumluluk."""
+    proposal = _sample_proposal()
+    review = build_review_record(reviewer="alice", decision=DECISION_APPROVE, rationale="x", proposal=proposal)
+    assert "incident_id" not in review
+    assert "justification" not in review
+    assert "timebox_hours" not in review
+    assert "retro_review_due_utc" not in review
+
+
+def test_validate_emergency_fields_passes_for_well_formed_record():
+    proposal = _sample_proposal()
+    review = _emergency_review(proposal)
+    assert validate_emergency_fields(review) == []
+
+
+def test_validate_emergency_fields_rejects_missing_incident_id():
+    proposal = _sample_proposal()
+    review = _emergency_review(proposal, incident_id=None)
+    errors = validate_emergency_fields(review)
+    assert any("incident_id" in e for e in errors)
+
+
+def test_validate_emergency_fields_rejects_blank_incident_id():
+    proposal = _sample_proposal()
+    review = _emergency_review(proposal, incident_id="   ")
+    errors = validate_emergency_fields(review)
+    assert any("incident_id" in e for e in errors)
+
+
+def test_validate_emergency_fields_rejects_missing_justification():
+    proposal = _sample_proposal()
+    review = _emergency_review(proposal, justification=None)
+    errors = validate_emergency_fields(review)
+    assert any("justification" in e for e in errors)
+
+
+@pytest.mark.parametrize("bad_timebox", [None, "6", True, False, -1, 0])
+def test_validate_emergency_fields_rejects_invalid_timebox(bad_timebox):
+    proposal = _sample_proposal()
+    review = _emergency_review(proposal, timebox_hours=bad_timebox)
+    errors = validate_emergency_fields(review)
+    assert any("timebox_hours" in e for e in errors)
+
+
+def test_validate_emergency_fields_rejects_timebox_over_24_hours():
+    proposal = _sample_proposal()
+    review = _emergency_review(proposal, timebox_hours=EMERGENCY_MAX_TIMEBOX_HOURS + 0.01)
+    errors = validate_emergency_fields(review)
+    assert any("timebox_hours" in e for e in errors)
+
+
+def test_validate_emergency_fields_accepts_timebox_exactly_24_hours():
+    proposal = _sample_proposal()
+    review = _emergency_review(proposal, timebox_hours=EMERGENCY_MAX_TIMEBOX_HOURS)
+    assert validate_emergency_fields(review) == []
+
+
+def test_validate_emergency_fields_rejects_missing_retro_review_due_utc():
+    proposal = _sample_proposal()
+    review = _emergency_review(proposal, retro_review_due_utc=None)
+    errors = validate_emergency_fields(review)
+    assert any("retro_review_due_utc" in e for e in errors)
+
+
+def test_validate_emergency_fields_rejects_malformed_retro_review_due_utc():
+    proposal = _sample_proposal()
+    review = _emergency_review(proposal, retro_review_due_utc="not-a-date")
+    errors = validate_emergency_fields(review)
+    assert any("retro_review_due_utc" in e for e in errors)
+
+
+def test_validate_emergency_fields_rejects_retro_review_due_utc_without_timezone():
+    proposal = _sample_proposal()
+    review = _emergency_review(proposal, retro_review_due_utc="2026-08-15T00:00:00")
+    errors = validate_emergency_fields(review)
+    assert any("saat dilimi" in e for e in errors)
+
+
+def test_validate_emergency_fields_rejects_retro_review_due_utc_before_approved_at():
+    proposal = _sample_proposal()
+    review = _emergency_review(proposal, retro_review_due_utc="2020-01-01T00:00:00+00:00")
+    errors = validate_emergency_fields(review)
+    assert any("ONCE olamaz" in e for e in errors)
+
+
+def test_validate_emergency_fields_reports_all_failures_at_once():
+    proposal = _sample_proposal()
+    review = _emergency_review(proposal, incident_id=None, justification=None, timebox_hours=48, retro_review_due_utc=None)
+    errors = validate_emergency_fields(review)
+    assert len(errors) >= 4
+
+
+# --- Apply uygunlugu (eligibility) -- APPROVE_EMERGENCY entegrasyonu ------------
+
+
+def test_apply_eligible_for_well_formed_emergency_review(schema):
+    proposal = _sample_proposal()
+    review = _emergency_review(proposal)
+    result = check_apply_eligibility(proposal, review, schema)
+    assert result.eligible is True
+    assert result.reasons == []
+
+
+def test_apply_blocked_when_emergency_fields_invalid(schema):
+    proposal = _sample_proposal()
+    review = _emergency_review(proposal, timebox_hours=48)
+    result = check_apply_eligibility(proposal, review, schema)
+    assert result.eligible is False
+    assert any("timebox_hours" in r for r in result.reasons)
+
+
+def test_apply_blocked_when_emergency_retro_review_due_missing(schema):
+    proposal = _sample_proposal()
+    review = _emergency_review(proposal, retro_review_due_utc=None)
+    result = check_apply_eligibility(proposal, review, schema)
+    assert result.eligible is False
+    assert any("retro_review_due_utc" in r for r in result.reasons)
+
+
+def test_apply_still_blocked_for_arbitrary_unknown_decision(schema):
+    """APPROVE_EMERGENCY EKLENMESI, gecersiz/bilinmeyen bir decision'i
+    KABUL ETMEYE baslamamali -- yalnizca APPROVE ve APPROVE_EMERGENCY
+    gecerlidir."""
+    proposal = _sample_proposal()
+    review = build_review_record(reviewer="alice", decision=DECISION_NEEDS_DATA, rationale="x", proposal=proposal)
+    result = check_apply_eligibility(proposal, review, schema)
+    assert result.eligible is False
+    assert any("APPROVE degil" in r for r in result.reasons)
+
+
+def test_apply_eligibility_checksum_check_still_applies_to_emergency_decision(schema):
+    """Acil durum yolu, checksum tahrifat korumasini BYPASS ETMEZ --
+    yalnizca iki-goz inceleme gereksinimini gevsetir, butunluk kontrolunu
+    DEGIL."""
+    proposal = _sample_proposal()
+    review = _emergency_review(proposal)
+    tampered_proposal = dict(proposal)
+    tampered_proposal["proposed_values"] = {"warn": 0.99, "crit": 0.99}
+
+    result = check_apply_eligibility(tampered_proposal, review, schema)
+    assert result.eligible is False
+    assert any("checksum uyusmazligi" in r for r in result.reasons)

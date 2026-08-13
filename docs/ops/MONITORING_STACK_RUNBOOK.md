@@ -503,11 +503,15 @@ senkron kalmaz).
 aksi halde exit code 2 ve HİÇBİR dosya değişmez):
 1. Proposal, `infra/monitoring/governance/threshold_proposal_schema_v1.json`
    şemasına uygun olmalı.
-2. review_record'un `decision`'ı TAM OLARAK `APPROVE` olmalı.
+2. review_record'un `decision`'ı `APPROVE` VEYA `APPROVE_EMERGENCY` olmalı.
 3. review_record'un `proposal_id`'si proposal ile eşleşmeli.
 4. review_record'daki `linked_proposal_checksum`, proposal'ın YENİDEN
    HESAPLANMIŞ checksum'ıyla birebir eşleşmeli (review'dan SONRA proposal
    değiştiyse apply REDDEDİLİR).
+5. `decision == APPROVE_EMERGENCY` ise EK OLARAK: `incident_id`,
+   `justification`, `timebox_hours` ((0, 24] aralığında), `retro_review_due_utc`
+   (geçerli, `approved_at_utc`'den SONRA bir ISO8601 UTC tarih) ZORUNLUDUR
+   — bkz. asağıdaki "Emergency Change Protocol (Enforced)".
 
 **Varsayılan mod her zaman DRY-RUN'dır** — `apply_threshold_proposal.ps1`
 `-Apply` olmadan hiçbir dosyayı değiştirmez, yalnızca uygunluğu kontrol
@@ -529,20 +533,59 @@ edip NE değişeceğini raporlar. Gerçek uygulama:
 | Applier (Uygular) | Reviewer VEYA Proposer (ikisinden biri, ama Reviewer'ın kendi APPROVE'unu kendisi uygulaması TERCİH EDİLİR) | `apply_threshold_proposal.ps1 -Apply` çalıştırır, sonucu doğrular |
 | Accountable (Hesap verebilir) | Model Gateway sahibi/on-call lead | Ledger + audit log'un tutarlılığından, acil durum değişikliklerinin RETROAKTİF incelendiğinden sorumlu |
 
-**Acil durum değişiklik yolu (time-boxed, zorunlu retroaktif inceleme):**
-Bir alert gerçek bir olayda gürültü yapıyorsa VE normal review turu
-(saatler) beklenemeyecek kadar acilse:
-1. On-call mühendis, review_record'u KENDİSİ oluşturabilir
-   (`--reviewer` alanına kendi adını + `"AJANDA: ACİL"` ön ekiyle
-   `--rationale` yazar) ve HEMEN `-Apply` ile uygular.
-2. Bu, NORMAL onay akışını BYPASS ETMEZ — review_record ZORUNLUDUR,
-   yalnızca "farklı bir kişi onaylasın" kısıtı GEÇİCİ olarak esnetilir.
-3. **48 SAAT İÇİNDE** ikinci bir mühendis, uygulanan değişikliği
-   RETROAKTİF olarak inceler (audit log + apply_report.json'a bakarak)
-   ve `docs/BACKLOG.md`'ye bir not düşer: onaylandı (kalıcı) veya geri
-   alındı (`rollback_threshold_apply.ps1 -Apply`).
-4. Bu yol, `docs/ops/ALERT_PLAYBOOK_MODEL_GATEWAY.md`'deki ilgili alert
-   playbook'unda AYRICA belgelenir.
+## Emergency Change Protocol (Enforced)
+
+**v1.1 ile bu artık yalnızca bir SOP DEĞİL — MAKİNE TARAFINDAN ZORLANAN
+bir yoldur.** Bir alert gerçek bir olayda gürültü yapıyorsa VE normal
+review turu (saatler, farklı bir incelemeci) beklenemeyecek kadar
+acilse, on-call mühendis `--decision APPROVE_EMERGENCY` kullanarak
+KENDİ review_record'unu oluşturabilir — ama bu, dört alanın TÜMÜNÜN
+GEÇERLİ olmasını ZORUNLU kılar (`threshold_governance_core.py::validate_emergency_fields`,
+hem review_record OLUŞTURULURKEN hem de apply ANINDA — review_record.json
+elle değiştirilse bile — İKİ KEZ doğrulanır):
+
+1. **`--incident-id`** — boş olamayan bir olay tanımlayıcısı (ör. `INC-1234`).
+2. **`--justification`** — boş olamayan, neden normal incelemenin
+   beklenemediğini açıklayan bir gerekçe (genel `--rationale` alanından
+   AYRI, acil duruma özgü).
+3. **`--timebox-hours`** — `(0, 24]` aralığında sayısal bir değer.
+   `24`'ten büyük bir değer REDDEDİLİR (exit 2, review_record.json
+   YAZILMAZ).
+4. **`--retro-review-due-utc`** — geçerli, saat dilimi içeren bir
+   ISO8601 UTC tarih, `approved_at_utc`'den KESİNLİKLE SONRA olmalı.
+
+```powershell
+python scripts/ops/create_threshold_review_record.py `
+  --proposal-path reports/threshold_proposals/<id>/proposal.json `
+  --reviewer "on-call-muhendis" --decision APPROVE_EMERGENCY `
+  --rationale "acil esik gevsetmesi" `
+  --incident-id "INC-1234" `
+  --justification "Prod'da yanlis-pozitif alarm firtinasi, hemen mudahale gerekiyor" `
+  --timebox-hours 6 `
+  --retro-review-due-utc "2026-08-15T00:00:00+00:00"
+
+pwsh scripts/ops/apply_threshold_proposal.ps1 -ProposalPath ... -ReviewRecordPath ... -Apply
+```
+
+**Bu, normal onay akışını BYPASS ETMEZ** — review_record ZORUNLUDUR,
+checksum/şema bütünlüğü kontrolleri AYNEN uygulanır; yalnızca "farklı
+bir kişi onaylasın" (iki-göz) kısıtı GEÇİCİ olarak esnetilir.
+
+**Uygulama sonrası otomatik etiketleme:** başarılı bir acil durum
+apply'ı `apply_report.json` (`is_emergency: true` + tam `emergency_fields`),
+`data/audit/audit.log.jsonl` (`risk_level: high`, tam acil durum
+alanları) VE `approved_checksums_ledger.jsonl` (`is_emergency`,
+`retro_review_due_utc`) içinde AÇIKÇA görünür.
+
+**Otomatik vade takibi (bkz. "Overdue emergency review escalation SOP"
+aşağıda):** `retro_review_due_utc` vadesi geçtiğinde VE aynı alert için
+takip eden NORMAL bir onay YOKSA, hem `detect_observability_drift.py`'nin
+her çalıştırmasında hem de bağımsız `scripts/ops/check_emergency_review_overdue.py`
+ile bu OTOMATİK OLARAK CRITICAL governance drift olarak yakalanır —
+kimse manuel takip etmeyi unutursa bile SESSİZCE kaçırılmaz.
+
+Bu yol, `docs/ops/ALERT_PLAYBOOK_MODEL_GATEWAY.md`'deki ilgili alert
+playbook'unda AYRICA belgelenir.
 
 ## Kalıcı (persistent) izleme profili
 

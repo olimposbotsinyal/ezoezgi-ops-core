@@ -9,6 +9,15 @@ checksum eslesmesi OLMADAN calismayi REDDEDER (bkz. threshold_governance_core.py
 **Bu, gorevin "no auto-apply without explicit approval artifact"
 kisitinin BIRINCI yarisidir** -- bir insanin (`--reviewer`) ACIKCA bir
 karar (`--decision`) + gerekce (`--rationale`) vermesini ZORUNLU kilar.
+
+**Acil durum (--decision APPROVE_EMERGENCY):** normal iki-goz incelemesi
+beklenemeyecek kadar acil durumlarda, TEK bir mühendis kendi APPROVE_EMERGENCY
+kararini kaydedebilir -- ama bu, `--incident-id`/`--justification`/
+`--timebox-hours` (maks 24)/`--retro-review-due-utc` alanlarinin TUMUNUN
+gecerli olmasini ZORUNLU kilar (bkz. `threshold_governance_core.py::validate_emergency_fields`).
+Bu alanlar hem burada (yazmadan ONCE) hem de `apply_threshold_proposal.ps1`
+icinde (apply ANINDA, review_record.json elle degistirilmis olsa bile
+GUVENLI kalmak icin) TEKRAR dogrulanir.
 """
 
 from __future__ import annotations
@@ -24,8 +33,18 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Esik degisikligi onerisi icin inceleme kaydi olusturur")
     parser.add_argument("--proposal-path", required=True, help="reports/threshold_proposals/<id>/proposal.json yolu")
     parser.add_argument("--reviewer", required=True, help="Inceleyen kisinin adi/e-postasi")
-    parser.add_argument("--decision", required=True, choices=["APPROVE", "REJECT", "NEEDS_DATA"])
+    parser.add_argument("--decision", required=True, choices=["APPROVE", "REJECT", "NEEDS_DATA", "APPROVE_EMERGENCY"])
     parser.add_argument("--rationale", required=True, help="Karar gerekcesi (bos birakilamaz)")
+    parser.add_argument("--incident-id", default=None, help="YALNIZCA --decision APPROVE_EMERGENCY icin zorunlu")
+    parser.add_argument("--justification", default=None, help="YALNIZCA --decision APPROVE_EMERGENCY icin zorunlu")
+    parser.add_argument(
+        "--timebox-hours", type=float, default=None,
+        help="YALNIZCA --decision APPROVE_EMERGENCY icin zorunlu, 0 ile 24 arasinda",
+    )
+    parser.add_argument(
+        "--retro-review-due-utc", default=None,
+        help="YALNIZCA --decision APPROVE_EMERGENCY icin zorunlu, ISO8601 UTC (ornek: 2026-08-14T12:00:00+00:00)",
+    )
     parser.add_argument("--output-base-dir", default=None, help="Varsayilan: reports/threshold_reviews/")
     args = parser.parse_args()
 
@@ -33,7 +52,7 @@ def main() -> int:
         print("HATA: --rationale bos olamaz.", file=sys.stderr)
         return 2
 
-    from threshold_governance_core import build_review_record
+    from threshold_governance_core import build_review_record, validate_emergency_fields
 
     proposal_path = Path(args.proposal_path)
     try:
@@ -52,7 +71,19 @@ def main() -> int:
         rationale=args.rationale,
         proposal=proposal,
         approved_at_utc=datetime.now(timezone.utc).isoformat(),
+        incident_id=args.incident_id,
+        justification=args.justification,
+        timebox_hours=args.timebox_hours,
+        retro_review_due_utc=args.retro_review_due_utc,
     )
+
+    if args.decision == "APPROVE_EMERGENCY":
+        emergency_errors = validate_emergency_fields(review_record)
+        if emergency_errors:
+            print("HATA: APPROVE_EMERGENCY icin zorunlu alanlar gecersiz/eksik -- review_record YAZILMADI:", file=sys.stderr)
+            for e in emergency_errors:
+                print(f"  - {e}", file=sys.stderr)
+            return 2
 
     output_base_dir = Path(args.output_base_dir) if args.output_base_dir else Path("reports") / "threshold_reviews"
     out_dir = output_base_dir / proposal["proposal_id"]

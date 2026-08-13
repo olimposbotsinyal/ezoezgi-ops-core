@@ -284,12 +284,22 @@ bkz. `docs/ops/MONITORING_STACK_RUNBOOK.md` "Eşik Değişikliği SOP").
    ile geri alın.
 
 **Reddetme kriterleri (REJECT/NEEDS_DATA verin, apply hiçbir zaman
-çalışmaz çünkü decision≠APPROVE ile engellenir):** güven LOW ise; örnek
-boyutu "YETERSİZ" ise; önerilen değer mevcut değerin ÇOK altındaysa
-(aşırı hassas eşik riski — script zaten bunu `max(gözlenen*çarpan,
+çalışmaz çünkü decision≠APPROVE/APPROVE_EMERGENCY ile engellenir):** güven
+LOW ise; örnek boyutu "YETERSİZ" ise; önerilen değer mevcut değerin ÇOK
+altındaysa (aşırı hassas eşik riski — script zaten bunu `max(gözlenen*çarpan,
 mevcut)` ile önler, ama yine de gözden geçirin); yakın zamanda (son 48
 saat) büyük bir trafik-deseni değişikliği (ör. yeni bir entegrasyon,
 sağlayıcı değişikliği) olduysa.
+
+**Acil durum (`--decision APPROVE_EMERGENCY`):** normal review turu
+beklenemeyecek kadar acil bir gürültü/yanlış-alarm firtinasi varsa, bu
+karar TEK bir mühendisin kendi onayını kaydetmesine izin verir — ama
+`--incident-id`/`--justification`/`--timebox-hours` (maks 24)/
+`--retro-review-due-utc` alanlarının TÜMÜ ZORUNLUDUR ve MAKİNE
+TARAFINDAN doğrulanır (bkz. `docs/ops/MONITORING_STACK_RUNBOOK.md`
+"Emergency Change Protocol (Enforced)" — tam RACI, komut örneği, ve
+retroaktif inceleme vadesinin kaçırılması durumunda OTOMATİK CRITICAL
+drift üretimi orada belgelidir).
 
 ## Bilinen sınırlamalar
 
