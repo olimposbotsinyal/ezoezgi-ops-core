@@ -704,6 +704,14 @@ geçişi denetlenebilir kılar.
   süreci ile elle doğrulandı, ayrıntı ve ödünleşimler:
   `docs/ops/MONITORING_STACK_RUNBOOK.md` "Bilinen ödünleşimler".
   Aggregator sert hatada `/metrics` 503 döner (`AggregationError`).
+  **Performans:** `/metrics` artık her scrape'te tüm JSONL geçmişini
+  yeniden TARAMAZ — `IncrementalAggregator` (yalnızca yeni byte'ları
+  okur, dosya kimliği rotasyona karşı şeffaf) + `CachedMetricsRenderer`
+  (`METRICS_AGG_CACHE_TTL_SEC` içindeki tekrar istekleri önbellekten
+  yanıtlar) kullanır — çıktı tam-yeniden-taramayla BİREBİR AYNIDIR,
+  bu makinede ölçülen p50 gecikme ~5.6x azaldı (önbellek isabetinde
+  ~pratikte sıfır). Ayar rehberi + gerçek benchmark sonuçları:
+  `docs/ops/MONITORING_STACK_RUNBOOK.md` "Performans ayar rehberi".
   `infra/monitoring/prometheus/prometheus.yml` +
   `infra/monitoring/alertmanager/alertmanager.yml` (geçerli config,
   Aşama 1/observe-only, bu makinede Prometheus/Alertmanager kurulu

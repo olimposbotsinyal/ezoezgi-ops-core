@@ -82,12 +82,19 @@ registry üzerinden), yani hem "aynı sürece HTTP enjeksiyonu" hem de
   Pratikte bu pencere tipik olarak alt-saniye mertebesindedir (dosya
   append + sonraki scrape arası), ama garanti edilen bir üst sınır
   yoktur.
-- **Scrape gecikmesi:** Her `/metrics` isteği, ana JSONL dosyasını (+
-  hâlâ pencere içindeki rotasyon dosyalarını) **baştan sona yeniden
-  okur/birleştirir** — kalıcı bir bellek-içi toplama YOKTUR. Dosya
-  büyüdükçe (rotasyon/retention ile sınırlı olsa da) ve/veya disk G/Ç
-  yavaşladıkça scrape gecikmesi artar. Prometheus'un `scrape_timeout`
-  değeri bu maliyeti hesaba katmalıdır.
+- **Scrape gecikmesi (GÜNCELLENDİ — artık bir "bilinen ödünleşim"
+  DEĞİL, çözüldü):** Önceden her `/metrics` isteği, ana JSONL dosyasını
+  (+ pencere içindeki tüm rotasyon dosyalarını) **baştan sona yeniden
+  okuyup birleştiriyordu**. `IncrementalAggregator` (bkz. aşağıdaki
+  "Performans ayar rehberi") artık yalnızca SON okumadan beri eklenen
+  byte'ları okur (dosya kimliği rename/rotasyona karşı şeffaftır) ve
+  `METRICS_AGG_CACHE_TTL_SEC` içindeki tekrar istekleri onbellekten
+  yanıtlanır — çıktı tam-yeniden-taramayla BİREBİR AYNIDIR (testle
+  kanıtlandı), yalnızca maliyeti değişti. Kalan gerçek ödünleşim: state
+  dosyası (`METRICS_AGG_STATE_PATH`) yalnızca gerçekten bir şey
+  değiştiğinde (yeni satır/pencere dışına çıkan olay/kardinalite
+  ataması) diske yazılır — bu, "steady-state" (yeni yazma yokken tekrar
+  scrape) senaryosunda gereksiz tam tampon serileştirmesini önler.
 - **`write_failures`/`events_dropped` yalnızca RAPORLAYAN sürece
   özeldir:** `metrics_sink_write_failures_total` ve
   `metrics_events_dropped_total`, `serve_metrics.py`'nin KENDİ
@@ -103,6 +110,46 @@ registry üzerinden), yani hem "aynı sürece HTTP enjeksiyonu" hem de
 - `METRICS_SINK=in_memory` (eski davranış) hâlâ desteklenir (opt-in,
   `METRICS_SINK` ortam değişkeni ile) — bu modda önceki sınırlama
   (yalnızca aynı süreç görünür) aynen geçerlidir.
+
+## Performans ayar rehberi (artımlı aggregator + TTL önbellek)
+
+`model_gateway.metrics_aggregate.IncrementalAggregator` +
+`model_gateway.metrics_cache.CachedMetricsRenderer` (bkz.
+`scripts/ops/serve_metrics.py::main()`), tam-yeniden-tarama yerine artık
+yalnızca yeni byte'ları okur ve kısa süreli bir TTL önbelleği kullanır —
+metrik çıktısı DEĞİŞMEZ (testle kanıtlı denklik), yalnızca maliyeti
+düşer. Bu makinede `scripts/ops/benchmark_metrics_scrape.py`
+(varsayılan parametrelerle: 5000 olay, 20 farklı seri, ~6 rotasyon
+dosyası, 15 tekrar) ile ölçülen gerçek sonuç:
+
+| Senaryo | p50 gecikme | Tepe bellek |
+|---|---|---|
+| Tam-yeniden-tarama (ÖNCESİ) | ~249 ms | ~2.67 MB |
+| Artımlı, önbelleksiz (SONRASI) | ~45 ms (**~5.6x** hızlı) | ~122 KB |
+| Artımlı + TTL önbellek (SONRASI) | ~0.004 ms (önbellek isabetinde) | ~0.3 KB |
+
+> Bu sayılar makineye/veri kümesine bağlı KABA tahminlerdir
+> (dogrulama-sınıfı kıyaslama değil) — kendi ortamınızda
+> `python scripts/ops/benchmark_metrics_scrape.py` ile yeniden üretin.
+> Çıktı: `reports/metrics_perf_<UTC>/summary.md` + `raw.json` (rutin/
+> tekrar-üretilebilir olduğundan `.gitignore`'da).
+
+Ayar tablosu (trafik hacmine göre önerilen değerler):
+
+| Ayar | Düşük trafik (varsayılan) | Orta trafik | Yüksek trafik |
+|---|---|---|---|
+| `METRICS_AGG_CACHE_TTL_SEC` | 5 | 5–10 | 10–30 (scrape aralığına yakın) |
+| `METRICS_AGG_WINDOW_MIN` | 60 | 60 | 15–30 (tampon boyutunu sınırlar) |
+| `METRICS_AGG_MAX_SERIES` | 2000 | 2000–5000 | 5000–20000 (gerçek benzersiz etiket kombinasyonu sayısına göre) |
+| `METRICS_AGG_MAX_EVENTS_PER_SCRAPE` | 5000 | 5000–20000 | 20000+ (yüksek olay hızında tek scrape'in gecikmesini sınırlar; aşımlar bir sonraki scrape'e ertelenir, veri kaybı OLMAZ) |
+| `METRICS_JSONL_MAX_MB` (sink rotasyonu) | 50 | 50–100 | 100–200 |
+
+Genel kural: `CACHE_TTL_SEC`'i Prometheus `scrape_interval`'inize yakın
+tutun (önbellek isabetini maksimize eder, gereksiz yeniden hesaplamayı
+önler); `MAX_SERIES`/`MAX_EVENTS_PER_SCRAPE`'i, ilk üretim gözleminden
+sonra gerçek kardinalite/olay hızınıza göre kalibre edin (varsayılanlar
+bilinçli olarak muhafazakar/güvenli taraftadır — aşımlar sessizce veri
+kaybına yol AÇMAZ, yalnızca ertelenir/loglanır/öz-metriklere yansır).
 
 ## Kademeli rollout aşamaları
 

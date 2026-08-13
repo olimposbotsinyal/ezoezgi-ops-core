@@ -17,13 +17,22 @@ Bu, GERCEK-ZAMANLI degil, GOZLEM-ANINDA (read-time) birlestirmedir --
     sonra, o olay ancak BIR SONRAKI `/metrics` GET'inde (sonraki
     okumada) gorunur -- gercek zamanli push degil, dosya-tabanli
     "en son okundugunda birlestir" modelidir.
-  - Scrape gecikmesi: her `/metrics` istegi butun JSONL dosyasini (+
-    hala pencere icindeki rotasyon dosyalarini) yeniden okur/birlestirir
-    -- Prometheus scrape araligi (`scrape_interval`), dosya boyutu ve
-    disk G/Ç hizina bagli olarak gozlemlenebilir bir gecikme ekler.
   - `METRICS_SINK=in_memory` (eski davranis, opt-in) hala desteklenir --
     bu modda script yalnizca KENDI surecinde biriken metrikleri gosterir
     (onceki sinirlama aynen gecerlidir).
+
+**GUNCELLEME (performans -- artimli aggregator + TTL onbellek, bkz.
+`model_gateway.metrics_aggregate.IncrementalAggregator`,
+`model_gateway.metrics_cache.CachedMetricsRenderer`):** `jsonl_append`
+modunda `/metrics` artik HER scrape'te butun JSONL gecmisini yeniden
+OKUMAZ -- yalnizca en son okumadan beri eklenen byte'lari okur (dosya
+kimligi rename/rotasyona karsi seffaftir), pencere-ici olaylari
+surec-ici bir tamponda tutar ve `METRICS_AGG_CACHE_TTL_SEC` (varsayilan
+5s) icinde gelen tekrar istekleri onbellekten (recompute'suz) yanitlar.
+Cikti, tam-yeniden-tarama ile BIREBIR AYNIDIR (testle kanitlandi) --
+bu yalnizca bir performans optimizasyonudur, metrik semantigini
+degistirmez. Ayar rehberi: `docs/ops/MONITORING_STACK_RUNBOOK.md`
+"Performans ayar rehberi".
 
 Lightweight: `jsonl_append` modunda dosya sistemini okur, `in_memory`
 modunda bellek-ici registry'yi okur -- HER IKI DURUMDA da inference
@@ -195,23 +204,44 @@ def main() -> None:
         from pathlib import Path
 
         from model_gateway import metrics_aggregate
+        from model_gateway.metrics_cache import CachedMetricsRenderer
 
         jsonl_path = Path(config.metrics_jsonl_path)
-        agg_window_min = config.metrics_agg_window_min
+        state_path = Path(config.metrics_agg_state_path)
         aggregation_error_cls = (metrics_aggregate.AggregationError,)
 
-        def render_fn() -> str:
-            agg_registry = metrics_aggregate.aggregate(jsonl_path, agg_window_min)
-            self_values = {**registry.sink_self_metrics(), **metrics_aggregate.self_metrics()}
-            for metric_name, value in self_values.items():
-                agg_registry.set_counter_absolute(metric_name, {}, value)
-            return agg_registry.render_prometheus_text()
+        incremental = metrics_aggregate.IncrementalAggregator(
+            jsonl_path,
+            state_path,
+            config.metrics_agg_window_min,
+            max_series=config.metrics_agg_max_series,
+            max_events_per_scrape=config.metrics_agg_max_events_per_scrape,
+        )
+
+        def _extra_counters() -> dict[str, float]:
+            return {
+                **registry.sink_self_metrics(),
+                **metrics_aggregate.self_metrics(),
+                **incremental.self_metrics(),
+            }
+
+        cached_renderer = CachedMetricsRenderer(
+            incremental,
+            ttl_seconds=config.metrics_agg_cache_ttl_sec,
+            extra_counters_fn=_extra_counters,
+        )
+        render_fn = cached_renderer.render
 
         logger.info(
-            "Metrics kaynagi: JSONL aggregator (%s, pencere=%d dk) -- cross-process "
+            "Metrics kaynagi: artimli JSONL aggregator (%s, pencere=%d dk, state=%s, "
+            "cache_ttl=%.1fs, max_series=%d, max_events_per_scrape=%d) -- cross-process "
             "gorunurluk aktif (eventual-consistency, bkz. docs/ops/MONITORING_STACK_RUNBOOK.md).",
             jsonl_path,
-            agg_window_min,
+            config.metrics_agg_window_min,
+            state_path,
+            config.metrics_agg_cache_ttl_sec,
+            config.metrics_agg_max_series,
+            config.metrics_agg_max_events_per_scrape,
         )
     else:
         render_fn = registry.render_prometheus_text

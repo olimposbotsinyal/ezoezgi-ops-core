@@ -16,12 +16,22 @@
 > (varsayılan) ile **çözüldü**: her süreç paylaşılan bir JSONL dosyasına
 > yazar, `/metrics` her çağrıda bu dosyayı okuyup birleştirir — 2 gerçek
 > ayrı OS süreci + `serve_metrics.py` ile elle doğrulandı. Kalan
-> ödünleşimler (eventual-consistency penceresi, scrape gecikmesi):
+> ödünleşim (eventual-consistency penceresi):
 > `docs/ops/MONITORING_STACK_RUNBOOK.md` "Bilinen ödünleşimler". Eski
 > davranış (`METRICS_SINK=in_memory`) hâlâ opt-in olarak mevcut.
 > Alternatif/tamamlayıcı: `scripts/ops/daily_gateway_smoke.ps1` ile
 > düzenli aralıklarla dosyaya (`reports/daily_smoke_<UTC>/metrics_snapshot.json`)
 > yazma yolu hâlâ geçerli ve gerçek üretim çağrılarını yakalar.
+>
+> **Performans (güncellendi):** `/metrics`, artık her scrape'te tüm
+> JSONL geçmişini yeniden taramıyor — `IncrementalAggregator` +
+> `CachedMetricsRenderer` (bkz. `docs/ops/MONITORING_STACK_RUNBOOK.md`
+> "Performans ayar rehberi") yalnızca yeni olayları okur ve kısa süreli
+> bir TTL önbelleği kullanır. Bu makinede ölçülen gerçek sonuç: p50
+> scrape gecikmesi ~249ms → ~45ms (önbelleksiz, **~5.6x**), önbellek
+> isabetinde ~0.004ms. Çıktı tam-yeniden-taramayla BİREBİR AYNIDIR
+> (testle kanıtlı denklik) — bu yalnızca bir performans optimizasyonudur,
+> SLI/SLO tanımlarını veya `classify()` sözleşmesini etkilemez.
 
 ## Kapsam
 

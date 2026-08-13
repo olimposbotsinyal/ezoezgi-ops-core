@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import logging
+import stat
 import threading
 import time
 from pathlib import Path
@@ -204,44 +205,67 @@ class IncrementalAggregator:
     def refresh(self) -> MetricsRegistry:
         """Yeni satirlari okur (varsa), pencere disina cikan olaylari
         budar, kardinalite sinirini uygular, TAZE bir registry'ye
-        replay eder ve state'i kalici hale getirir. `AggregationError`,
-        hicbir dosya acilamadiginda (ve en az biri beklenirken) firlatir
-        -- `read_recent_events()` ile AYNI sert-hata sozlesmesi."""
+        replay eder. `AggregationError`, hicbir dosyaya erisilemediginde
+        (ve en az biri beklenirken) firlatir -- `read_recent_events()`
+        ile AYNI sert-hata sozlesmesi.
+
+        State YALNIZCA gercekten bir sey degistiyse (yeni satir
+        alindi/olay pencere disina cikti/kardinalite sinirinca
+        atildi) diske yazilir -- degisiklik yoksa (tipik "steady-state"
+        scrape: aradan yeni yazma gecmemis) tum tamponu her seferinde
+        yeniden serilestirip yazmak, tam-yeniden-taramanin onledigi
+        maliyeti baska bir bicimde geri getirir; bu kontrol o riski
+        kapatir (performans kiyaslamasiyla dogrulandi, bkz.
+        scripts/ops/benchmark_metrics_scrape.py)."""
         with self._lock:
-            self._ingest_new_lines()
-            self._prune_expired()
-            self._enforce_series_cap()
+            newly_ingested = self._ingest_new_lines()
+            pruned = self._prune_expired()
+            cap_dropped = self._enforce_series_cap()
             registry = compact_to_registry(self._events)
-            self._state.window_minutes = self._window_minutes
-            self._state.events = list(self._events)
-            metrics_index.save_state(self._state_path, self._state)
+            if newly_ingested > 0 or pruned > 0 or cap_dropped > 0:
+                self._state.window_minutes = self._window_minutes
+                self._state.events = list(self._events)
+                metrics_index.save_state(self._state_path, self._state)
             return registry
 
-    def _ingest_new_lines(self) -> None:
+    def _ingest_new_lines(self) -> int:
         files = _iter_jsonl_files(self._jsonl_path)
         if not files:
-            return  # hicbir surec henuz yazmadi -- NORMAL
+            return 0  # hicbir surec henuz yazmadi -- NORMAL
 
-        any_opened = False
+        any_accessible = False
         last_error: Exception | None = None
         budget = self._max_events_per_scrape
         capped = False
+        ingested = 0
 
         for file_path in files:
             if budget <= 0:
                 capped = True
                 break
 
-            identity = metrics_index.file_identity(file_path)
-            if identity is None:
-                continue  # glob ile stat arasinda silinmis/tasinmis -- atla
+            try:
+                st = file_path.stat()
+            except OSError as exc:
+                last_error = exc
+                continue
 
+            identity = metrics_index.identity_from_stat(st)
             offset_entry = self._state.files.get(identity)
             offset = offset_entry.offset if offset_entry else 0
 
+            if stat.S_ISREG(st.st_mode) and st.st_size <= offset:
+                # Duzenli bir dosya VE okunacak yeni bayt yok -- open()/
+                # seek()/read() syscall'larindan tamamen kacinilir (bu,
+                # steady-state -- aradan yeni yazma gecmemis -- scrape'lerin
+                # baskin durumu; bkz. benchmark).
+                any_accessible = True
+                self._state.files[identity] = FileOffset(path=str(file_path), offset=offset)
+                continue
+
             try:
                 with file_path.open("rb") as fh:
-                    any_opened = True
+                    any_accessible = True
                     fh.seek(offset)
                     chunk = fh.read()
             except OSError as exc:
@@ -267,8 +291,9 @@ class IncrementalAggregator:
                     continue  # bozuk tek satir -- tum dosyayi gecersiz kilmaz
                 self._events.append(event)
                 self.lines_ingested_total += 1
+                ingested += 1
 
-        if not any_opened and last_error is not None:
+        if not any_accessible and last_error is not None:
             read_failures.increment()
             raise AggregationError(f"Hicbir metrics JSONL dosyasi okunamadi: {last_error}")
 
@@ -283,13 +308,17 @@ class IncrementalAggregator:
                 "kalan olaylar bir sonraki scrape'e ertelendi",
             )
 
-    def _prune_expired(self) -> None:
-        cutoff = time.time() - (self._window_minutes * 60)
-        self._events = [e for e in self._events if e.ts >= cutoff]
+        return ingested
 
-    def _enforce_series_cap(self) -> None:
+    def _prune_expired(self) -> int:
+        cutoff = time.time() - (self._window_minutes * 60)
+        before = len(self._events)
+        self._events = [e for e in self._events if e.ts >= cutoff]
+        return before - len(self._events)
+
+    def _enforce_series_cap(self) -> int:
         if self._max_series <= 0 or not self._events:
-            return
+            return 0
         seen: set[tuple[str, tuple[tuple[str, str], ...]]] = set()
         dropped_series: set[tuple[str, tuple[tuple[str, str], ...]]] = set()
         kept_events: list[MetricEvent] = []
@@ -310,7 +339,9 @@ class IncrementalAggregator:
                 f"metrics aggregator METRICS_AGG_MAX_SERIES sinirina ulasti -- "
                 f"{len(dropped_series)} yeni seri atlandi",
             )
+        events_dropped = len(self._events) - len(kept_events)
         self._events = kept_events
+        return events_dropped
 
     def self_metrics(self) -> dict[str, float]:
         with self._lock:

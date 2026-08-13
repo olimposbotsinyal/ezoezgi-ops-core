@@ -88,6 +88,14 @@ class AggregatorState:
         )
 
 
+def identity_from_stat(st: os.stat_result) -> str:
+    """`file_identity()` ile AYNI format -- zaten elde bir `stat()`
+    sonucu varsa (ornegin `IncrementalAggregator._ingest_new_lines()`
+    icinde) ikinci bir `stat()` cagrisindan kacinmak icin ayri
+    fonksiyon olarak disari acilir."""
+    return f"{st.st_dev}:{st.st_ino}"
+
+
 def file_identity(path: Path) -> str | None:
     """`(st_dev, st_ino)` tabanli kalici dosya kimligi. Dosya yoksa/stat
     basarisiz olursa `None` doner (SERT hata degil -- cagiran bunu
@@ -96,7 +104,7 @@ def file_identity(path: Path) -> str | None:
         st = path.stat()
     except OSError:
         return None
-    return f"{st.st_dev}:{st.st_ino}"
+    return identity_from_stat(st)
 
 
 def load_state(state_path: Path) -> AggregatorState | None:

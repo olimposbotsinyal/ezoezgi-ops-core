@@ -34,3 +34,9 @@ reports/incidents/
 # ayni gerekce: rutin/tekrarlanan test ciktisi, repoya birikmesin.
 reports/alert_e2e_*/
 reports/monitoring_stack/
+
+# Metrics scrape performans kiyaslama ciktilari (scripts/ops/benchmark_metrics_scrape.py)
+# -- ayni gerekce: makineye/ana bagli, tekrar calistirilabilir kiyaslama
+# ciktisi, repoya birikmesin. Sayilar docs/ops/MONITORING_STACK_RUNBOOK.md'de
+# ozetlenir; gerekirse `git add -f` ile belirli bir kosunun kaniti eklenebilir.
+reports/metrics_perf_*/
