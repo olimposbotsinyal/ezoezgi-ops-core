@@ -524,6 +524,16 @@ eşiğin (`2.50s`) çok üzerinde — beklenen CPU-only ödünleşimi. **Bu sonu
 resmi B031 kararını DEĞİŞTİRMEZ; B031 resmi durumu BLOCKED_BY_RUNTIME
 olarak kalır.**
 
+### Checkpoint — Upstream Issue Sonrası — 2026-08-13 ~05:07 (+03:00)
+
+- Upstream issue **#17716** açıldı ve bağlandı:
+  <https://github.com/ollama/ollama/issues/17716> (bkz. yukarıdaki "B036
+  Upstream Issue — Durum").
+- **B036: IN_PROGRESS** (değişmedi — issue açılması B036'yı çözmüyor).
+- **B031: BLOCKED_BY_RUNTIME** (değişmedi).
+- Sonraki aksiyon: kontrollü bir runtime stabilizasyon deney partisi
+  (Post-upstream Experiment Batch #1) — bkz. aşağıdaki bölüm.
+
 ## Onay Gerektiren Aksiyonlar (Faz 4+ ile aktif olacak)
 
 - Risk seviyesi `high` veya `irreversible` olan her aksiyon, kullanıcı onayı
