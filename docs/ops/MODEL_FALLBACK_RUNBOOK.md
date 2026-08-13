@@ -48,7 +48,28 @@ REMOTE_API_KEY=                      # yalnızca remote_provider.py tarafından 
 FALLBACK_MAX_HOPS=2
 CIRCUIT_BREAKER_FAILS=3
 CIRCUIT_BREAKER_RESET_SEC=120
+
+OLLAMA_CPU_VERIFY_ENABLED=true        # kapatmak icin false -- kapaninca Ollama eski davranisina doner
+OLLAMA_CPU_VERIFY_STRICT=true         # bkz. asagidaki "ONEMLI DAVRANIS SONUCU" notu
+OLLAMA_CPU_VERIFY_TIMEOUT_MS=1200
+OLLAMA_CPU_VERIFY_METHODS=http,process,marker
+OLLAMA_CPU_MARKER_FILE=./runtime/ollama_cpu_mode.ok
+OLLAMA_ON_UNVERIFIED=RESTRICT_PRIMARY # su an desteklenen tek deger
+STARTUP_PREFLIGHT_REQUIRED=true
+OLLAMA_CPU_VERIFY_CACHE_TTL_SEC=60    # her istekte degil, bu araliklarla yeniden dogrulanir
 ```
+
+> **ÖNEMLİ DAVRANIŞ SONUCU:** Bu dört değişkenin (`OLLAMA_CPU_VERIFY_ENABLED`,
+> `_STRICT`, marker dosyası yok) **hepsi varsayılan** kalırsa, operatör
+> `OLLAMA_CPU_MARKER_FILE`'ı elle oluşturmadığı sürece doğrulama neredeyse
+> her zaman `UNKNOWN`/`SIGNAL_NOT_AVAILABLE` döner ve **Ollama STRICT modda
+> birincil olarak seçilmez** — sistem, Ollama gerçekten sağlıklı çalışıyor
+> olsa bile `local_alt`/`remote` (varsayılan kapalı) yoksa doğrudan
+> null-intent'e düşer. Bu, **kasıtlı, dokümante edilmiş bir tasarım
+> kararıdır** ("sessiz davranış değişikliği yok" ilkesi gereği burada
+> yüksek sesle belirtiliyor) — operatörün ya marker dosyasını oluşturması
+> (bkz. aşağıdaki kontrol listesi) ya da bilerek `OLLAMA_CPU_VERIFY_STRICT=false`
+> veya `OLLAMA_CPU_VERIFY_ENABLED=false` seçmesi gerekir.
 
 Opsiyonel YAML override: `config/model_gateway.yaml` (env değişkeni
 tanımlıysa env kazanır — bkz. `model_gateway/config.py`).
@@ -81,9 +102,9 @@ powershell -File scripts/repro_ollama_crash.ps1
 
 ## Olay (incident) aksiyonları
 
-Router bir fallback event'i ürettiğinde (`data/audit/audit.log.jsonl`'de
-`task=MODEL_GATEWAY_GENERATE`, `status=FALLBACK`), `details.reason_code`
-alanına göre:
+Router bir fallback/skip event'i ürettiğinde (`data/audit/audit.log.jsonl`'de
+`task=MODEL_GATEWAY_GENERATE`, `status=FALLBACK` veya `SKIPPED`),
+`details.reason_code` alanına göre:
 
 | reason_code | Anlamı | Aksiyon |
 |---|---|---|
@@ -93,6 +114,19 @@ alanına göre:
 | `POLICY_BLOCK` | Politika remote kullanımına izin vermiyor | Bilinçli bir tasarım — izin gerekiyorsa `tool_risk_policy.yaml`'ı güncelleyin |
 | `DISABLED` | Sağlayıcı config'de kapalı | Beklenen davranış, aksiyon gerekmez |
 | `CIRCUIT_OPEN` | Art arda `CIRCUIT_BREAKER_FAILS` kez başarısız oldu, `CIRCUIT_BREAKER_RESET_SEC` saniye beklenmeden tekrar denenmiyor | Kök nedeni düzeltin, devre kendiliğinden yarı-açılacak |
+| `PRIMARY_RESTRICTED_CPU_UNVERIFIED` | CPU-only doğrulama VERIFIED dönmedi, STRICT modda Ollama hiç denenmedi | Bkz. yukarıdaki "CPU-only doğrulama" bölümü — genellikle marker dosyası eksik |
+| `FALLBACK_EXHAUSTED` | Sıradaki TÜM sağlayıcılar (atlananlar dahil) tükendi, `AllProvidersFailedError` fırlatıldı | `attempts` listesindeki her adımın reason_code'una tek tek bakın |
+
+### Yeni audit event tipleri (CPU-verify kapısı)
+
+Yukarıdaki `MODEL_GATEWAY_GENERATE` event'ine ek olarak, CPU-verify kapısı
+kendi `task` değerleriyle ayrı event'ler yazar (aynı `trace_id` ile
+korelasyonlanabilir):
+
+| task | Ne zaman yazılır | Önemli alanlar |
+|---|---|---|
+| `OLLAMA_CPU_PREFLIGHT_CHECKED` | Doğrulama gerçekten çalıştığında (cache hit'te YAZILMAZ) | `verification_status`, `verification_reason_code`, `evidence` |
+| `OLLAMA_PRIMARY_RESTRICTED` | STRICT modda Ollama kısıtlandığında | `action_taken=RESTRICT_PRIMARY` |
 
 ## Geri alma (rollback): yalnızca ollama-only CPU modu
 
@@ -116,13 +150,24 @@ haline döndürür (bkz. bu runbook'un dayandığı commit çifti: Commit A
 altyapı, Commit B entegrasyon — yalnızca Commit B'yi revert etmek
 yeterlidir, Commit A'nın varlığı davranışı değiştirmez).
 
+**CPU-verify kapısı beklenmedik şekilde Ollama'yı kısıtlıyorsa** (bkz.
+yukarıdaki "ÖNEMLİ DAVRANIŞ SONUCU"), en hızlı geri alma kod değişikliği
+gerektirmez:
+
+```bash
+OLLAMA_CPU_VERIFY_ENABLED=false   # kapıyı tamamen kapat, Commit C/D öncesi davranış
+# veya, dogrulamayi acik tutup yalnizca zorlamayi gevsetmek icin:
+OLLAMA_CPU_VERIFY_STRICT=false
+```
+
 ## CPU-only doğrulama kanıt temellidir, sihirli değildir
 
-> **Durum notu:** Bu bölüm `runtime_verify.py`'nin (bağımsız) doğrulama
-> yeteneğini anlatır. Router entegrasyonunun (STRICT modda Ollama'nın
-> birincil olarak ne zaman seçilmediği, yayılan audit event'leri) tam
-> davranışsal sonuçları için bu bölümün devamına ve "Olay aksiyonları"
-> tablosuna bakın.
+> **Durum:** Bu bölümde anlatılan doğrulama mekanizması router'a
+> **bağlıdır** — `MODEL_PROVIDER_ORDER`'da `ollama` denenmeden hemen önce
+> çalışır. STRICT modda `VERIFIED` dönmeyen bir sonuç, Ollama'nın o turda
+> hiç denenmemesi anlamına gelir (bkz. yukarıdaki "ÖNEMLİ DAVRANIŞ SONUCU"
+> ve "Olay aksiyonları" tablosundaki `PRIMARY_RESTRICTED_CPU_UNVERIFIED`).
+> Aşağıdaki kısım, bu kararı besleyen kanıt toplama mekanizmasını anlatır.
 
 Önceki bölümde belirtildiği gibi, `OLLAMA_VULKAN=false` zorlaması yalnızca
 bu Python sürecinin kendi ortamına yazılır — harici, zaten çalışan bir
@@ -210,3 +255,10 @@ print(r.evidence)
 - `OLLAMA_VULKAN=false` zorlaması yalnızca bu Python sürecinin kendi
   ortamına yazılır (yukarıdaki "Başlangıç kontrol listesi" madde 1'e
   bakın) — harici `ollama serve` sürecini etkilemez.
+- **CPU-verify kapısı, varsayılan ayarlarla ve operatör eylemi olmadan,
+  pratikte Ollama'yı hiç kullanılamaz hale getirebilir** (bkz.
+  "Ortam değişkenleri" bölümündeki "ÖNEMLİ DAVRANIŞ SONUCU" uyarısı) —
+  bu bilinçli bir tasarım kararıdır, ama kurulumdan sonra ilk fark edilen
+  şey "neden Ollama artık hiç kullanılmıyor" olabilir. İlk kurulumda
+  mutlaka marker dosyası oluşturun veya `OLLAMA_CPU_VERIFY_STRICT=false`
+  seçin.

@@ -642,28 +642,48 @@ fallback uygulayan bir katman eklendi. **Bu B036'yı çözmez** — yalnızca
 tek bir sağlayıcının çökmesiyle sistemin tamamen durmasını önler ve her
 geçişi denetlenebilir kılar.
 
-- **Varsayılan davranış değişmedi:** `MODEL_PROVIDER_ORDER` varsayılanı
-  yalnızca `ollama` — çok saglayıcılı fallback etkinleştirilmediği sürece
-  önceki davranışla birebir aynı.
+- **Sağlayıcı sırası varsayılanı değişmedi:** `MODEL_PROVIDER_ORDER`
+  hâlâ yalnızca `ollama` — çok saglayıcılı fallback etkinleştirilmediği
+  sürece kod yolu aynı.
 - **Sağlayıcı sırası:** `ollama` (birincil, açık) → `local_alt` (ikincil,
   varsayılan kapalı) → `remote` (üçüncül, varsayılan kapalı **ve**
   politika kapılı — `policies/risk/tool_risk_policy.yaml` `remote_model_policy`).
+- **CPU-only doğrulama kapısı (YENİ, davranışı gerçekten değiştirir):**
+  `OLLAMA_CPU_VERIFY_ENABLED=true` + `OLLAMA_CPU_VERIFY_STRICT=true`
+  varsayılan olarak açık — operatör bir marker dosyası oluşturmadıkça
+  (bkz. `docs/ops/MODEL_FALLBACK_RUNBOOK.md` operatör kontrol listesi),
+  Ollama STRICT modda birincil olarak **seçilmez**, sistem doğrudan
+  null-intent'e düşer (Ollama gerçekten sağlıklı çalışıyor olsa bile).
+  Bu **bilinçli, yüksek sesle dokümante edilmiş** bir tasarım kararıdır
+  ("sessiz davranış değişikliği yok" ilkesi gereği) — bkz.
+  `docs/ops/MODEL_FALLBACK_RUNBOOK.md` "ÖNEMLİ DAVRANIŞ SONUCU" uyarısı.
+  Kanıt kaynakları (`runtime_verify.py`): operatör marker dosyası
+  (pozitif), Windows Event Viewer'da bilinen B036 çöküş imzası (negatif),
+  `/api/ps` VRAM kullanımı (zayıf negatif) — hiçbiri kesinlik iddia etmez.
 - **`OLLAMA_VULKAN=false` zorlaması:** `OllamaProvider`, bu değeri kendi
   sürecinin ortamına yazar — ancak `ollama serve` bu kod tarafından
   başlatılmadığından (harici süreç), zaten çalışan bir sunucuyu
   **etkilemez**. Gerçek zorlama hâlâ operatörün sunucuyu doğru env ile
   başlatmasına bağlı (bkz. `docs/ops/OLLAMA_WORKAROUND_CPU_ONLY.md`).
 - **Sessiz fallback yok:** her geçiş (`FALLBACK`/`SKIPPED`/`SUCCESS`)
-  hem log'a hem `data/audit/audit.log.jsonl`'e (`task=MODEL_GATEWAY_GENERATE`)
-  yapısal olarak yazılır — `reason_code` alanı: `PRIMARY_UNHEALTHY`,
-  `TIMEOUT`, `RUNTIME_CRASH`, `POLICY_BLOCK`, `DISABLED`, `CIRCUIT_OPEN`.
+  hem log'a hem `data/audit/audit.log.jsonl`'e (`task=MODEL_GATEWAY_GENERATE`,
+  ayrıca CPU-verify kararları için `OLLAMA_CPU_PREFLIGHT_CHECKED` /
+  `OLLAMA_PRIMARY_RESTRICTED`, hepsi ortak bir `trace_id` ile
+  korelasyonlanabilir) yapısal olarak yazılır — `reason_code` alanı:
+  `PRIMARY_UNHEALTHY`, `TIMEOUT`, `RUNTIME_CRASH`, `POLICY_BLOCK`,
+  `DISABLED`, `CIRCUIT_OPEN`, `PRIMARY_RESTRICTED_CPU_UNVERIFIED`,
+  `FALLBACK_EXHAUSTED`.
 - **Entegrasyon:** `services/tr-en-bridge/src/ollama_nlu.py::classify()`,
   varsayılan (test-enjeksiyonu olmayan) durumda artık
   `model_gateway.compat.RouterBackedClient` üzerinden router'a bağlı —
   `classify()`'in dış sözleşmesi (`intent`/`entities`/`confidence`/`raw`)
-  ve mevcut `client=` test enjeksiyon noktası **değişmedi**.
+  ve mevcut `client=` test enjeksiyon noktası **değişmedi**. Tüm
+  saglayıcılar tükendiğinde tek bir debug log satırı (`trace_id` +
+  `FALLBACK_EXHAUSTED`) yazılır.
 - **Rollback:** `docs/ops/MODEL_FALLBACK_RUNBOOK.md` "Geri alma" bölümüne
-  bakın — config ile ollama-only CPU moduna dönüş, kod revert'i gerekmez.
+  bakın — config ile ollama-only CPU moduna dönüş (CPU-verify kapısını
+  `OLLAMA_CPU_VERIFY_ENABLED=false` ile kapatmak dahil), kod revert'i
+  gerekmez.
 
 ## Onay Gerektiren Aksiyonlar (Faz 4+ ile aktif olacak)
 

@@ -46,6 +46,13 @@ REASON_RUNTIME_CRASH = "RUNTIME_CRASH"
 REASON_POLICY_BLOCK = "POLICY_BLOCK"
 REASON_DISABLED = "DISABLED"
 REASON_CIRCUIT_OPEN = "CIRCUIT_OPEN"
+# CPU-only calisma zamani dogrulama kapisi (runtime_verify.py) tarafindan
+# kullanilir -- Ollama, CPU-safe oldugu dogrulanamadigi icin STRICT modda
+# birincil olarak secilmedi.
+REASON_PRIMARY_RESTRICTED_CPU_UNVERIFIED = "PRIMARY_RESTRICTED_CPU_UNVERIFIED"
+# Tum saglayicilar (denenenler + atlananlar dahil) tukendiginde, router'in
+# AllProvidersFailedError firlatmadan hemen once yazdigi terminal kod.
+REASON_FALLBACK_EXHAUSTED = "FALLBACK_EXHAUSTED"
 
 VALID_REASON_CODES = (
     REASON_PRIMARY_UNHEALTHY,
@@ -54,6 +61,8 @@ VALID_REASON_CODES = (
     REASON_POLICY_BLOCK,
     REASON_DISABLED,
     REASON_CIRCUIT_OPEN,
+    REASON_PRIMARY_RESTRICTED_CPU_UNVERIFIED,
+    REASON_FALLBACK_EXHAUSTED,
 )
 
 
@@ -79,8 +88,9 @@ class AllProvidersFailedError(Exception):
     tutar -- caller (ornegin ollama_nlu.classify()) bunu loglayabilir.
     """
 
-    def __init__(self, attempts: list[tuple[str, str, str]]) -> None:
+    def __init__(self, attempts: list[tuple[str, str, str]], trace_id: str | None = None) -> None:
         self.attempts = attempts
+        self.trace_id = trace_id
         summary = "; ".join(f"{p}:{r}" for p, r, _ in attempts)
         super().__init__(f"Tum saglayicilar basarisiz oldu: {summary}")
 

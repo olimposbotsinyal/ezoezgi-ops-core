@@ -1,4 +1,4 @@
-"""Model gateway router -- sirali fallback orkestrasyonu.
+"""Model gateway router -- sirali fallback orkestrasyonu + CPU-verify kapisi.
 
 Saglayicilari `MODEL_PROVIDER_ORDER` sirasina gore dener; her atlama
 (fallback) acikca loglanir VE data/audit/audit.log.jsonl'e append edilir
@@ -12,11 +12,20 @@ append-only JSONL yazan stateless bir yardimci. bridge.py'nin
 apps/orchestrator'a bagimli olmama kurali (MASTER_ROADMAP.md §3),
 orkestrasyon mantigina bagimliligi hedefliyordu -- bu paylasilan audit
 yardimcisini kapsamiyor.
+
+CPU-verify kapisi (runtime_verify.py): Ollama secilmeden once, config'de
+etkinse, `verify_ollama_cpu_mode()` cagrilir (kisa bir TTL ile
+onbelleklenir -- her istek icin tekrar tekrar calistirilmaz). STRICT modda
+(varsayilan), dogrulama VERIFIED donmezse Ollama birincil olarak
+SECILMEZ -- bkz. docs/ops/MODEL_FALLBACK_RUNBOOK.md "CPU-only dogrulama
+kanit temellidir, sihirli degildir" bolumu icin ONEMLI davranissal sonuc.
 """
 
 from __future__ import annotations
 
 import logging
+import time
+import uuid
 from typing import Any, Callable
 
 from audit_logger import AuditLogger
@@ -25,7 +34,9 @@ from model_gateway import local_alt_provider, ollama_provider, remote_provider
 from model_gateway.base import (
     REASON_CIRCUIT_OPEN,
     REASON_DISABLED,
+    REASON_FALLBACK_EXHAUSTED,
     REASON_POLICY_BLOCK,
+    REASON_PRIMARY_RESTRICTED_CPU_UNVERIFIED,
     AllProvidersFailedError,
     GenerateRequest,
     Provider,
@@ -35,6 +46,7 @@ from model_gateway.base import (
 from model_gateway.config import GatewayConfig, load_config
 from model_gateway.health import CircuitBreaker
 from model_gateway.policy import is_remote_allowed
+from model_gateway.runtime_verify import STATUS_VERIFIED, VerificationResult, verify_ollama_cpu_mode
 
 logger = logging.getLogger("model_gateway.router")
 
@@ -72,6 +84,7 @@ class ModelGatewayRouter:
         audit_logger: AuditLogger | None = None,
         circuit_breaker: CircuitBreaker | None = None,
         policy_check: Callable[[], tuple[bool, str]] | None = None,
+        verify_fn: Callable[..., VerificationResult] | None = None,
     ) -> None:
         self._config = config or load_config()
         self._providers = providers or _build_providers(self._config)
@@ -81,6 +94,9 @@ class ModelGatewayRouter:
             reset_seconds=self._config.circuit_breaker_reset_sec,
         )
         self._policy_check = policy_check or is_remote_allowed
+        self._verify_fn = verify_fn or verify_ollama_cpu_mode
+        self._verification_cache: VerificationResult | None = None
+        self._verification_cached_at: float | None = None
 
     def _is_enabled(self, name: str) -> bool:
         c = self._config
@@ -92,25 +108,140 @@ class ModelGatewayRouter:
             return c.remote_enabled
         return False
 
-    def _audit(self, *, provider: str, event: str, reason_code: str, detail: str) -> None:
+    def _audit(
+        self,
+        *,
+        task: str,
+        event: str,
+        trace_id: str,
+        details: dict[str, Any],
+    ) -> None:
         self._audit_logger.log(
             alias=None,
-            task="MODEL_GATEWAY_GENERATE",
+            task=task,
             status=event,
             risk_level="low",
-            details={
-                "provider": provider,
-                "reason_code": reason_code,
-                "detail": detail,
-            },
+            details={"trace_id": trace_id, **details},
         )
 
-    def _skip(self, name: str, reason_code: str, detail: str, attempts: list) -> None:
+    def _skip(self, name: str, reason_code: str, detail: str, attempts: list, trace_id: str) -> None:
         logger.info("Saglayici atlandi: %s (%s) -- %s", name, reason_code, detail)
-        self._audit(provider=name, event="SKIPPED", reason_code=reason_code, detail=detail)
+        self._audit(
+            task="MODEL_GATEWAY_GENERATE",
+            event="SKIPPED",
+            trace_id=trace_id,
+            details={
+                "provider": name,
+                "reason_code": reason_code,
+                "detail": detail,
+                "provider_order": list(self._config.provider_order),
+                "event_type": "ROUTER_FALLBACK_APPLIED",
+            },
+        )
         attempts.append((name, reason_code, detail))
 
+    def _get_cpu_verification(self, trace_id: str) -> VerificationResult:
+        """Kisa TTL'li onbellek -- her istekte yeniden calistirmaz.
+
+        Onbellek isabetinde (cache hit) OLLAMA_CPU_PREFLIGHT_CHECKED
+        event'i EKLENMEZ (gereksiz audit gurultusu -- yeni bir karar
+        verilmedi, var olan sonuc yeniden kullanildi). Yalnizca gercek
+        bir kontrol calistiginda audit'lenir.
+        """
+        now = time.monotonic()
+        ttl = self._config.ollama_cpu_verify_cache_ttl_sec
+        if (
+            self._verification_cache is not None
+            and self._verification_cached_at is not None
+            and (now - self._verification_cached_at) < ttl
+        ):
+            return self._verification_cache
+
+        ollama = self._providers.get("ollama")
+        health = ollama.healthcheck() if ollama is not None else None
+        result = self._verify_fn(
+            ollama_healthy=bool(health and health.healthy),
+            base_url=self._config.ollama_host,
+            marker_file=self._config.ollama_cpu_marker_file,
+            methods=self._config.ollama_cpu_verify_methods,
+            timeout_ms=self._config.ollama_cpu_verify_timeout_ms,
+        )
+        self._verification_cache = result
+        self._verification_cached_at = now
+
+        logger.info(
+            "Ollama CPU-verify kontrolu calisti: status=%s reason_code=%s",
+            result.status,
+            result.reason_code,
+        )
+        self._audit(
+            task="OLLAMA_CPU_PREFLIGHT_CHECKED",
+            event=result.status,
+            trace_id=trace_id,
+            details={
+                "verification_status": result.status,
+                "verification_reason_code": result.reason_code,
+                "evidence": result.evidence,
+                "checked_at": result.checked_at,
+                "strict_mode": self._config.ollama_cpu_verify_strict,
+            },
+        )
+        return result
+
+    def _apply_cpu_verify_gate(self, trace_id: str) -> tuple[bool, str, str]:
+        """Ollama'yi denemeden once cagrilir. Donen: (allowed, reason_code, detail).
+
+        `allowed=False` ise Ollama bu turda hic denenmez (STRICT modda
+        dogrulanmamis). `allowed=True` ise ya VERIFIED'dir ya da
+        STRICT=false altinda bilerek gecirilmistir (bu durumda ayrica
+        uyari loglanir/audit'lenir).
+        """
+        if not self._config.ollama_cpu_verify_enabled:
+            return True, "", ""
+
+        result = self._get_cpu_verification(trace_id)
+        if result.status == STATUS_VERIFIED:
+            return True, "", ""
+
+        if self._config.ollama_cpu_verify_strict:
+            detail = (
+                f"CPU-only mod dogrulanamadi (status={result.status}, "
+                f"reason={result.reason_code}) -- STRICT modda Ollama birincil olarak secilmiyor"
+            )
+            self._audit(
+                task="OLLAMA_PRIMARY_RESTRICTED",
+                event="RESTRICTED",
+                trace_id=trace_id,
+                details={
+                    "verification_status": result.status,
+                    "verification_reason_code": result.reason_code,
+                    "action_taken": "RESTRICT_PRIMARY",
+                    "provider_order": list(self._config.provider_order),
+                },
+            )
+            return False, REASON_PRIMARY_RESTRICTED_CPU_UNVERIFIED, detail
+
+        logger.warning(
+            "Ollama CPU-modu dogrulanamadi ama STRICT=false -- birincil yine de deneniyor "
+            "(status=%s, reason=%s)",
+            result.status,
+            result.reason_code,
+        )
+        self._audit(
+            task="OLLAMA_CPU_PREFLIGHT_CHECKED",
+            event="WARN_ONLY",
+            trace_id=trace_id,
+            details={
+                "verification_status": result.status,
+                "verification_reason_code": result.reason_code,
+                "decision": "CPU_MODE_UNVERIFIED_WARN_ONLY",
+                "action_taken": "ALLOW_PRIMARY_WITH_WARNING",
+            },
+        )
+        return True, "", ""
+
     def generate(self, request: GenerateRequest) -> ProviderResponse:
+        trace_id = uuid.uuid4().hex
         attempts: list[tuple[str, str, str]] = []
         real_attempts = 0
         max_real_attempts = 1 + self._config.fallback_max_hops
@@ -118,21 +249,27 @@ class ModelGatewayRouter:
         for name in self._config.provider_order:
             provider = self._providers.get(name)
             if provider is None:
-                self._skip(name, REASON_DISABLED, f"bilinmeyen saglayici adi: {name}", attempts)
+                self._skip(name, REASON_DISABLED, f"bilinmeyen saglayici adi: {name}", attempts, trace_id)
                 continue
 
             if not self._is_enabled(name):
-                self._skip(name, REASON_DISABLED, "saglayici config'de kapali", attempts)
+                self._skip(name, REASON_DISABLED, "saglayici config'de kapali", attempts, trace_id)
                 continue
 
             if name == "remote" and self._config.remote_policy_gate == "required":
                 allowed, detail = self._policy_check()
                 if not allowed:
-                    self._skip(name, REASON_POLICY_BLOCK, f"REMOTE_BLOCKED_BY_POLICY: {detail}", attempts)
+                    self._skip(name, REASON_POLICY_BLOCK, f"REMOTE_BLOCKED_BY_POLICY: {detail}", attempts, trace_id)
+                    continue
+
+            if name == "ollama":
+                allowed, reason_code, detail = self._apply_cpu_verify_gate(trace_id)
+                if not allowed:
+                    self._skip(name, reason_code, detail, attempts, trace_id)
                     continue
 
             if self._circuit_breaker.is_open(name):
-                self._skip(name, REASON_CIRCUIT_OPEN, "devre acik (art arda hata esigi asildi)", attempts)
+                self._skip(name, REASON_CIRCUIT_OPEN, "devre acik (art arda hata esigi asildi)", attempts, trace_id)
                 continue
 
             if real_attempts >= max_real_attempts:
@@ -145,16 +282,49 @@ class ModelGatewayRouter:
             except ProviderError as exc:
                 self._circuit_breaker.record_failure(name)
                 logger.warning("Saglayici basarisiz: %s (%s) -- %s", name, exc.reason_code, exc.detail)
-                self._audit(provider=name, event="FALLBACK", reason_code=exc.reason_code, detail=exc.detail)
+                self._audit(
+                    task="MODEL_GATEWAY_GENERATE",
+                    event="FALLBACK",
+                    trace_id=trace_id,
+                    details={
+                        "provider": name,
+                        "reason_code": exc.reason_code,
+                        "detail": exc.detail,
+                        "provider_order": list(self._config.provider_order),
+                        "event_type": "ROUTER_FALLBACK_APPLIED",
+                    },
+                )
                 attempts.append((name, exc.reason_code, exc.detail))
                 continue
 
             self._circuit_breaker.record_success(name)
             logger.info("Saglayici basarili: %s", name)
-            self._audit(provider=name, event="SUCCESS", reason_code="", detail="")
+            self._audit(
+                task="MODEL_GATEWAY_GENERATE",
+                event="SUCCESS",
+                trace_id=trace_id,
+                details={
+                    "provider": name,
+                    "reason_code": "",
+                    "detail": "",
+                    "selected_provider": name,
+                    "provider_order": list(self._config.provider_order),
+                },
+            )
             return response
 
-        raise AllProvidersFailedError(attempts)
+        self._audit(
+            task="MODEL_GATEWAY_GENERATE",
+            event="EXHAUSTED",
+            trace_id=trace_id,
+            details={
+                "reason_code": REASON_FALLBACK_EXHAUSTED,
+                "attempts": [{"provider": p, "reason_code": r, "detail": d} for p, r, d in attempts],
+                "provider_order": list(self._config.provider_order),
+                "action_taken": "NULL_INTENT_FALLBACK",
+            },
+        )
+        raise AllProvidersFailedError(attempts, trace_id=trace_id)
 
     def healthcheck_all(self) -> dict[str, Any]:
         return {name: p.healthcheck() for name, p in self._providers.items()}
