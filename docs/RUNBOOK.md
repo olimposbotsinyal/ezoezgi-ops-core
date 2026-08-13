@@ -471,16 +471,25 @@ kapsamı dışında, kullanıcı/ekip kararını bekliyor.
 
 ### B036 Upstream Issue — Durum
 
-**Durum: READY_TO_SUBMIT (henüz açılmadı).** Bu ortamdan (headless CLI)
-`ollama/ollama` deposuna doğrudan issue açılamadı — `gh` CLI kurulu değil,
-`GITHUB_TOKEN`/`GH_TOKEN` tanımlı değil, ve üçüncü taraf bir açık kaynak
-depoya kimlik doğrulaması olmadan issue açılamaz. Gönderime hazır tam paket
-(başlık, gövde, eklenecek dosya listesi, adım adım manuel gönderim
-talimatı): `reports/runtime_incident_20260813T004855Z/ISSUE_READY_PACKAGE.md`.
+**Durum: AÇILDI.** Açılış zaman damgası (Europe/Istanbul): 2026-08-13 ~05:02
+(+03:00). `ollama/ollama` deposuna, `reports/runtime_incident_20260813T004855Z/ISSUE_READY_PACKAGE.md`
+paketindeki başlık/gövde/ek dosyalar kullanılarak manuel olarak issue açıldı
+(bu ortamda `gh` CLI/token bulunmadığından otomatik açılamamıştı — kullanıcı
+manuel gönderdi).
 
-Issue URL: **N/A** (gönderilmedi). Gönderildiğinde bu bölüm şu bilgilerle
-güncellenecek: issue URL, açılış zaman damgası, kısa özet, beklenen takip
-(maintainer yanıtı / patch takibi).
+**Upstream issue submitted: <https://github.com/ollama/ollama/issues/17716> —
+B036 takibi bu issue üzerinden sürdürülecek.**
+
+Kısa özet: `llama-server crashes with 0xc0000005 on Windows when using
+Vulkan backend on older NVIDIA driver (Quadro RTX 3000, driver 442.94)` —
+issue içeriği bu triage'ın kanıt paketiyle (host fingerprint, GPU/Vulkan
+izolasyon matrisi, sürüm A/B, repro scripti) birebir tutarlı.
+
+Beklenen takip: maintainer yanıtı ve olası patch/duyuru takibi. Bu
+bölüm, upstream'de bir gelişme (yanıt, düzeltme, sürüm notu) olduğunda
+güncellenecek. **Bu, B036'nın kendisini kapatmıyor** — B036 hâlâ
+`docs/BACKLOG.md`'deki açık çıkış kriterlerine tabi (varsayılan/Vulkan
+profilde 50/50 stabil koşu).
 
 ### Geçici CPU-Only Workaround
 

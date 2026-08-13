@@ -1,9 +1,15 @@
-# Upstream Issue — Gönderime Hazır Paket (READY_TO_SUBMIT)
+# Upstream Issue — Gönderime Hazır Paket (AÇILDI)
 
-**Durum: READY_TO_SUBMIT** — Bu ortamdan (headless CLI, GitHub kimlik doğrulaması
-yok) `ollama/ollama` deposuna doğrudan issue açılamadı. Aşağıdaki paket,
-kullanıcının https://github.com/ollama/ollama/issues/new adresine manuel
-olarak kopyala-yapıştır ile göndermesi için hazırlanmıştır.
+**Durum: AÇILDI.** Issue başarıyla upstream'e açıldı; takip maintainer
+yanıtı ve patch doğrulaması üzerinden sürdürülecek.
+
+- Issue URL: <https://github.com/ollama/ollama/issues/17716>
+- Gönderim zamanı (Europe/Istanbul): 2026-08-13 ~05:02 (+03:00)
+- Gönderen: kullanıcı, aşağıdaki paketi manuel kopyala-yapıştır ile kullanarak
+
+> Aşağıdaki bölümler, gönderim öncesi hazırlanan orijinal paketin
+> (başlık, gövde, ek dosya listesi, adım adım talimat) değişmemiş kaydıdır —
+> teknik kanıt/talimat içeriği düzenlenmedi.
 
 ## Neden otomatik açılamadı
 
@@ -57,4 +63,6 @@ Issue açıldıktan sonra:
 2. `docs/BACKLOG.md` B036 satırına issue URL'sini referans olarak ekle.
 3. Bu paketin durumunu `READY_TO_SUBMIT` → `AÇILDI` olarak güncelle.
 
-**Bu triage koşusu sırasında issue durumu: READY_TO_SUBMIT (gönderilmedi).**
+**Güncel durum: AÇILDI — <https://github.com/ollama/ollama/issues/17716>.**
+Issue başarıyla upstream'e açıldı; takip maintainer yanıtı ve patch
+doğrulaması üzerinden sürdürülecek.
