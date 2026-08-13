@@ -88,6 +88,16 @@ class GatewayConfig:
     alert_fallback_spike_multiplier: float = 3.0
     daily_smoke_enabled: bool = True
 
+    # Cross-process metrik sink'i (bkz. metrics_sink.py, metrics_aggregate.py).
+    # `jsonl_append` YENI VARSAYILAN -- surecler-arasi gorunurluk saglar
+    # (onceki `in_memory`-yalnizca davranisin bilinen sinirlamasini kapatir,
+    # bkz. docs/ops/MONITORING_STACK_RUNBOOK.md "KRITIK mimari sinirlama").
+    metrics_sink: str = "jsonl_append"  # "jsonl_append" | "in_memory"
+    metrics_jsonl_path: str = "./data/metrics/model_gateway_metrics.jsonl"
+    metrics_jsonl_max_mb: float = 50.0
+    metrics_jsonl_retention_days: int = 7
+    metrics_agg_window_min: int = 60
+
 
 def _load_yaml_overrides(path: Path) -> dict[str, Any]:
     if not path.exists():
@@ -211,6 +221,22 @@ def load_config(yaml_path: Path | None = None) -> GatewayConfig:
         ),
         daily_smoke_enabled=_get_bool(
             "DAILY_SMOKE_ENABLED", overrides, "daily_smoke_enabled", True
+        ),
+        metrics_sink=_get_str("METRICS_SINK", overrides, "metrics_sink", "jsonl_append"),
+        metrics_jsonl_path=_get_str(
+            "METRICS_JSONL_PATH",
+            overrides,
+            "metrics_jsonl_path",
+            "./data/metrics/model_gateway_metrics.jsonl",
+        ),
+        metrics_jsonl_max_mb=_get_float(
+            "METRICS_JSONL_MAX_MB", overrides, "metrics_jsonl_max_mb", 50.0
+        ),
+        metrics_jsonl_retention_days=_get_int(
+            "METRICS_JSONL_RETENTION_DAYS", overrides, "metrics_jsonl_retention_days", 7
+        ),
+        metrics_agg_window_min=_get_int(
+            "METRICS_AGG_WINDOW_MIN", overrides, "metrics_agg_window_min", 60
         ),
     )
 

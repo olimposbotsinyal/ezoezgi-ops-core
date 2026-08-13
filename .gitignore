@@ -16,6 +16,8 @@ data/memory/*
 !data/memory/.gitkeep
 data/audit/*
 !data/audit/.gitkeep
+data/metrics/*
+!data/metrics/.gitkeep
 
 .claude/
 # Runtime incident watch evidence

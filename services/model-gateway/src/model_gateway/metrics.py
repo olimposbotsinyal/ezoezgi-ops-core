@@ -10,25 +10,36 @@ degeri:
   - `noop`: hicbir sey biriktirmez, tum cagrilar guvenli no-op'tur
     (varsayilana yakin en dusuk maliyet).
   - `prometheus`: metrikleri bellekte biriktirir VE `render_prometheus_text()`
-    ile gecerli Prometheus exposition-format metnini uretebilir. Bu, canli
-    bir `/metrics` HTTP endpoint'i SUNMAZ (bu servis suan bir HTTP sunucusu
-    calistirmiyor -- boyle bir sunucu eklemek mimari bir genisleme olur,
-    bu gorevin kapsami disinda) -- ama `scripts/ops/daily_gateway_smoke.ps1`
-    gibi araclar `snapshot()`'i dosyaya yazip inceleyebilir, veya ileride
-    bir HTTP sunucusu eklendiginde `render_prometheus_text()` dogrudan
-    kullanilabilir.
+    ile gecerli Prometheus exposition-format metnini uretebilir.
+
+Cross-process gorunurluk (bkz. metrics_sink.py, metrics_aggregate.py):
+`MetricsRegistry`, opsiyonel bir `sink` alabilir -- verildiginde her
+`inc_counter`/`observe_histogram`/`set_gauge` cagrisi, KENDI surecinin
+bellek-ici durumunu guncellemeye EK OLARAK, sink'e de bir `MetricEvent`
+yazar. `METRICS_SINK=jsonl_append` (yeni varsayilan) ile bu sink,
+paylasilan bir dosyaya append eder -- boylece `scripts/ops/serve_metrics.py`,
+`metrics_aggregate.py` uzerinden TUM sureclerin olaylarini birlestirip
+sunabilir. Bu mekanizma OPSIYONELDIR ve geriye-donuk uyumludur:
+`sink=None` (varsayilan) ile `MetricsRegistry` onceki (surec-ici)
+davranisiyla birebir ayni calisir.
 
 Tasarim ilkesi: metrik kayit cagrilari router/runtime_verify/compat gibi
 "gercek" davranisi ASLA etkilememeli, degistirmemeli -- yalnizca gozlem.
 Bu yuzden her kayit metodu hata yutar (best-effort) ve `enabled=False`
-iken tamamen no-op'tur.
+iken tamamen no-op'tur. Sink yazma islemi de kendi icinde ayrica
+hata-yutan/zaman-sinirli (bkz. metrics_sink.py) -- burada ek bir
+try/except ile cift guvenceye alinir.
 """
 
 from __future__ import annotations
 
 import threading
+import time
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from model_gateway.metrics_sink import MetricsSink
 
 LabelDict = dict[str, str]
 _MetricKey = tuple[str, tuple[tuple[str, str], ...]]
@@ -46,15 +57,35 @@ class _HistogramData:
 
 
 class MetricsRegistry:
-    """Bellek-ici, thread-safe metrik kayit defteri."""
+    """Bellek-ici, thread-safe metrik kayit defteri.
 
-    def __init__(self, enabled: bool = True, exporter: str = "noop") -> None:
+    `sink` verilirse (bkz. metrics_sink.py), her kayit cagrisi ek olarak
+    sink'e yazar -- cross-process gorunurluk icin. `sink=None`
+    (varsayilan) onceki, tamamen surec-ici davranisla birebir aynidir.
+    """
+
+    def __init__(
+        self, enabled: bool = True, exporter: str = "noop", sink: "MetricsSink | None" = None
+    ) -> None:
         self.enabled = enabled
         self.exporter = exporter
+        self._sink = sink
         self._lock = threading.Lock()
         self._counters: dict[_MetricKey, float] = {}
         self._histograms: dict[_MetricKey, _HistogramData] = {}
         self._gauges: dict[_MetricKey, float] = {}
+
+    def _write_to_sink(self, metric_type: str, name: str, labels: LabelDict | None, value: float) -> None:
+        if self._sink is None:
+            return
+        try:
+            from model_gateway.metrics_sink import MetricEvent
+
+            self._sink.write(
+                MetricEvent(ts=time.time(), metric_type=metric_type, name=name, labels=labels or {}, value=value)
+            )
+        except Exception:
+            pass  # sink zaten kendi ici hata-yutuyor; bu yalnizca ek guvence
 
     def inc_counter(self, name: str, labels: LabelDict | None = None, value: float = 1.0) -> None:
         if not self.enabled:
@@ -65,6 +96,7 @@ class MetricsRegistry:
                 self._counters[k] = self._counters.get(k, 0.0) + value
         except Exception:
             pass  # metrik kaydi asla gercek davranisi etkilemez
+        self._write_to_sink("counter", name, labels, value)
 
     def observe_histogram(self, name: str, labels: LabelDict | None = None, value: float = 0.0) -> None:
         if not self.enabled:
@@ -78,6 +110,7 @@ class MetricsRegistry:
                 data.values.append(value)
         except Exception:
             pass
+        self._write_to_sink("histogram", name, labels, value)
 
     def set_gauge(self, name: str, labels: LabelDict | None = None, value: float = 0.0) -> None:
         if not self.enabled:
@@ -86,6 +119,21 @@ class MetricsRegistry:
             with self._lock:
                 k = _key(name, labels)
                 self._gauges[k] = value
+        except Exception:
+            pass
+        self._write_to_sink("gauge", name, labels, value)
+
+    def set_counter_absolute(self, name: str, labels: LabelDict | None, value: float) -> None:
+        """`inc_counter`'in aksine, mevcut degere EKLEMEZ -- dogrudan
+        SET eder. Yalnizca oz-metrikler (self-metrics) gibi zaten
+        kumulatif bir toplami temsil eden degerleri kayit defterine
+        yansitmak icin kullanilir (bkz. serve_metrics.py)."""
+        if not self.enabled:
+            return
+        try:
+            with self._lock:
+                k = _key(name, labels)
+                self._counters[k] = value
         except Exception:
             pass
 
@@ -187,8 +235,32 @@ def get_metrics() -> MetricsRegistry:
     return _default_registry
 
 
-def configure_metrics(enabled: bool, exporter: str) -> MetricsRegistry:
-    """`load_config()` sonucuna gore global registry'yi (yeniden) kurar."""
+def configure_metrics(
+    enabled: bool,
+    exporter: str,
+    *,
+    sink_type: str = "in_memory",
+    jsonl_path: str | None = None,
+    jsonl_max_mb: float = 50.0,
+    jsonl_retention_days: int = 7,
+) -> MetricsRegistry:
+    """`load_config()` sonucuna gore global registry'yi (yeniden) kurar.
+
+    Yeni (opsiyonel, keyword-only) `sink_type`/`jsonl_*` parametreleri --
+    verilmezse (`sink_type="in_memory"`, varsayilan) davranis ONCEKIYLE
+    BIREBIR AYNI kalir (backward compat). `sink_type="jsonl_append"` VE
+    `jsonl_path` verilirse, cagirilan surec artik paylasilan bir dosyaya
+    yazar -- cross-process gorunurluk icin bkz. metrics_sink.py.
+    """
     global _default_registry
-    _default_registry = MetricsRegistry(enabled=enabled, exporter=exporter)
+    sink = None
+    if enabled and sink_type == "jsonl_append" and jsonl_path:
+        from pathlib import Path
+
+        from model_gateway.metrics_sink import JsonlAppendSink
+
+        sink = JsonlAppendSink(
+            Path(jsonl_path), max_mb=jsonl_max_mb, retention_days=jsonl_retention_days
+        )
+    _default_registry = MetricsRegistry(enabled=enabled, exporter=exporter, sink=sink)
     return _default_registry
