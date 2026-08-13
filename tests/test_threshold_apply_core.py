@@ -15,13 +15,18 @@ import pytest
 from threshold_apply_core import (
     ApplyOutcome,
     RollbackOutcome,
+    aggregate_verification_state,
     append_ledger_entry,
     apply_proposal_to_alerts_text,
     build_apply_audit_details,
+    build_fail_check,
     build_ledger_entry,
+    build_pass_check,
     build_rollback_audit_details,
+    build_skipped_check,
     create_backup,
     load_approved_checksums,
+    load_ledger_entries,
     patch_alert_expr_value,
     render_apply_report_md,
     render_rollback_report_md,
@@ -46,8 +51,9 @@ def _sha256(text: str) -> str:
 
 
 def test_patch_high_null_intent_warn_changes_only_that_line(real_alerts_text):
-    new_text, changed = patch_alert_expr_value(real_alerts_text, "HIGH_NULL_INTENT_RATE", "warn", 0.05)
+    new_text, changed, reason = patch_alert_expr_value(real_alerts_text, "HIGH_NULL_INTENT_RATE", "warn", 0.05)
     assert changed is True
+    assert reason is None
     assert "> 0.05" in new_text
 
     old_lines = real_alerts_text.splitlines()
@@ -59,8 +65,9 @@ def test_patch_high_null_intent_warn_changes_only_that_line(real_alerts_text):
 
 
 def test_patch_high_null_intent_crit_changes_only_that_line(real_alerts_text):
-    new_text, changed = patch_alert_expr_value(real_alerts_text, "HIGH_NULL_INTENT_RATE", "crit", 0.1)
+    new_text, changed, reason = patch_alert_expr_value(real_alerts_text, "HIGH_NULL_INTENT_RATE", "crit", 0.1)
     assert changed is True
+    assert reason is None
 
     old_lines = real_alerts_text.splitlines()
     new_lines = new_text.splitlines()
@@ -71,8 +78,9 @@ def test_patch_high_null_intent_crit_changes_only_that_line(real_alerts_text):
 
 
 def test_patch_fallback_spike_warn_changes_only_that_line(real_alerts_text):
-    new_text, changed = patch_alert_expr_value(real_alerts_text, "FALLBACK_SPIKE", "warn", 5.0)
+    new_text, changed, reason = patch_alert_expr_value(real_alerts_text, "FALLBACK_SPIKE", "warn", 5.0)
     assert changed is True
+    assert reason is None
 
     old_lines = real_alerts_text.splitlines()
     new_lines = new_text.splitlines()
@@ -82,15 +90,59 @@ def test_patch_fallback_spike_warn_changes_only_that_line(real_alerts_text):
 
 
 def test_patch_returns_unchanged_text_for_unknown_alert_name(real_alerts_text):
-    new_text, changed = patch_alert_expr_value(real_alerts_text, "NOT_A_REAL_ALERT", "warn", 1.0)
+    new_text, changed, reason = patch_alert_expr_value(real_alerts_text, "NOT_A_REAL_ALERT", "warn", 1.0)
     assert changed is False
     assert new_text == real_alerts_text
+    assert reason is not None
 
 
 def test_patch_returns_unchanged_text_for_unknown_threshold_kind(real_alerts_text):
-    new_text, changed = patch_alert_expr_value(real_alerts_text, "HIGH_NULL_INTENT_RATE", "median", 1.0)
+    new_text, changed, reason = patch_alert_expr_value(real_alerts_text, "HIGH_NULL_INTENT_RATE", "median", 1.0)
     assert changed is False
     assert new_text == real_alerts_text
+    assert reason is not None
+
+
+def test_patch_returns_non_patchable_reason_for_known_non_patchable_alert(real_alerts_text):
+    new_text, changed, reason = patch_alert_expr_value(real_alerts_text, "CIRCUIT_OPEN_STUCK", "warn", 1.0)
+    assert changed is False
+    assert new_text == real_alerts_text
+    assert "boolean durum kontrolu" in reason
+
+
+def test_patch_fails_loud_on_zero_matches():
+    text_without_target = "groups:\n  - name: empty\n    rules: []\n"
+    new_text, changed, reason = patch_alert_expr_value(text_without_target, "HIGH_NULL_INTENT_RATE", "warn", 0.05)
+    assert changed is False
+    assert new_text == text_without_target
+    assert "0 eslesme" in reason
+
+
+def test_patch_fails_loud_on_more_than_one_match_when_not_multi_target():
+    duplicated_line = "(sum(rate(model_gateway_fallback_total[15m])) > (3.0 * sum(rate(model_gateway_fallback_total[24h])) / (24*4))\n"
+    duplicated_text = duplicated_line + duplicated_line
+
+    new_text, changed, reason = patch_alert_expr_value(duplicated_text, "FALLBACK_SPIKE", "warn", 5.0)
+    assert changed is False
+    assert new_text == duplicated_text
+    assert "BEKLENENDEN FAZLA eslesti" in reason
+    assert "2 eslesme" in reason
+
+
+def test_patch_allows_more_than_one_match_when_explicitly_multi_target(monkeypatch):
+    from threshold_apply_core import ALERT_EXPR_PATCH_PATTERNS, PatchTarget
+
+    duplicated_line = "(sum(rate(model_gateway_fallback_total[15m])) > (3.0 * sum(rate(model_gateway_fallback_total[24h])) / (24*4))\n"
+    duplicated_text = duplicated_line + duplicated_line
+
+    original = ALERT_EXPR_PATCH_PATTERNS["FALLBACK_SPIKE"]["warn"]
+    monkeypatch.setitem(
+        ALERT_EXPR_PATCH_PATTERNS["FALLBACK_SPIKE"], "warn", PatchTarget(original.pattern, multi_target=True)
+    )
+    new_text, changed, reason = patch_alert_expr_value(duplicated_text, "FALLBACK_SPIKE", "warn", 5.0)
+    assert changed is True
+    assert reason is None
+    assert new_text.count("(5 * sum") == 2
 
 
 @pytest.mark.parametrize(
@@ -116,8 +168,18 @@ def test_apply_proposal_to_alerts_text_reports_failed_for_unknown_alert(real_ale
     proposal = {"alert_name": "NOT_A_REAL_ALERT", "proposed_values": {"warn": 0.05}}
     new_text, succeeded, failed = apply_proposal_to_alerts_text(real_alerts_text, proposal)
     assert succeeded == []
-    assert failed == ["warn"]
+    assert len(failed) == 1
+    assert failed[0]["kind"] == "warn"
+    assert failed[0]["reason"]
     assert new_text == real_alerts_text
+
+
+def test_apply_proposal_to_alerts_text_is_idempotent_when_reapplied(real_alerts_text):
+    proposal = {"alert_name": "HIGH_NULL_INTENT_RATE", "proposed_values": {"warn": 0.05, "crit": 0.1}}
+    once_text, _, _ = apply_proposal_to_alerts_text(real_alerts_text, proposal)
+    twice_text, succeeded, failed = apply_proposal_to_alerts_text(once_text, proposal)
+    assert failed == []
+    assert twice_text == once_text
 
 
 # --- Yedekleme / geri yukleme -- checksum round-trip ----------------------------
@@ -212,10 +274,23 @@ def test_build_ledger_entry_contains_expected_fields():
     assert entry == {
         "timestamp": "2026-08-13T00:00:00+00:00",
         "proposal_id": "A-1",
+        "alert_name": "",
         "old_checksum": "aaa",
         "new_checksum": "bbb",
         "apply_report_path": "r1.json",
+        "is_emergency": False,
+        "retro_review_due_utc": None,
     }
+
+
+def test_build_ledger_entry_carries_emergency_fields_when_provided():
+    entry = build_ledger_entry(
+        proposal_id="A-1", old_checksum="aaa", new_checksum="bbb", apply_report_path="r1.json",
+        alert_name="HIGH_NULL_INTENT_RATE", is_emergency=True, retro_review_due_utc="2026-08-15T00:00:00+00:00",
+    )
+    assert entry["alert_name"] == "HIGH_NULL_INTENT_RATE"
+    assert entry["is_emergency"] is True
+    assert entry["retro_review_due_utc"] == "2026-08-15T00:00:00+00:00"
 
 
 # --- Audit detay payload'lari ----------------------------------------------------
@@ -300,3 +375,92 @@ def test_write_rollback_report_failure_case_includes_reasons(tmp_path):
     assert payload["restored"] is False
     assert "Yedek dosyasi bulunamadi" in payload["reasons"]
     assert "Yedek dosyasi bulunamadi" in render_rollback_report_md(outcome, proposal_id="A-1", generated_at="2026-08-13T00:00:00+00:00")
+
+
+def test_write_rollback_report_includes_linkage_and_drift_snapshot(tmp_path):
+    """Gorev v1.1 madde 5: rollback raporu checksum'in yaninda kaynak
+    apply/review baglantisini VE rollback-sonrasi drift anlik
+    goruntusunu ICERMELIDIR."""
+    outcome = RollbackOutcome(
+        restored=True, restored_checksum="aaa",
+        source_apply_report_path="reports/threshold_apply_X/apply_report.json",
+        source_review_record_path="reports/threshold_reviews/Y/review_record.json",
+        post_rollback_drift_status="NONE",
+    )
+    paths = write_rollback_report(outcome, tmp_path / "out", proposal_id="A-1", generated_at="2026-08-13T00:00:00+00:00")
+
+    payload = json.loads(paths["json"].read_text(encoding="utf-8"))
+    assert payload["source_apply_report_path"] == "reports/threshold_apply_X/apply_report.json"
+    assert payload["source_review_record_path"] == "reports/threshold_reviews/Y/review_record.json"
+    assert payload["post_rollback_drift_status"] == "NONE"
+    md = render_rollback_report_md(outcome, proposal_id="A-1", generated_at="2026-08-13T00:00:00+00:00")
+    assert "reports/threshold_apply_X/apply_report.json" in md
+    assert "NONE" in md
+
+
+# --- Ledger tam-girdi yukleyici (load_ledger_entries) ---------------------------
+
+
+def test_load_ledger_entries_returns_full_dicts(tmp_path):
+    ledger_path = tmp_path / "ledger.jsonl"
+    entry = build_ledger_entry(
+        proposal_id="A-1", old_checksum="aaa", new_checksum="bbb", apply_report_path="r1.json",
+        alert_name="HIGH_NULL_INTENT_RATE", is_emergency=True, retro_review_due_utc="2026-08-15T00:00:00+00:00",
+    )
+    append_ledger_entry(ledger_path, entry)
+
+    entries = load_ledger_entries(ledger_path)
+    assert len(entries) == 1
+    assert entries[0]["alert_name"] == "HIGH_NULL_INTENT_RATE"
+    assert entries[0]["is_emergency"] is True
+
+
+def test_load_ledger_entries_returns_empty_list_for_missing_file(tmp_path):
+    assert load_ledger_entries(tmp_path / "does_not_exist.jsonl") == []
+
+
+def test_load_ledger_entries_skips_malformed_lines(tmp_path):
+    ledger_path = tmp_path / "ledger.jsonl"
+    good_entry = build_ledger_entry(proposal_id="A-1", old_checksum="aaa", new_checksum="bbb", apply_report_path="r1.json")
+    ledger_path.write_text(json.dumps(good_entry) + "\n" + "{not valid json\n", encoding="utf-8")
+    entries = load_ledger_entries(ledger_path)
+    assert len(entries) == 1
+    assert entries[0]["proposal_id"] == "A-1"
+
+
+# --- VerifyReload sonuc durumu -- PASS / FAIL / VERIFICATION_SKIPPED semantigi --
+
+
+def test_build_pass_fail_skipped_check_shapes():
+    assert build_pass_check("x", "ok") == {"check": "x", "state": "PASS", "reason": "ok"}
+    assert build_fail_check("x", "bad") == {"check": "x", "state": "FAIL", "reason": "bad"}
+    assert build_skipped_check("x", "n/a") == {"check": "x", "state": "VERIFICATION_SKIPPED", "reason": "n/a"}
+
+
+def test_aggregate_verification_state_all_pass_is_pass():
+    checks = [build_pass_check("a", "ok"), build_pass_check("b", "ok")]
+    assert aggregate_verification_state(checks) == "PASS"
+
+
+def test_aggregate_verification_state_any_fail_is_fail():
+    checks = [build_pass_check("a", "ok"), build_fail_check("b", "bozuk"), build_skipped_check("c", "n/a")]
+    assert aggregate_verification_state(checks) == "FAIL"
+
+
+def test_aggregate_verification_state_all_skipped_is_skipped():
+    checks = [build_skipped_check("a", "n/a"), build_skipped_check("b", "n/a")]
+    assert aggregate_verification_state(checks) == "VERIFICATION_SKIPPED"
+
+
+def test_aggregate_verification_state_mixed_pass_and_skipped_is_pass():
+    """En az bir PASS + geri kalani SKIPPED (hic FAIL yok) -- GENEL
+    durum PASS'tir (calisan kontrol basarili, calismayan kontroller
+    fabrike edilmedi/dogru sekilde atlandi)."""
+    checks = [build_pass_check("a", "ok"), build_skipped_check("b", "n/a")]
+    assert aggregate_verification_state(checks) == "PASS"
+
+
+def test_aggregate_verification_state_empty_list_is_skipped_not_pass():
+    """Hicbir kontrol calismadiysa (bos liste), bu ASLA PASS ile
+    KARISTIRILAMAZ -- fabrike edilmis bir basari olmamali."""
+    assert aggregate_verification_state([]) == "VERIFICATION_SKIPPED"

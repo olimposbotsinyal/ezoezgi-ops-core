@@ -9,7 +9,8 @@ geri yuklenecegi raporlanir. Gercekten geri almak icin `-Apply` acikca
 gecilmelidir.
 
 Girdi: bir `apply_report.json` yolu (`-ApplyReportPath`) -- ilgili
-`backup_path`, `proposal_id`, `old_checksum` bilgilerini buradan okur.
+`backup_path`, `proposal_id`, `old_checksum`, `proposal_path`,
+`review_record_path` bilgilerini buradan okur.
 
 Basarili bir rollback:
   - Hedef dosyayi (`model_gateway_alerts.yaml`) TAM OLARAK yedekteki
@@ -18,7 +19,10 @@ Basarili bir rollback:
     `old_checksum` ile eslestigini DOGRULAR (eslesmezse acikca uyarir --
     yedek dosyasi kendisi bozulmus/degismis olabilir).
   - `data/audit/audit.log.jsonl`'e bir ROLLBACK denetim kaydi EKLER.
-  - `reports/threshold_rollback_<UTC>/rollback_report.md`+`.json` yazar.
+  - `reports/threshold_rollback_<UTC>/rollback_report.md`+`.json` yazar
+    -- kaynak apply raporu/review kaydi baglantisi (linkage) VE
+    rollback-SONRASI drift durumu ANLIK GORUNTUSU dahil (gorev v1.1
+    madde 5).
 
 NOT: Bu script `approved_checksums_ledger.jsonl`'e YENI bir girdi
 EKLEMEZ -- rollback, dosyayi ONCEKI (zaten onayli/bilinen) durumuna
@@ -52,13 +56,16 @@ sys.path.insert(0, r'$RepoRoot\apps\orchestrator\src')
 from datetime import datetime, timezone
 from pathlib import Path
 
-from threshold_apply_core import restore_backup, build_rollback_audit_details, RollbackOutcome, write_rollback_report
-from detect_observability_drift import compute_file_sha256
+from threshold_apply_core import restore_backup, build_rollback_audit_details, load_approved_checksums, RollbackOutcome, write_rollback_report
+from observability_drift_core import check_alert_rules_checksum_drift
+from detect_observability_drift import compute_file_sha256, load_baseline_checksum, DEFAULT_CHECKSUM_PATH
 from audit_logger import AuditLogger
 
 repo_root = Path(r'$RepoRoot')
 apply_report_path = Path(r'$ApplyReportPath')
 target_path = repo_root / 'infra' / 'monitoring' / 'prometheus' / 'model_gateway_alerts.yaml'
+ledger_path = repo_root / 'infra' / 'monitoring' / 'baseline' / 'approved_checksums_ledger.jsonl'
+baseline_checksum_path = repo_root / DEFAULT_CHECKSUM_PATH
 out_dir = Path(r'$outDir')
 apply_mode = $(if ($Apply) { "True" } else { "False" })
 
@@ -75,22 +82,37 @@ except (OSError, json.JSONDecodeError) as exc:
 proposal_id = apply_report.get('proposal_id', 'UNKNOWN')
 backup_path_str = apply_report.get('backup_path')
 old_checksum_expected = apply_report.get('old_checksum')
+# `.get()` ile okunur -- ESKI (v1.0) apply_report.json dosyalarinda bu
+# alanlar YOKTUR, eksik olmalari rollback'i ENGELLEMEMELI (geriye
+# donuk uyumluluk).
+source_proposal_path = apply_report.get('proposal_path')
+source_review_record_path = apply_report.get('review_record_path')
 
 if not apply_report.get('applied'):
-    outcome = RollbackOutcome(restored=False, reasons=['Bu apply_report.json BASARILI bir apply temsil etmiyor (applied=false) -- geri alinacak bir sey yok.'])
+    outcome = RollbackOutcome(
+        restored=False,
+        reasons=['Bu apply_report.json BASARILI bir apply temsil etmiyor (applied=false) -- geri alinacak bir sey yok.'],
+        source_apply_report_path=str(apply_report_path), source_review_record_path=source_review_record_path,
+    )
     write_rollback_report(outcome, out_dir, proposal_id=proposal_id, generated_at=generated_at)
     print(f'BLOCKED: {outcome.reasons}')
     sys.exit(2)
 
 if not backup_path_str:
-    outcome = RollbackOutcome(restored=False, reasons=['apply_report.json icinde backup_path yok.'])
+    outcome = RollbackOutcome(
+        restored=False, reasons=['apply_report.json icinde backup_path yok.'],
+        source_apply_report_path=str(apply_report_path), source_review_record_path=source_review_record_path,
+    )
     write_rollback_report(outcome, out_dir, proposal_id=proposal_id, generated_at=generated_at)
     print(f'BLOCKED: {outcome.reasons}')
     sys.exit(2)
 
 backup_path = Path(backup_path_str)
 if not backup_path.exists():
-    outcome = RollbackOutcome(restored=False, reasons=[f'Yedek dosyasi bulunamadi: {backup_path}'])
+    outcome = RollbackOutcome(
+        restored=False, reasons=[f'Yedek dosyasi bulunamadi: {backup_path}'],
+        source_apply_report_path=str(apply_report_path), source_review_record_path=source_review_record_path,
+    )
     write_rollback_report(outcome, out_dir, proposal_id=proposal_id, generated_at=generated_at)
     print(f'BLOCKED: {outcome.reasons}')
     sys.exit(2)
@@ -103,6 +125,7 @@ if not apply_mode:
     outcome = RollbackOutcome(
         restored=False,
         reasons=['DRY-RUN modu: hicbir dosya degistirilmedi. Gercekten geri almak icin -Apply gecin.'],
+        source_apply_report_path=str(apply_report_path), source_review_record_path=source_review_record_path,
     )
     write_rollback_report(outcome, out_dir, proposal_id=proposal_id, generated_at=generated_at)
     print(f'DRY-RUN: {backup_path} -> {target_path} geri yuklenecekti.')
@@ -115,20 +138,41 @@ restored_checksum = compute_file_sha256(target_path)
 checksum_matches = (restored_checksum == old_checksum_expected)
 reason = 'checksum beklenenle eslesiyor' if checksum_matches else 'UYARI: checksum beklenenle ESLESMIYOR (yedek dosyasi degismis olabilir)'
 
+# Rollback-SONRASI drift anlik goruntusu -- geri yuklenen dosyanin
+# STATIK baseline'a mi, ONAYLI degisiklik defterine mi uydugunu, yoksa
+# HALA beklenmedik bir durumda mi oldugunu HEMEN raporlar (bkz.
+# check_alert_rules_checksum_drift -- Commit T'den AYNEN yeniden
+# kullanilir, kopyalanmaz).
+try:
+    baseline_checksum = load_baseline_checksum(baseline_checksum_path)
+    approved_checksums = load_approved_checksums(ledger_path)
+    post_finding = check_alert_rules_checksum_drift(restored_checksum, baseline_checksum, approved_checksums)
+    post_rollback_drift_status = post_finding.severity
+except (OSError, ValueError) as exc:
+    post_rollback_drift_status = f'BILINMIYOR (drift kontrolu basarisiz: {exc})'
+
 audit_details = build_rollback_audit_details(
     proposal_id=proposal_id, backup_path=backup_path, restored_checksum=restored_checksum, reason=reason,
 )
+audit_details['post_rollback_drift_status'] = post_rollback_drift_status
+audit_details['source_apply_report_path'] = str(apply_report_path)
+audit_details['source_review_record_path'] = source_review_record_path
 audit_logger = AuditLogger(log_path=repo_root / 'data' / 'audit' / 'audit.log.jsonl')
 audit_record = audit_logger.log(
     alias=None, task='THRESHOLD_CHANGE_ROLLBACK', status='ROLLED_BACK', risk_level='medium', details=audit_details,
 )
 
-outcome = RollbackOutcome(restored=True, reasons=[reason], restored_checksum=restored_checksum)
+outcome = RollbackOutcome(
+    restored=True, reasons=[reason], restored_checksum=restored_checksum,
+    source_apply_report_path=str(apply_report_path), source_review_record_path=source_review_record_path,
+    post_rollback_drift_status=post_rollback_drift_status,
+)
 write_rollback_report(outcome, out_dir, proposal_id=proposal_id, generated_at=generated_at)
 
 print(f'BASARILI: {target_path} geri yuklendi.')
 print(f'restored_checksum={restored_checksum}')
 print(f'checksum_matches_expected={checksum_matches}')
+print(f'post_rollback_drift_status={post_rollback_drift_status}')
 print(f'audit_request_id={audit_record["request_id"]}')
 print(f'evidence_dir={out_dir}')
 sys.exit(0)

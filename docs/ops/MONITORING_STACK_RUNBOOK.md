@@ -587,6 +587,84 @@ kimse manuel takip etmeyi unutursa bile SESSİZCE kaçırılmaz.
 Bu yol, `docs/ops/ALERT_PLAYBOOK_MODEL_GATEWAY.md`'deki ilgili alert
 playbook'unda AYRICA belgelenir.
 
+## VerifyReload operational prerequisites
+
+`apply_threshold_proposal.ps1 -Apply -VerifyReload`, gerçek `-Apply`
+BAŞARILI olduktan SONRA dört bağımsız kontrol çalıştırır — hiçbirini
+FABRİKE ETMEZ, hiçbiri yapılandırılmamışsa/erişilemezse bunu AÇIKÇA
+`VERIFICATION_SKIPPED` (yapılandırılmadı) veya `FAIL` (yapılandırıldı
+ama başarısız) olarak raporlar:
+
+| Kontrol | Parametre | Bu makinede varsayılan durum |
+|---|---|---|
+| `promtool check rules` | `-PromtoolPath` | Kurulu DEĞİL — `VERIFICATION_SKIPPED` (bkz. aşağıdaki NOT) |
+| `amtool check-config` | `-AmtoolPath` + `-AlertmanagerConfigPath` | Kurulu DEĞİL — `VERIFICATION_SKIPPED` |
+| Prometheus health endpoint | `-PrometheusHealthUrl` | Sağlanmadı — `VERIFICATION_SKIPPED` |
+| Alertmanager readiness endpoint | `-AlertmanagerReadyUrl` | Sağlanmadı — `VERIFICATION_SKIPPED` |
+
+**NOT (bu makineye özgü, geçici):** Gerçek Prometheus v3.13.2 +
+Alertmanager v0.33.1 ikilileri daha önce (Go-live Gate D doğrulaması
+için, bkz. B037/Gate D bölümü) `C:\Temp\monitoring_bin\` altına
+indirildi — repo'ya COMMIT EDİLMEDİ (geçici, makineye özgü). Bu ikililer
+mevcutsa `-PromtoolPath`/`-AmtoolPath` ile GEÇİLEBİLİR; **gerçek bir
+`-Apply -VerifyReload` çalıştırmasında bu tespit edildi:** `promtool
+check rules` PASS verdi, ama `amtool check-config` `infra/monitoring/profiles/persistent/alertmanager.yml`
+üzerinde GERÇEK bir sorun buldu (`invalid URL: unsupported scheme ""`)
+— bu, o profildeki webhook receiver'ın `${VAR}` yer tutucusunun
+Alertmanager tarafından ÇÖZÜLMEDİĞİ (Commit R'de zaten bilinen/belgeli
+bir sınırlama, bkz. `infra/monitoring/profiles/persistent/README.md`)
+nedeniyle **beklenen, gerçek bir FAIL'dir** — VerifyReload'ın "asla PASS
+uydurma" ilkesinin çalıştığının somut kanıtıdır, kod tarafında bir hata
+DEĞİLDİR.
+
+**Genel durum semantiği:** herhangi bir kontrol FAIL ise genel durum
+FAIL; TÜMÜ VERIFICATION_SKIPPED ise genel durum VERIFICATION_SKIPPED;
+aksi halde (en az bir PASS, hiç FAIL yok) PASS. Genel durum FAIL ise
+`apply_threshold_proposal.ps1` **exit code 3** ile çıkar (0/2'den
+AYRI) — dosya ZATEN uygulandı (geri alınmadı), operatör
+`apply_report.md`'yi incelemeli ve gerekirse `rollback_threshold_apply.ps1`
+çalıştırmalıdır.
+
+## Overdue emergency review escalation SOP
+
+`scripts/ops/check_emergency_review_overdue.py` (bağımsız CLI) VE
+`detect_observability_drift.py`'nin her çalıştırması (otomatik
+entegre, `observability_drift_core.check_emergency_review_overdue_drift`),
+`approved_checksums_ledger.jsonl`'deki HER acil durum (`is_emergency: true`)
+girdisini kontrol eder:
+
+1. **Vadesi henüz gelmemiş** (`now <= retro_review_due_utc`) → sessizce
+   geçilir, HİÇBİR bulgu üretilmez.
+2. **Vadesi geçmiş VE aynı `alert_name` için SONRAKİ bir NORMAL
+   (`is_emergency: false`) apply girdisi VARSA** → "takip eden onay
+   gerçekleşti" sayılır, HİÇBİR bulgu üretilmez.
+3. **Vadesi geçmiş VE takip eden normal onay YOKSA** → `CATEGORY_EMERGENCY_GOVERNANCE`
+   altında **CRITICAL** bir drift bulgusu üretilir (`proposal_id`,
+   `alert_name`, `retro_review_due_utc`, `hours_overdue`, `apply_report_path`
+   kanıtlarıyla) — hem `drift_report.md`'de (rutin drift taramasının
+   PARÇASI olarak) hem de bağımsız `overdue_report.md`'de görünür.
+
+**Eskalasyon adımları (bir CRITICAL `emergency_governance` bulgusu
+görüldüğünde):**
+1. `evidence.apply_report_path`'teki apply raporunu VE ilgili
+   `incident_id`'yi inceleyin.
+2. Değişiklik hâlâ GEÇERLİ/doğruysa: HEMEN normal bir `create_threshold_review_record.py
+   --decision APPROVE` review_record'u oluşturup (farklı bir
+   incelemeci ile) tekrar `apply_threshold_proposal.ps1 -Apply`
+   çalıştırın (aynı değere yeniden yazar, `old_checksum == new_checksum`,
+   zararsız) — bu, ledger'a "takip eden normal onay" girdisini ekler ve
+   drift'i temizler.
+3. Değişiklik ARTIK geçerli DEĞİLSE: `rollback_threshold_apply.ps1 -Apply`
+   ile geri alın — dosya baseline'a (veya önceki onaylı duruma) döner,
+   drift de doğal olarak temizlenir (checksum artık bu ledger girdisine
+   değil, önceki duruma işaret eder).
+4. Her iki durumda da `docs/BACKLOG.md`'ye bir not düşün: acil durumun
+   ne zaman kapatıldığı + kim tarafından.
+5. **Bu, "acil durum → asla unutulmaz" garantisinin somut mekanizmasıdır** —
+   `retro_review_due_utc` geçtiğinde kimse manuel takip etmeyi
+   unutursa bile, drift tespiti (haftalık ritüelin veya günlük
+   çalıştırmanın PARÇASI olarak) bunu OTOMATİK yakalar.
+
 ## Kalıcı (persistent) izleme profili
 
 `infra/monitoring/profiles/persistent/` — `prometheus.yml` +

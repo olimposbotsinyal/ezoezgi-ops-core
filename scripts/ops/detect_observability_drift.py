@@ -117,11 +117,12 @@ def run_drift_detection(
 ) -> tuple[list, str]:
     from observability_drift_core import (
         check_alert_rules_checksum_drift,
+        check_emergency_review_overdue_drift,
         check_remote_default_drift,
         check_strict_flag_drift,
         compare_metrics_schema,
     )
-    from threshold_apply_core import load_approved_checksums
+    from threshold_apply_core import load_approved_checksums, load_ledger_entries
 
     baseline = load_baseline_manifest(manifest_path)
     baseline_checksum = load_baseline_checksum(checksum_path)
@@ -138,8 +139,13 @@ def run_drift_detection(
     # varsayilan CLI davranisi), o defterde KAYITLI (yani GERCEKTEN
     # `apply_threshold_proposal.ps1 -Apply` ile onaylanip uygulanmis) bir
     # checksum CRITICAL'e DUSURULMEZ (bkz. check_alert_rules_checksum_drift).
+    ledger_entries = load_ledger_entries(ledger_path) if ledger_path is not None else []
     approved_checksums = load_approved_checksums(ledger_path) if ledger_path is not None else []
     findings.append(check_alert_rules_checksum_drift(observed_checksum, baseline_checksum, approved_checksums))
+    # v1.1: ledger'daki HER acil durum (APPROVE_EMERGENCY) girdisi icin,
+    # retroaktif inceleme vadesi gecmis VE takip eden normal onay yoksa
+    # CRITICAL -- bkz. check_emergency_review_overdue_drift.
+    findings.extend(check_emergency_review_overdue_drift(ledger_entries, now=datetime.now(timezone.utc)))
 
     config_defaults = read_config_source_defaults(repo_root)
     findings.append(check_remote_default_drift(config_defaults["remote_enabled"], baseline))

@@ -780,6 +780,33 @@ geçişi denetlenebilir kılar.
   eşleşmesi, REJECT/tahrif edilmiş-checksum senaryolarının engellenmesi).
   Ayrıntı + RACI + acil durum yolu: `docs/ops/MONITORING_STACK_RUNBOOK.md`
   "Eşik Değişikliği SOP".
+- **Governance v1.1 sertleştirme (zorlanan acil durum yolu + genişletilmiş
+  yama kapsamı + canlı doğrulama):** `--decision APPROVE_EMERGENCY`
+  (yeni karar türü) — `incident_id`/`justification`/`timebox_hours`
+  (≤24s)/`retro_review_due_utc` MAKİNE TARAFINDAN zorunlu kılınır (hem
+  review_record oluşturulurken hem apply anında iki kez doğrulanır);
+  başarılı acil durum uygulamaları apply raporu/audit kaydı/ledger
+  girdisinde açıkça etiketlenir. `threshold_apply_core.py`'deki yama
+  deseni kaydı artık her hedef ifade için TAM OLARAK 1 eşleşme
+  zorunlu kılar (0 veya >1 eşleşme fail-loud engellenir) ve
+  yamalanamayan alertler (`PRIMARY_RESTRICTED_PERSISTENT`,
+  `PREFLIGHT_UNKNOWN_PERSISTENT`, `CIRCUIT_OPEN_STUCK`) her apply
+  raporunda nedenleriyle listelenir. `apply_threshold_proposal.ps1
+  -VerifyReload` (opsiyonel) gerçek apply sonrası `promtool check
+  rules`/`amtool check-config`/Prometheus-Alertmanager erişilebilirlik
+  kontrolleri çalıştırır — hiçbirini fabrike etmez, yapılandırılmamış
+  kontroller `VERIFICATION_SKIPPED` olarak işaretlenir; genel durum
+  FAIL ise script exit code 3 ile çıkar. `scripts/ops/check_emergency_review_overdue.py`
+  + drift detector entegrasyonu, vadesi geçmiş VE takip eden normal
+  onayı olmayan acil durum değişikliklerini OTOMATİK olarak CRITICAL
+  governance drift'i olarak yakalar. `rollback_threshold_apply.ps1`
+  raporu artık kaynak apply/review dosya bağlantısını VE rollback-sonrası
+  drift anlık görüntüsünü içerir. Gerçek uçtan uca doğrulandı (gerçek
+  promtool PASS + gerçek amtool FAIL — `infra/monitoring/profiles/persistent/alertmanager.yml`'deki
+  bilinen `${VAR}` sınırlaması genuine olarak yakalandı, fabrike
+  edilmedi). Ayrıntı: `docs/ops/MONITORING_STACK_RUNBOOK.md` "Emergency
+  Change Protocol (Enforced)", "VerifyReload operational prerequisites",
+  "Overdue emergency review escalation SOP".
 
 ## Onay Gerektiren Aksiyonlar (Faz 4+ ile aktif olacak)
 

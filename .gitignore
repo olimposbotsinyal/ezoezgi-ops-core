@@ -63,6 +63,7 @@ reports/threshold_proposals/
 reports/threshold_reviews/
 reports/threshold_apply_*/
 reports/threshold_rollback_*/
+reports/emergency_review_check_*/
 
 # NOT: reports/weekly_observability_<YYYY-WW>/ KASITLI olarak burada
 # YOK -- bu, "Post-GO weekly ritual"in kalici governance gunlugudur

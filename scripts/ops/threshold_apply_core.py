@@ -21,28 +21,67 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+@dataclass(frozen=True)
+class PatchTarget:
+    """`pattern`, dosyada TAM OLARAK 1 kez eslesmesi BEKLENEN bir regex --
+    `multi_target=True` ACIKCA isaretlenmedikce, 0 VEYA >1 eslesme GUVENLIK
+    NEDENIYLE reddedilir (bkz. patch_alert_expr_value). Her desen TAM
+    OLARAK 3 yakalama grubu icerir: (on-ek, SAYISAL_DEGER, son-ek)."""
+
+    pattern: re.Pattern[str]
+    multi_target: bool = False
+
+
 # Her (alert_name, esik_turu) icin, dosyadaki BENZERSIZ pencere etiketi
 # sayesinde baska hicbir yeri yanlislikla eslestirmeyen bir desen.
-# Her desen TAM OLARAK 3 yakalama grubu icerir: (on-ek, SAYISAL_DEGER, son-ek)
 # -- FALLBACK_SPIKE'ta son-ek doludur (" * sum"), digerlerinde bostur --
 # boylece `patch_alert_expr_value` HER ZAMAN ayni sekilde (m.group(1) + yeni_deger + m.group(3))
 # yeniden birlestirebilir.
-ALERT_EXPR_PATCH_PATTERNS: dict[str, dict[str, re.Pattern[str]]] = {
+ALERT_EXPR_PATCH_PATTERNS: dict[str, dict[str, PatchTarget]] = {
     "HIGH_NULL_INTENT_RATE": {
-        "warn": re.compile(
+        "warn": PatchTarget(re.compile(
             r"(model_gateway_null_intent_total\[6h\]\)\) / sum\(rate\(model_gateway_requests_total\[6h\]\)\)\) > )"
             r"([0-9]+(?:\.[0-9]+)?)()"
-        ),
-        "crit": re.compile(
+        )),
+        "crit": PatchTarget(re.compile(
             r"(model_gateway_null_intent_total\[1h\]\)\) / sum\(rate\(model_gateway_requests_total\[1h\]\)\)\) > )"
             r"([0-9]+(?:\.[0-9]+)?)()"
-        ),
+        )),
     },
     "FALLBACK_SPIKE": {
-        "warn": re.compile(r"(sum\(rate\(model_gateway_fallback_total\[15m\]\)\) > \()([0-9]+(?:\.[0-9]+)?)( \* sum)"),
-        "crit": re.compile(r"(sum\(rate\(model_gateway_fallback_total\[15m\]\)\) > \()([0-9]+(?:\.[0-9]+)?)( \* sum)"),
+        "warn": PatchTarget(re.compile(r"(sum\(rate\(model_gateway_fallback_total\[15m\]\)\) > \()([0-9]+(?:\.[0-9]+)?)( \* sum)")),
+        "crit": PatchTarget(re.compile(r"(sum\(rate\(model_gateway_fallback_total\[15m\]\)\) > \()([0-9]+(?:\.[0-9]+)?)( \* sum)")),
     },
 }
+
+# Esik-tasiyan (numerik bir karsilastirma iceren) ama GERCEK bir
+# ortam-degiskeni/esik esleme YOKLUGU nedeniyle KASITLI olarak
+# `ALERT_EXPR_PATCH_PATTERNS`'e EKLENMEYEN alertler -- `calibrate_alert_thresholds.ALERT_ENV_VAR_MAP`
+# ile SENKRON tutulmalidir (orada warn/crit=None olan alertler burada
+# da YAMALANAMAZ olarak isaretlenir). Apply raporunun "non-patchable"
+# bolumunde HER ZAMAN gosterilir (gorev v1.1 madde 2) -- boylece "bu
+# alert neden desteklenmiyor" sorusu HER apply raporunda acikca
+# yanitlanir, sessizce atlanmaz.
+NON_PATCHABLE_ALERTS: dict[str, str] = {
+    "PRIMARY_RESTRICTED_PERSISTENT": (
+        "calibrate_alert_thresholds.ALERT_ENV_VAR_MAP'te warn/crit=None -- ayarlanabilir bir ortam "
+        "degiskeni YOK (herhangi bir olusum > 0 tetikler, 'olmamasi gereken durum' tipi bir alert, "
+        "oran-tabanli kalibrasyona uygun degil)."
+    ),
+    "PREFLIGHT_UNKNOWN_PERSISTENT": (
+        "calibrate_alert_thresholds.ALERT_ENV_VAR_MAP'te warn/crit=None -- esik (>0.9) kodda sabit, "
+        "ayarlanabilir bir ortam degiskeni YOK; degistirmek icin once model_gateway kod tarafinda "
+        "bir env var eklenmesi gerekir."
+    ),
+    "CIRCUIT_OPEN_STUCK": (
+        "Sayisal/oransal bir esik degil -- boolean durum kontrolu (`model_gateway_circuit_open == 1`), "
+        "esik kalibrasyonu/onay is akisinin kapsami disinda."
+    ),
+}
+
+
+def get_non_patchable_alerts() -> dict[str, str]:
+    return dict(NON_PATCHABLE_ALERTS)
 
 
 def _format_threshold_value(value: float) -> str:
@@ -51,38 +90,66 @@ def _format_threshold_value(value: float) -> str:
     return text or "0"
 
 
-def patch_alert_expr_value(text: str, alert_name: str, threshold_kind: str, new_value: float) -> tuple[str, bool]:
+def patch_alert_expr_value(
+    text: str, alert_name: str, threshold_kind: str, new_value: float
+) -> tuple[str, bool, str | None]:
     """`text` (model_gateway_alerts.yaml icerigi) icinde, `alert_name`/
     `threshold_kind` ('warn'/'crit') icin BILINEN deseni bulup sayisal
-    degeri `new_value` ile degistirir. Desen TANIMLI DEGILSE veya
-    metinde BULUNAMAZSA metin DEGISTIRILMEDEN doner (`changed=False`) --
-    SESSIZCE yanlis bir seyi asla degistirmez."""
-    pattern = ALERT_EXPR_PATCH_PATTERNS.get(alert_name, {}).get(threshold_kind)
-    if pattern is None:
-        return text, False
+    degeri `new_value` ile degistirir. Doner: (yeni_metin, changed, hata_nedeni).
+    `hata_nedeni`, `changed=False` oldugunda BOS DEGILDIR (SESSIZ
+    basarisizlik ASLA olmaz):
+      - alert/esik-turu icin bilinen bir desen yoksa (bkz. `NON_PATCHABLE_ALERTS`
+        ozel bir nedenle, bilinmeyen kombinasyonlar genel bir nedenle),
+      - desen dosyada HIC eslesmezse (0 eslesme),
+      - desen `multi_target=False` iken 1'DEN FAZLA eslesirse (guvenlik
+        icin FAIL-LOUD -- yanlis yerin yamalanma riski yerine HICBIR
+        SEY degistirilmez)."""
+    target = ALERT_EXPR_PATCH_PATTERNS.get(alert_name, {}).get(threshold_kind)
+    if target is None:
+        if alert_name in NON_PATCHABLE_ALERTS:
+            return text, False, NON_PATCHABLE_ALERTS[alert_name]
+        return text, False, f"'{alert_name}'/'{threshold_kind}' icin bilinen bir yama deseni YOK"
+
+    matches = list(target.pattern.finditer(text))
+    if len(matches) == 0:
+        return text, False, "desen dosyada HIC eslesmedi (0 eslesme) -- dosya beklenenden farkli olabilir"
+    if len(matches) > 1 and not target.multi_target:
+        return text, False, (
+            f"desen BEKLENENDEN FAZLA eslesti ({len(matches)} eslesme) -- guvenlik icin IPTAL edildi "
+            "(yalnizca `multi_target=True` olarak ACIKCA isaretlenen desenler 1'den fazla eslesmeye izin verir)"
+        )
 
     formatted = _format_threshold_value(new_value)
 
     def _replace(m: re.Match[str]) -> str:
         return f"{m.group(1)}{formatted}{m.group(3)}"
 
-    new_text, count = pattern.subn(_replace, text, count=1)
-    return new_text, count > 0
+    if target.multi_target:
+        new_text = target.pattern.sub(_replace, text)
+    else:
+        new_text = target.pattern.sub(_replace, text, count=1)
+    return new_text, True, None
 
 
-def apply_proposal_to_alerts_text(text: str, proposal: dict[str, Any]) -> tuple[str, list[str], list[str]]:
+def apply_proposal_to_alerts_text(
+    text: str, proposal: dict[str, Any]
+) -> tuple[str, list[str], list[dict[str, str]]]:
     """`proposal['proposed_values']`'deki HER anahtar (warn/crit) icin
     metni sirayla yamalar. Doner: (yeni_metin, basarili_anahtarlar,
-    basarisiz_anahtarlar). Bir anahtar icin desen bulunamazsa/eslesmezse
-    o anahtar `basarisiz_anahtarlar`'a eklenir -- cagiran taraf (apply
-    script'i) bunu GERCEK bir hata olarak ele almalidir (kismi/sessiz
-    basarisizlik asla olmamali)."""
+    basarisiz_anahtarlar). `basarisiz_anahtarlar`, `{"kind": ..., "reason": ...}`
+    sozlukleri listesidir -- cagiran taraf (apply script'i) bunu GERCEK
+    bir hata olarak ele almalidir (kismi/sessiz basarisizlik asla
+    olmamali); yeniden AYNI proposal ile cagirmak IDEMPOTENT'tir (metin
+    zaten hedef degeri iceriyorsa, sonuc BIREBIR ayni kalir)."""
     alert_name = proposal["alert_name"]
     succeeded: list[str] = []
-    failed: list[str] = []
+    failed: list[dict[str, str]] = []
     for kind, new_value in proposal["proposed_values"].items():
-        text, changed = patch_alert_expr_value(text, alert_name, kind, new_value)
-        (succeeded if changed else failed).append(kind)
+        text, changed, reason = patch_alert_expr_value(text, alert_name, kind, new_value)
+        if changed:
+            succeeded.append(kind)
+        else:
+            failed.append({"kind": kind, "reason": reason or "bilinmeyen neden"})
     return text, succeeded, failed
 
 
@@ -114,13 +181,25 @@ def build_ledger_entry(
     new_checksum: str,
     apply_report_path: str,
     timestamp: str | None = None,
+    alert_name: str = "",
+    is_emergency: bool = False,
+    retro_review_due_utc: str | None = None,
 ) -> dict[str, Any]:
+    """`alert_name`/`is_emergency`/`retro_review_due_utc` GERIYE UYUMLU
+    varsayilanlarla EKLENDI (v1.1) -- `alert_name`, drift'in "ayni alert
+    icin sonraki normal onay" (follow-up) kontrolunu yapabilmesi icin;
+    `is_emergency`/`retro_review_due_utc`, `check_emergency_review_overdue_drift`'in
+    review_record.json'a GERI DONMEDEN, YALNIZCA ledger'dan acil durum
+    vadelerini takip edebilmesi icin (bkz. observability_drift_core.py)."""
     return {
         "timestamp": timestamp or datetime.now(timezone.utc).isoformat(),
         "proposal_id": proposal_id,
+        "alert_name": alert_name,
         "old_checksum": old_checksum,
         "new_checksum": new_checksum,
         "apply_report_path": apply_report_path,
+        "is_emergency": is_emergency,
+        "retro_review_due_utc": retro_review_due_utc,
     }
 
 
@@ -133,21 +212,35 @@ def append_ledger_entry(ledger_path: Path, entry: dict[str, Any]) -> None:
         f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
 
-def load_approved_checksums(ledger_path: Path) -> list[str]:
-    """Defterdeki TUM `new_checksum` degerlerini doner -- dosya yoksa
+def load_ledger_entries(ledger_path: Path) -> list[dict[str, Any]]:
+    """Defterdeki TUM satirlari (ham dict olarak) doner -- dosya yoksa
     (henuz hic apply yapilmamis, NORMAL durum) bos liste doner. Bozuk
-    tek satirlar SESSIZCE atlanir (tum defteri gecersiz kilmaz)."""
+    (JSON olarak ayristirilamayan) satirlar SESSIZCE atlanir (tum
+    defteri gecersiz kilmaz). `load_approved_checksums` (checksum-only)
+    VE `check_emergency_review_overdue_drift` (tam alan erisimi
+    gerektirir) TARAFINDAN kullanilan ORTAK, genel-amacli yukleyici."""
     if not ledger_path.exists():
         return []
-    checksums: list[str] = []
+    entries: list[dict[str, Any]] = []
     for line in ledger_path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if not line:
             continue
         try:
-            entry = json.loads(line)
+            entries.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue
+    return entries
+
+
+def load_approved_checksums(ledger_path: Path) -> list[str]:
+    """Defterdeki TUM `new_checksum` degerlerini doner. `new_checksum`
+    alani eksik/gecersiz tek satirlar SESSIZCE atlanir."""
+    checksums: list[str] = []
+    for entry in load_ledger_entries(ledger_path):
+        try:
             checksums.append(str(entry["new_checksum"]))
-        except (json.JSONDecodeError, KeyError, TypeError):
+        except (KeyError, TypeError):
             continue
     return checksums
 
@@ -167,7 +260,12 @@ def build_apply_audit_details(
     old_checksum: str,
     new_checksum: str,
 ) -> dict[str, Any]:
-    return {
+    """`review_record['decision'] == DECISION_APPROVE_EMERGENCY` ise,
+    audit kaydinin KENDISINDE de acil durum alanlari (`incident_id` vb.)
+    ACIKCA gorunur -- denetim gunlugunun kendisi, hangi degisikliklerin
+    acil-durum yoluyla uygulandigini, review_record.json dosyasina TEKRAR
+    bakmaya GEREK KALMADAN gosterebilmelidir."""
+    details: dict[str, Any] = {
         "proposal_id": proposal["proposal_id"],
         "alert_name": proposal["alert_name"],
         "current_values": proposal["current_values"],
@@ -179,7 +277,16 @@ def build_apply_audit_details(
         "backup_path": str(backup_path),
         "old_file_checksum": old_checksum,
         "new_file_checksum": new_checksum,
+        "is_emergency": review_record.get("decision") == "APPROVE_EMERGENCY",
     }
+    if details["is_emergency"]:
+        details["emergency_fields"] = {
+            "incident_id": review_record.get("incident_id"),
+            "justification": review_record.get("justification"),
+            "timebox_hours": review_record.get("timebox_hours"),
+            "retro_review_due_utc": review_record.get("retro_review_due_utc"),
+        }
+    return details
 
 
 def build_rollback_audit_details(
@@ -191,6 +298,47 @@ def build_rollback_audit_details(
         "restored_checksum": restored_checksum,
         "reason": reason,
     }
+
+
+# ---------------------------------------------------------------------------
+# VerifyReload dogrulama sonuc yardimcilari (saf mantik -- GERCEK
+# promtool/amtool/HTTP cagrilari `apply_threshold_proposal.ps1`'in
+# gomulu Python surucusunde kalir, bu YALNIZCA sonuc-sekli/toplama
+# mantigidir, boylece PASS/FAIL/VERIFICATION_SKIPPED semantigi gercek
+# binary'ler olmadan da deterministik test edilebilir)
+# ---------------------------------------------------------------------------
+
+VERIFY_PASS = "PASS"
+VERIFY_FAIL = "FAIL"
+VERIFY_SKIPPED = "VERIFICATION_SKIPPED"
+
+
+def build_skipped_check(check_name: str, reason: str) -> dict[str, str]:
+    return {"check": check_name, "state": VERIFY_SKIPPED, "reason": reason}
+
+
+def build_pass_check(check_name: str, reason: str) -> dict[str, str]:
+    return {"check": check_name, "state": VERIFY_PASS, "reason": reason}
+
+
+def build_fail_check(check_name: str, reason: str) -> dict[str, str]:
+    return {"check": check_name, "state": VERIFY_FAIL, "reason": reason}
+
+
+def aggregate_verification_state(checks: list[dict[str, str]]) -> str:
+    """`VerifyReload` kontrol sonuclarinin GENEL durumunu belirler:
+    HERHANGI biri FAIL ise FAIL; TUMU VERIFICATION_SKIPPED ise
+    VERIFICATION_SKIPPED; aksi halde (en az bir PASS, hic FAIL yok) PASS.
+    ASLA fabrike bir PASS uretmez -- bos liste de VERIFICATION_SKIPPED
+    doner (hicbir kontrol calismadi, bu PASS ile KARISTIRILAMAZ)."""
+    if not checks:
+        return VERIFY_SKIPPED
+    states = [c["state"] for c in checks]
+    if VERIFY_FAIL in states:
+        return VERIFY_FAIL
+    if all(s == VERIFY_SKIPPED for s in states):
+        return VERIFY_SKIPPED
+    return VERIFY_PASS
 
 
 # ---------------------------------------------------------------------------
@@ -207,6 +355,15 @@ class ApplyOutcome:
     old_checksum: str | None = None
     new_checksum: str | None = None
     backup_path: str | None = None
+    # v1.1 alanlari (hepsi GERIYE UYUMLU varsayilanlarla -- eski cagiranlar/
+    # testler DEGISIKLIKSIZ calismaya devam eder):
+    is_emergency: bool = False
+    emergency_fields: dict[str, Any] | None = None
+    non_patchable: dict[str, str] = field(default_factory=dict)
+    proposal_path: str | None = None
+    review_record_path: str | None = None
+    verification: list[dict[str, Any]] | None = None
+    verification_state: str | None = None
 
 
 def render_apply_report_md(outcome: ApplyOutcome, proposal: dict[str, Any], *, generated_at: str) -> str:
@@ -220,6 +377,17 @@ def render_apply_report_md(outcome: ApplyOutcome, proposal: dict[str, Any], *, g
         f"Sonuc: {'BASARILI' if outcome.applied else 'UYGULANMADI/ENGELLENDI'}",
         "",
     ]
+    if outcome.is_emergency:
+        lines.append("## ACIL DURUM UYGULAMASI (APPROVE_EMERGENCY)")
+        lines.append("")
+        lines.append("**Bu degisiklik, normal iki-goz incelemesi BEKLENMEDEN acil durum yoluyla uygulandi.**")
+        ef = outcome.emergency_fields or {}
+        lines.append(f"- Olay (incident_id): `{ef.get('incident_id')}`")
+        lines.append(f"- Gerekce (justification): {ef.get('justification')}")
+        lines.append(f"- Zaman kutusu (timebox_hours): {ef.get('timebox_hours')}")
+        lines.append(f"- Retroaktif inceleme vadesi (retro_review_due_utc): `{ef.get('retro_review_due_utc')}`")
+        lines.append("- **ZORUNLU:** bu vadeye kadar ikinci bir incelemenin GERCEKLESMESI gerekir, aksi halde drift detector bunu CRITICAL olarak isaretler.")
+        lines.append("")
     if outcome.reasons:
         lines.append("## Nedenler / Engeller")
         lines.append("")
@@ -236,6 +404,20 @@ def render_apply_report_md(outcome: ApplyOutcome, proposal: dict[str, Any], *, g
             f"- Yedek: `{outcome.backup_path}`",
             "",
         ]
+    if outcome.non_patchable:
+        lines.append("## Yamalanamayan (non-patchable) alertler -- sistem geneli kayit")
+        lines.append("")
+        for name, reason in outcome.non_patchable.items():
+            lines.append(f"- `{name}`: {reason}")
+        lines.append("")
+    if outcome.verification is not None:
+        lines.append(f"## VerifyReload dogrulamasi -- genel durum: **{outcome.verification_state}**")
+        lines.append("")
+        lines.append("| Kontrol | Durum | Detay |")
+        lines.append("|---|---|---|")
+        for v in outcome.verification:
+            lines.append(f"| {v.get('check')} | {v.get('state')} | {v.get('reason')} |")
+        lines.append("")
     return "\n".join(lines) + "\n"
 
 
@@ -259,6 +441,13 @@ def write_apply_report(
         "old_checksum": outcome.old_checksum,
         "new_checksum": outcome.new_checksum,
         "backup_path": outcome.backup_path,
+        "is_emergency": outcome.is_emergency,
+        "emergency_fields": outcome.emergency_fields,
+        "non_patchable": outcome.non_patchable,
+        "proposal_path": outcome.proposal_path,
+        "review_record_path": outcome.review_record_path,
+        "verification": outcome.verification,
+        "verification_state": outcome.verification_state,
     }
     json_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
 
@@ -270,6 +459,13 @@ class RollbackOutcome:
     restored: bool
     reasons: list[str] = field(default_factory=list)
     restored_checksum: str | None = None
+    # v1.1 alanlari (GERIYE UYUMLU varsayilanlar): kaynak apply/review
+    # baglantisi ("apply_id"/"review_id" -- bu projede standalone kimlikler
+    # yerine dosya yollari kullanilir) + rollback-SONRASI drift anlik
+    # goruntusu (bkz. gorev madde 5).
+    source_apply_report_path: str | None = None
+    source_review_record_path: str | None = None
+    post_rollback_drift_status: str | None = None
 
 
 def render_rollback_report_md(outcome: RollbackOutcome, *, proposal_id: str, generated_at: str) -> str:
@@ -281,6 +477,12 @@ def render_rollback_report_md(outcome: RollbackOutcome, *, proposal_id: str, gen
         f"Sonuc: {'BASARILI -- onceki config geri yuklendi' if outcome.restored else 'BASARISIZ'}",
         "",
     ]
+    if outcome.source_apply_report_path or outcome.source_review_record_path:
+        lines.append("## Kaynak baglanti (linkage)")
+        lines.append("")
+        lines.append(f"- Kaynak apply raporu: `{outcome.source_apply_report_path}`")
+        lines.append(f"- Kaynak review kaydi: `{outcome.source_review_record_path}`")
+        lines.append("")
     if outcome.reasons:
         lines.append("## Nedenler")
         lines.append("")
@@ -289,6 +491,7 @@ def render_rollback_report_md(outcome: RollbackOutcome, *, proposal_id: str, gen
         lines.append("")
     if outcome.restored:
         lines.append(f"- Geri yuklenen dosyanin checksum'i: `{outcome.restored_checksum}`")
+        lines.append(f"- Rollback-sonrasi drift durumu: **{outcome.post_rollback_drift_status}**")
         lines.append("")
     return "\n".join(lines) + "\n"
 
@@ -308,6 +511,9 @@ def write_rollback_report(
         "restored": outcome.restored,
         "reasons": outcome.reasons,
         "restored_checksum": outcome.restored_checksum,
+        "source_apply_report_path": outcome.source_apply_report_path,
+        "source_review_record_path": outcome.source_review_record_path,
+        "post_rollback_drift_status": outcome.post_rollback_drift_status,
     }
     json_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
 

@@ -213,3 +213,42 @@ def test_run_drift_detection_recognizes_approved_change_via_ledger(tmp_path):
     alert_finding = next(f for f in findings if f.category == CATEGORY_ALERT_RULES)
     assert alert_finding.severity == SEVERITY_NONE
     assert overall_drift_exit_code(findings) in (0, 1)
+
+
+def test_run_drift_detection_flags_overdue_emergency_with_no_followup(tmp_path):
+    """Uctan uca: ledger'da vadesi cok gecmis, takipsiz bir acil durum
+    girdisi varsa, `run_drift_detection` bunu CATEGORY_EMERGENCY_GOVERNANCE
+    CRITICAL bulgusu olarak dondurmelidir (gorev v1.1 madde 4)."""
+    ledger_path = tmp_path / "approved_checksums_ledger.jsonl"
+    ledger_path.write_text(
+        json.dumps(
+            {
+                "timestamp": "2020-01-01T00:00:00+00:00",
+                "proposal_id": "HIGH_NULL_INTENT_RATE-20200101T000000",
+                "alert_name": "HIGH_NULL_INTENT_RATE",
+                "old_checksum": "aaa",
+                "new_checksum": "bbb",
+                "apply_report_path": "reports/threshold_apply_20200101T000000Z/apply_report.json",
+                "is_emergency": True,
+                "retro_review_due_utc": "2020-01-02T00:00:00+00:00",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    empty_jsonl = tmp_path / "empty.jsonl"
+    findings, _ = run_drift_detection(
+        repo_root=REPO_ROOT_DEFAULT,
+        manifest_path=REPO_ROOT_DEFAULT / DEFAULT_MANIFEST_PATH,
+        checksum_path=REPO_ROOT_DEFAULT / DEFAULT_CHECKSUM_PATH,
+        alerts_path=REPO_ROOT_DEFAULT / DEFAULT_ALERTS_PATH,
+        jsonl_path=empty_jsonl,
+        window_minutes=60,
+        ledger_path=ledger_path,
+    )
+
+    emergency_findings = [f for f in findings if f.category == "emergency_governance"]
+    assert len(emergency_findings) == 1
+    assert emergency_findings[0].severity == SEVERITY_CRITICAL
+    assert overall_drift_exit_code(findings) == 2

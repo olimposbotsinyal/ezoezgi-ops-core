@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict, dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -34,6 +35,7 @@ CATEGORY_METRICS_SCHEMA = "metrics_schema"
 CATEGORY_ALERT_RULES = "alert_rules"
 CATEGORY_REMOTE_DEFAULT = "remote_default"
 CATEGORY_STRICT_FLAG = "strict_flag"
+CATEGORY_EMERGENCY_GOVERNANCE = "emergency_governance"
 
 
 @dataclass
@@ -177,6 +179,69 @@ def check_alert_rules_checksum_drift(
         "degisiklik defterine uyuyor) -- inceleme gerekli",
         evidence={"expected_checksum": baseline_checksum, "observed_checksum": observed_checksum},
     )
+
+
+# ---------------------------------------------------------------------------
+# Acil durum (APPROVE_EMERGENCY) retroaktif inceleme vadesi drift'i
+# ---------------------------------------------------------------------------
+
+
+def check_emergency_review_overdue_drift(
+    ledger_entries: list[dict[str, Any]], *, now: datetime
+) -> list[DriftFinding]:
+    """`approved_checksums_ledger.jsonl`'deki (bkz. `threshold_apply_core.load_ledger_entries`)
+    HER acil durum (`is_emergency=True`) girdisi icin: `retro_review_due_utc`
+    vadesi GECMIS (`now > retro_review_due_utc`) VE ayni `alert_name` icin
+    SONRAKI bir NORMAL (`is_emergency=False`) apply girdisi (yani "takip
+    eden normal onay") YOKSA -- CRITICAL bir `DriftFinding` uretir (gorev
+    v1.1 madde 4, BIREBIR). Vadesi henuz gelmemis VEYA takip eden normal
+    onayi olan girdiler icin HICBIR finding URETILMEZ (SESSIZCE gecilir --
+    bu, "her seyin drift oldugu" gurultusunu onler, yalnizca GERCEKTEN
+    ihlal edilen SOP'lar raporlanir)."""
+    findings: list[DriftFinding] = []
+    for entry in ledger_entries:
+        if not entry.get("is_emergency"):
+            continue
+
+        retro_raw = entry.get("retro_review_due_utc")
+        if not retro_raw:
+            continue
+        try:
+            retro_dt = datetime.fromisoformat(retro_raw)
+        except (ValueError, TypeError):
+            continue
+        if now <= retro_dt:
+            continue
+
+        alert_name = entry.get("alert_name")
+        entry_ts = entry.get("timestamp", "")
+        has_followup = any(
+            other.get("alert_name") == alert_name
+            and not other.get("is_emergency")
+            and str(other.get("timestamp", "")) > str(entry_ts)
+            for other in ledger_entries
+        )
+        if has_followup:
+            continue
+
+        hours_overdue = (now - retro_dt).total_seconds() / 3600
+        findings.append(
+            DriftFinding(
+                CATEGORY_EMERGENCY_GOVERNANCE,
+                SEVERITY_CRITICAL,
+                f"ACIL DURUM esik degisikligi (proposal_id={entry.get('proposal_id')}) retroaktif "
+                f"inceleme vadesini ({retro_raw}) {hours_overdue:.1f} saat gecti, TAKIP EDEN normal "
+                "onay YOK -- governance SOP'u ihlal ediliyor",
+                evidence={
+                    "proposal_id": entry.get("proposal_id"),
+                    "alert_name": alert_name,
+                    "retro_review_due_utc": retro_raw,
+                    "hours_overdue": round(hours_overdue, 2),
+                    "apply_report_path": entry.get("apply_report_path"),
+                },
+            )
+        )
+    return findings
 
 
 # ---------------------------------------------------------------------------

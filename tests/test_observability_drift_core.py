@@ -5,10 +5,13 @@ dosyasi olmadan tamamen deterministik."""
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 import pytest
 
 from observability_drift_core import (
     CATEGORY_ALERT_RULES,
+    CATEGORY_EMERGENCY_GOVERNANCE,
     EXIT_CRITICAL,
     EXIT_NO_DRIFT,
     EXIT_NON_CRITICAL,
@@ -17,6 +20,7 @@ from observability_drift_core import (
     SEVERITY_WARN,
     DriftFinding,
     check_alert_rules_checksum_drift,
+    check_emergency_review_overdue_drift,
     check_remote_default_drift,
     check_strict_flag_drift,
     compare_metrics_schema,
@@ -212,3 +216,97 @@ def test_render_drift_report_md_includes_findings_and_evidence():
     md = render_drift_report_md(findings, generated_at="2026-08-13T00:00:00Z", window_label="test")
     assert "bilinmeyen metrik" in md
     assert '"metric": "x"' in md
+
+
+# --- Acil durum retroaktif inceleme vadesi drift'i (v1.1 madde 4) --------------
+
+
+NOW = datetime(2026, 8, 20, tzinfo=timezone.utc)
+
+
+def _ledger_entry(**overrides):
+    entry = {
+        "timestamp": "2026-08-10T00:00:00+00:00",
+        "proposal_id": "HIGH_NULL_INTENT_RATE-20260810T000000",
+        "alert_name": "HIGH_NULL_INTENT_RATE",
+        "old_checksum": "aaa",
+        "new_checksum": "bbb",
+        "apply_report_path": "reports/threshold_apply_X/apply_report.json",
+        "is_emergency": True,
+        "retro_review_due_utc": "2026-08-11T00:00:00+00:00",
+    }
+    entry.update(overrides)
+    return entry
+
+
+def test_emergency_overdue_no_finding_when_not_yet_due():
+    entry = _ledger_entry(retro_review_due_utc="2026-09-01T00:00:00+00:00")
+    findings = check_emergency_review_overdue_drift([entry], now=NOW)
+    assert findings == []
+
+
+def test_emergency_overdue_critical_when_past_due_without_followup():
+    entry = _ledger_entry()
+    findings = check_emergency_review_overdue_drift([entry], now=NOW)
+    assert len(findings) == 1
+    assert findings[0].severity == SEVERITY_CRITICAL
+    assert findings[0].category == CATEGORY_EMERGENCY_GOVERNANCE
+    assert findings[0].evidence["hours_overdue"] > 0
+
+
+def test_emergency_overdue_no_finding_with_same_alert_followup():
+    emergency_entry = _ledger_entry()
+    followup = _ledger_entry(
+        proposal_id="HIGH_NULL_INTENT_RATE-20260812T000000", timestamp="2026-08-12T00:00:00+00:00",
+        is_emergency=False, retro_review_due_utc=None,
+    )
+    findings = check_emergency_review_overdue_drift([emergency_entry, followup], now=NOW)
+    assert findings == []
+
+
+def test_emergency_overdue_still_critical_when_followup_is_different_alert():
+    emergency_entry = _ledger_entry()
+    unrelated_followup = _ledger_entry(
+        proposal_id="FALLBACK_SPIKE-20260812T000000", alert_name="FALLBACK_SPIKE",
+        timestamp="2026-08-12T00:00:00+00:00", is_emergency=False, retro_review_due_utc=None,
+    )
+    findings = check_emergency_review_overdue_drift([emergency_entry, unrelated_followup], now=NOW)
+    assert len(findings) == 1
+
+
+def test_emergency_overdue_still_critical_when_followup_is_also_emergency():
+    """Acil-durum-uzerine-acil-durum zinciri, normal onay YERINE
+    GECMEZ -- her acil durum bolumu KENDI BASINA takip edilmelidir."""
+    emergency_entry = _ledger_entry()
+    another_emergency = _ledger_entry(
+        proposal_id="HIGH_NULL_INTENT_RATE-20260812T000000", timestamp="2026-08-12T00:00:00+00:00",
+        is_emergency=True, retro_review_due_utc="2026-08-13T00:00:00+00:00",
+    )
+    findings = check_emergency_review_overdue_drift([emergency_entry, another_emergency], now=NOW)
+    # ilk (2026-08-10) VE ikinci (2026-08-12) girdinin ikisi de vadesi
+    # gecmis VE takipsiz -- 2 ayri CRITICAL finding beklenir.
+    assert len(findings) == 2
+
+
+def test_emergency_overdue_ignores_non_emergency_entries():
+    normal_entry = _ledger_entry(is_emergency=False, retro_review_due_utc=None)
+    findings = check_emergency_review_overdue_drift([normal_entry], now=NOW)
+    assert findings == []
+
+
+def test_emergency_overdue_handles_malformed_retro_date_gracefully():
+    entry = _ledger_entry(retro_review_due_utc="not-a-date")
+    findings = check_emergency_review_overdue_drift([entry], now=NOW)
+    assert findings == []
+
+
+def test_emergency_overdue_handles_missing_retro_date_gracefully():
+    entry = _ledger_entry(retro_review_due_utc=None)
+    findings = check_emergency_review_overdue_drift([entry], now=NOW)
+    assert findings == []
+
+
+def test_emergency_overdue_exit_code_is_critical():
+    entry = _ledger_entry()
+    findings = check_emergency_review_overdue_drift([entry], now=NOW)
+    assert overall_drift_exit_code(findings) == EXIT_CRITICAL
