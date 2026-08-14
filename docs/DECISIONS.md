@@ -588,4 +588,76 @@
 
 ---
 
-*Yeni ADR eklerken yukarıdaki formatı koru ve numarayı sırayla artır (ADR-025, ...).*
+## ADR-025
+- **Tarih:** 2026-08-14
+- **Karar:** Güvenlik Sertleştirme Sprint-1 (PLAN.md T50-T52, BACKLOG.md
+  B051-B053, SECURITY) — B044'ün (owner-root-guard) derinleştirilmesi,
+  3 minimal-ama-gerçek dilim: (1) token rotasyonu/iptali
+  (`identity.py::TokenRevocationStore`, hash-only JSONL — ADR-009/016/022
+  ile AYNI append-only desen); (2) auth-hassas uç noktalarda sabit-pencere
+  hız sınırlama (`rate_limiter.py::RateLimiter`, `HeartbeatTracker` ile
+  AYNI enjekte-edilebilir `clock` deseni, bellek-içi/kalıcılık YOK); (3)
+  auth-karar audit alanlarının standardizasyonu (`auth_audit.py::build_auth_decision_details()`,
+  ADDITIVE — B044'ün mevcut `actor_id`/`authority_source`/`decision_scope`
+  alanlarını DEĞİŞTİRMEZ).
+- **Kapsam kararı (kullanıcı talebi — "büyük refactor değil"):** her
+  dilim mevcut `identity.py`/`app.py` akışına DAR entegrasyon
+  noktalarıyla eklendi — hiçbir mevcut fonksiyon imzası/davranışı
+  KIRILMADI (yalnızca yeni, opsiyonel/varsayılan-değerli parametreler
+  eklendi: `IdentityStore(..., revocation_store=None)`,
+  `create_app(..., rate_limiter=None)`).
+- **B051 — iptal listesi neden hash-only:** `identity.py`'nin zaten var
+  olan "sırlar diske yazılmaz" ilkesiyle (token DEĞERLERİ config'e ASLA
+  yazılmaz) TUTARLI kalmak için — SHA-256 tek-yönlü özet, iptal
+  denetlenebilirliğini (KİM, NE ZAMAN, HANGİ actor_id için iptal etti)
+  ham sır sızıntısı riski OLMADAN sağlar. İptal kontrolü kimlik
+  eşlemesinden ÖNCE yapılır — böylece bir restart'ta env değişkeni HALA
+  eski değeri taşısa bile token geçersiz KALIR (yalnızca bellek-içi
+  eşleme silme YETERSİZ olurdu, çünkü `IdentityStore.from_config_path()`
+  her başlangıçta env'den YENİDEN yüklenir).
+- **B052 — neden kalıcılık YOK:** rate limiting'in amacı kısa vadeli
+  kötüye kullanımı engellemek — uzun vadeli bir denetim izi tutmak
+  DEĞİL (o iş zaten `auth_audit.py`'nin işi, B053 ile ayrı ayrı
+  loglanıyor). Bir restart'ın pencereyi doğal olarak sıfırlaması
+  BEKLENEN ve ZARARSIZ bir davranıştır — JSONL tabanlı bir kalıcılık
+  (ADR-009 deseni) burada GEREKSİZ karmaşıklık olurdu.
+- **B052 — kategori anahtarlama:** `f"{actor_id}:{category}"` (`approval_decision`
+  vs `identity_admin`) — tek bir global sayaç yerine seçildi, çünkü bir
+  actor'un yoğun onay/red trafiği, KENDİ kimlik-yönetimi (rotate/revoke)
+  eylemlerini YANLIŞLIKLA KİLİTLEMEMELİDİR (farklı risk profilleri).
+- **B053 — additive tasarım (B044'ü bozmama):** `tests/test_ops_suite_api.py::test_approve_writes_audit_record_with_full_identity_fields`
+  gibi mevcut testler `details.actor_id`/`authority_source`/`decision_scope`
+  alanlarına DAYANIYORDU — bunları yeniden adlandırmak/kaldırmak
+  gereksiz bir kırılma riski olurdu. Bunun yerine YENİ, standardize
+  alanlar (`actor`/`scope`/`decision`/`reason_code`) `details.auth_decision`
+  ALT-SÖZLÜĞÜ altında EKLENDİ — hem eski hem yeni tüketiciler için
+  çalışır.
+- **B053 — önceden var olan gerçek boşluk:** 401 (kimlik doğrulama
+  başarısız)/403 (yetkilendirme başarısız)/429 (hız sınırı) HİÇBİRİ
+  audit'e YAZILMIYORDU — yalnızca BAŞARILI kararlar loglanıyordu. Bu,
+  örneğin bir brute-force token deneme dizisinin audit log'da HİÇBİR İZ
+  BIRAKMAYACAĞI anlamına geliyordu. Şimdi TÜM auth-karar noktaları
+  (`_get_current_identity`, `authorize_decision` başarısızlığı,
+  `_check_rate_limit`, `_require_owner`) `_log_auth_decision()` çağırır.
+- **Gerçek bulunan/düzeltilen hata (T50 sırasında):** ilk yazımda
+  `REASON_CODE_AUTH_MISSING_TOKEN`/`REASON_CODE_AUTH_INVALID_TOKEN`
+  sabitleri, repo'nun secret-scanner testini (`scripts/ops/secret_scan_core.py::generic_secret_assignment`
+  — "TOKEN" kelimesi bir `=` işaretine bitişik değişken adları)
+  GERÇEKTEN tetikledi, tam pytest koşusunda yakalandı (bu ADR yazılana
+  KADAR fark edilmemiş olabilirdi). `AUTH_TOKEN_MISSING`/`AUTH_TOKEN_INVALID`
+  olarak yeniden adlandırılarak düzeltildi — B044'teki
+  `AUTH_METHOD_BEARER_TOKEN`→`AUTH_METHOD_BEARER` ile AYNI hata sınıfı
+  (bu projede artık en az 2. kez karşılaşılan, bilinen bir desen).
+- **Bilinen sınırlamalar:** B052'nin politika kapısı (rate limit eşiği)
+  kod-içi sabit (`max_requests=20, window_seconds=60.0`) — merkezi bir
+  config kaynağından beslenmiyor (B050'nin ses politika kapısıyla AYNI
+  v0 sınırı). B051'in iptal listesi sınırsız büyür (rotasyon/budama
+  YOK — ADR-022 ile AYNI gerekçe, v0 ölçeğinde pratik bir sorun değil).
+  Token rotasyonu/iptali CLI'dan DEĞİL, yalnızca API'den yapılabilir.
+- **Sonuç:** Kabul edildi. Bkz. `apps/ops-suite/backend/src/ops_suite/identity.py`,
+  `rate_limiter.py`, `auth_audit.py`, `docs/PLAN.md` T50-T52,
+  `docs/BACKLOG.md` B051-B053.
+
+---
+
+*Yeni ADR eklerken yukarıdaki formatı koru ve numarayı sırayla artır (ADR-026, ...).*

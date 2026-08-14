@@ -1249,6 +1249,68 @@ Get-Content data/presence/agent_presence.jsonl -Tail 5
 Restart-simülasyonunu GERÇEKTEN doğrulayan test:
 `tests/test_ops_suite_api.py::test_agent_presence_survives_simulated_restart`.
 
+**Güvenlik Sertleştirme Sprint-1 (T50-T52, BACKLOG.md B051-B053):**
+
+*Token rotasyonu/iptali (B051) — yalnızca sahibi çalıştırabilir:*
+
+```powershell
+# Bir delegate'in token'ını iptal edip YENİSİNİ üretir (TEK SEFERLİK yanıt --
+# hemen güvenli bir yere kaydedin, bir daha GÖRÜNTÜLENEMEZ).
+curl -X POST http://127.0.0.1:8420/api/identity/<actor_id>/rotate `
+  -H "Authorization: Bearer $env:OPS_SUITE_OWNER_TOKEN"
+
+# Yeni bir token ÜRETMEDEN, yalnızca erişimi tamamen keser (acil senaryo).
+curl -X POST http://127.0.0.1:8420/api/identity/<actor_id>/revoke `
+  -H "Authorization: Bearer $env:OPS_SUITE_OWNER_TOKEN"
+```
+
+İptal KALICIDIR (`data/identity/token_revocations.jsonl`, veya
+`OPS_SUITE_DATA_DIR` set edilmişse `{OPS_SUITE_DATA_DIR}/identity/token_revocations.jsonl`)
+— sunucu yeniden başlasa, ilgili ortam değişkeni HALA eski token
+değerini taşısa BİLE, o token GEÇERSİZ kalmaya devam eder. Dosyada
+YALNIZCA token'ın SHA-256 özeti bulunur, ham değer ASLA:
+
+```powershell
+Get-Content data/identity/token_revocations.jsonl -Tail 5
+```
+
+*Hız sınırlama (B052):* onay/red ve rotate/revoke uç noktaları, kimlik
+doğrulanmış actor+eylem-kategorisi başına varsayılan olarak 60 saniyede
+20 istekle sınırlıdır. Aşıldığında yapılandırılmış bir gövdeyle 429
+döner: `{"detail": {"reason_code": "RATE_LIMITED", "message": "...", "retry_after_seconds": N}}`.
+Eşik kod-içi sabittir (`rate_limiter.py::RateLimiter` varsayılanları) —
+v0'da bir config uç noktasından beslenmez.
+
+*Auth karar audit izi (B053):* `data/audit/audit.log.jsonl`'daki HER
+auth kararı (başarı VEYA 401/403/429 reddi) artık
+`details.auth_decision.{actor,scope,decision,reason_code}` alanlarını
+taşır — ÖNCEDEN yalnızca başarılı onay/red kararları loglanıyordu.
+Son N auth kararını (yalnızca reddedilenler) incelemek için:
+
+```powershell
+Get-Content data/audit/audit.log.jsonl -Tail 200 |
+  ForEach-Object { $_ | ConvertFrom-Json } |
+  Where-Object { $_.details.auth_decision.decision -eq "DENIED" } |
+  Select-Object -Last 20 timestamp, request_id, details
+```
+
+Gerçek kanıt: `scripts/security_hardening_evidence.py` (gerçek bir
+`python -m ops_suite.server` alt-süreciyle, izole `OPS_SUITE_DATA_DIR`
+ile — bkz. aşağıdaki komut) rotate/revoke/rate-limit/audit akışının
+TAMAMINI uçtan uca çalıştırır:
+
+```powershell
+./.venv/Scripts/python.exe scripts/security_hardening_evidence.py
+```
+
+`reports/security_hardening_<UTC>/evidence.{json,md}`'ye yazar. **Bu
+ortamda GERÇEKTEN çalıştırıldı — PASS** (bkz.
+`reports/security_hardening_2026-08-14T025654Z/`, `git add -f` ile
+arşivlendi). Bu sprint tamamen backend/kütüphane seviyesinde olduğu
+için (frontend/tarayıcı yok) **NOT_COLLECTED listesi boştur** — önceki
+frontend-ağırlıklı sprintlerden farklı olarak gerçek bir durum, fabrike
+edilmiş bir "tam kapsama" iddiası değil.
+
 **Sorun giderme (Ops Suite'e özel):**
 
 | Belirti | Olası Neden | İlk Bakılacak Yer |
@@ -1266,6 +1328,9 @@ Restart-simülasyonunu GERÇEKTEN doğrulayan test:
 | Tam pytest koşusu sonrası `data/presence/agent_presence.jsonl` (GERÇEK proje dosyası) beklenmedik satırlarla doluyor | Bir test `presence_store` DI etmeden `create_app()` çağırıyor, varsayılan (gerçek) yola yazıyor | `tests/test_ops_suite_api.py`/`test_ops_suite_ws.py`'nin TÜM `create_app()` çağrılarına `presence_store=PresenceStore(tmp_path / "presence.jsonl")` eklenmeli (T39'da GERÇEKTEN yaşanan bir hata, bkz. `docs/PLAN.md` T39 notu) |
 | Bir sprite SVG'si ağ isteğinde 200 + doğru `image/svg+xml` dönüyor ama sahnede hiç görünmüyor (`debugState().sprites` hep `"error"`) | SVG dosyasının `<!-- -->` yorumu geçersiz bir `--` dizisi içeriyor — bu XML spesifikasyonuna aykırı, Chromium `Image.onload` yerine sessizce `onerror` tetikliyor | Yorumlarda `--` yerine `:`/`;`/tek tire kullanın (T40'ta GERÇEKTEN yaşanan bir hata, bkz. `docs/PLAN.md` T40 notu); `apps/ops-suite/frontend/assets/sprites/*.svg`'yi bir regex ile (`<!--(.*?)-->` içinde `--` var mı) tarayarak doğrulayın |
 | Aynı Playwright spec dosyası içindeki bir testte `.approval-item`'in sabit sayısı (`toHaveCount(1)`) beklenmedik şekilde 2+'ye çıkıyor | Aynı dosyadaki ÖNCEKİ bir test de irreversible bir komut gönderip onay kuyruğuna kayıt bıraktı — dosya-başına sunucu (T44) tüm dosya boyunca PAYLAŞILIR, testler ARASI sızıntı değil ama AYNI dosya İÇİNDEKİ testler arası birikme GERÇEKTİR | Sabit sayı yerine "önce/sonra farkı" (`before + 1`) + `.last()` ile SADECE o testin kendi eklediği kaydı hedefleyin (T46'da GERÇEKTEN yaşanan bir hata, bkz. `docs/PLAN.md` T46 notu, `tests/sound_cues.spec.js`) |
+| Rotate/revoke edilmiş bir token yeniden başlatma SONRASI hâlâ çalışıyor GİBİ görünüyor | `IdentityStore` bir `revocation_store` OLMADAN (varsayılan `IdentityStore({token: Identity})` çağrısı) oluşturulmuş — yalnızca `IdentityStore.from_config_path()` (`server.py`'nin GERÇEK kullandığı yol) otomatik bir `TokenRevocationStore` bağlar | `IdentityStore(..., revocation_store=TokenRevocationStore(...))` açıkça verilmeli (testte); GERÇEK sunucuda bu ZATEN otomatik (bkz. `identity.py::IdentityStore.from_config_path`) |
+| Yeni bir `REASON_CODE_*`/sabit isimlendirirken tam pytest koşusu `test_scan_repo_for_secrets_real_repo_and_real_config_finds_nothing` testinde BEKLENMEDİK şekilde başarısız oluyor | Repo'nun secret-scanner'ı (`scripts/ops/secret_scan_core.py`) `(secret\|password\|token)\s*[:=]` desenini GERÇEKTEN eşleştiriyor — bir sabitin adı "TOKEN"/"SECRET"/"PASSWORD" ile BİTİYORSA (hemen `=` işaretinden önce) yanlış-pozitif üretir | Sabiti "TOKEN_MISSING" gibi "TOKEN"in SONA gelmediği bir adla yeniden adlandırın (T50'de GERÇEKTEN yaşanan bir hata — `AUTH_MISSING_TOKEN`→`AUTH_TOKEN_MISSING` — bkz. `docs/DECISIONS.md` ADR-025) |
+| `POST /api/identity/{actor_id}/rotate`\|`revoke` → **429** ama beklenmiyordu | Aynı actor (`identity.actor_id`) `identity_admin` kategorisinde kısa sürede çok fazla istek yaptı (varsayılan 20/60sn) | Yukarıdaki "Hız sınırlama (B052)" bölümü; testte düşük-eşikli bir `RateLimiter` enjekte edilebilir |
 
 ## Line Ending Policy
 

@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "owner": {
+    "actor_id": "sec_demo_owner",
+    "display_name": "Sec-Sprint Demo Owner (yalniz bu kosum icin -- GERCEK bir kisi DEGIL)",
+    "token_env_var": "OPS_SUITE_SEC_DEMO_OWNER_TOKEN"
+  },
+  "delegates": [
+    {
+      "actor_id": "sec_demo_delegate",
+      "display_name": "Sec-Sprint Demo Delegate (yalniz bu kosum icin -- GERCEK bir kisi DEGIL)",
+      "token_env_var": "OPS_SUITE_SEC_DEMO_DELEGATE_TOKEN",
+      "scopes": [
+        "approve:low",
+        "reject"
+      ]
+    }
+  ]
+}

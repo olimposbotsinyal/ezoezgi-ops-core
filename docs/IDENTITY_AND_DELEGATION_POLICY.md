@@ -109,6 +109,22 @@ değil, **YANINDA** ikinci bir savunma katmanı olarak.
 `data/approvals/approval_queue.jsonl`'ın `DECIDED` kaydına yazar (bkz.
 `approval_queue.py::ApprovalQueueStore.decide()`).
 
+**Güvenlik Sertleştirme Sprint-1 (2026-08-14, B051-B053) ile derinleştirildi:**
+- **Token rotasyonu/iptali (B051):** owner-only `POST /api/identity/{actor_id}/rotate`\|`revoke`
+  artık VAR — bir token'ı iptal etmek için sunucu yeniden başlatma
+  GEREKMEZ. İptal KALICIDIR (`data/identity/token_revocations.jsonl`,
+  yalnızca SHA-256 özet — ham token DEĞERİ ASLA), sunucu yeniden
+  başlasa BİLE etkili kalır. Bkz. `identity.py::TokenRevocationStore`,
+  `docs/DECISIONS.md` ADR-025.
+- **Rate limiting (B052):** onay/red + rotate/revoke uç noktaları artık
+  kimlik doğrulanmış actor+eylem-kategorisi başına bir istek-sıklığı
+  sınırına (varsayılan 20/60sn) sahip — aşıldığında yapılandırılmış bir
+  429 döner. Bkz. `rate_limiter.py::RateLimiter`.
+- **Auth karar audit standardizasyonu (B053):** ÖNCEDEN yalnızca
+  BAŞARILI onay/red kararları audit'e yazılıyordu — şimdi 401/403/429
+  DAHİL her auth kararı, standardize `details.auth_decision.{actor,scope,decision,reason_code}`
+  alanlarıyla loglanıyor. Bkz. `auth_audit.py`.
+
 ## 5. Bilinen sınırlamalar (v0.1, dürüstçe işaretli)
 
 - **Tek kimlik doğrulama yöntemi:** yalnızca bearer-token (paylaşılan
@@ -116,12 +132,17 @@ değil, **YANINDA** ikinci bir savunma katmanı olarak.
   bir kontrol merkezi için orantılı görülüyor (bkz.
   `docs/DECISIONS.md` ADR-019), ama gelecekte dışarıya açılma
   senaryosunda yeniden değerlendirilmeli.
-- **Token rotasyonu/iptali için UI/CLI YOK** — bir token'ı iptal etmek
-  şu an yalnızca ilgili ortam değişkenini değiştirip sunucuyu yeniden
-  başlatmakla mümkün.
-- **Rate limiting/brute-force koruması YOK** — `IdentityStore.authenticate()`
-  zamanlama-saldırısına dayanıklıdır (`hmac.compare_digest`) ama
-  deneme sayısı sınırlanmaz.
-- Bu üç madde **BACKLOG.md**'ye kaydedilmedi (henüz P0 değil, Ops
-  Suite hâlâ yalnızca loopback'te) — dışarıya açılma kararı alınırsa
-  önce buraya, sonra BACKLOG'a eklenmelidir.
+- ~~Token rotasyonu/iptali için UI/CLI YOK~~ — **2026-08-14'te B051 ile
+  KAPATILDI** (owner-only API artık var, yukarıya bkz.). CLI hâlâ YOK
+  (yalnızca API) — bu, dışarıya açılma senaryosunda ayrı bir madde
+  olarak değerlendirilebilir.
+- ~~Rate limiting/brute-force koruması YOK~~ — **2026-08-14'te B052 ile
+  KAPATILDI** (yukarıya bkz.). `IdentityStore.authenticate()` hâlâ
+  zamanlama-saldırısına dayanıklıdır (`hmac.compare_digest`); rate
+  limiting eşiği v0'da kod-içi sabittir (merkezi bir config kaynağından
+  beslenmiyor — B050'nin ses politika kapısıyla AYNI v0 sınırı).
+- **Rate limiting eşiği config'ten beslenmiyor** (v0 sınırı, yukarıya
+  bkz.) ve **token rotasyonu/iptali CLI'dan yapılamıyor** (yalnızca
+  API) — bu iki madde henüz **BACKLOG.md**'ye kaydedilmedi (henüz P0
+  değil, Ops Suite hâlâ yalnızca loopback'te) — dışarıya açılma kararı
+  alınırsa önce buraya, sonra BACKLOG'a eklenmelidir.

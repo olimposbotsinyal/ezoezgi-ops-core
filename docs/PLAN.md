@@ -937,7 +937,7 @@
 > her biri `identity.py`/`app.py`'ye minimal-ama-gerçek bir ek (yeni
 > modüller + mevcut auth akışına DAR entegrasyon noktaları).
 
-- [ ] **T50. Token rotasyonu/iptali mekanizması (BACKLOG.md B051, SECURITY)**
+- [x] **T50. Token rotasyonu/iptali mekanizması (BACKLOG.md B051, SECURITY)**
   - Amaç: bir token'ı sahibi-only bir API ile iptal edebilmek/yenisiyle
     değiştirebilmek — sunucu yeniden başlasa BİLE (env değişkeni HALA
     eski değeri taşısa bile) eski token GEÇERSİZ kalmalı.
@@ -958,8 +958,24 @@
   - Kanıt gereksinimi: `tests/test_ops_suite_identity.py`'ye yeni testler
     ile birlikte `reports/security_hardening_<UTC>/` içinde rotate/revoke
     akışının gerçek bir `TestClient` isteğiyle çalıştığının kaydı.
+  - **Not (2026-08-14) — resmen kapatıldı:** `identity.py::hash_token()`/
+    `TokenRevocationStore`/`IdentityStore.rotate_token()`/`revoke_actor()`
+    ile birlikte `POST /api/identity/{actor_id}/rotate`\|`revoke` (owner-only,
+    `app.py`). **Gerçek bulunan/düzeltilen hata:** ilk yazımda
+    `REASON_CODE_AUTH_MISSING_TOKEN`/`REASON_CODE_AUTH_INVALID_TOKEN`
+    sabitleri repo'nun secret-scanner testini (`generic_secret_assignment`
+    -- "TOKEN" kelimesi `=` işaretine bitişik) GERÇEKTEN tetikledi, tam
+    pytest koşusunda yakalandı; `AUTH_TOKEN_MISSING`/`AUTH_TOKEN_INVALID`
+    olarak yeniden adlandırılarak düzeltildi (B044'teki
+    `AUTH_METHOD_BEARER_TOKEN`→`AUTH_METHOD_BEARER` ile AYNI hata sınıfı).
+    22 yeni test (15 `test_ops_suite_identity.py` birim + 7
+    `test_ops_suite_api.py` uç nokta) — mutlu yol + kalıcı iptal (restart
+    simülasyonu DAHİL) + owner-only guard + bilinmeyen actor_id (404)
+    kanıtlanıyor. Kanıt: `reports/security_hardening_2026-08-14T025654Z/`
+    (gerçek bir `python -m ops_suite.server` alt-süreciyle, izole
+    `OPS_SUITE_DATA_DIR` ile — gerçek proje verisine SIZINTI YOK).
 
-- [ ] **T51. Auth-hassas uç noktalarda hız sınırlama (BACKLOG.md B052, SECURITY)**
+- [x] **T51. Auth-hassas uç noktalarda hız sınırlama (BACKLOG.md B052, SECURITY)**
   - Amaç: onay/red + T50'nin rotate/revoke uç noktalarında, kimlik
     doğrulanmış actor+eylem-kategorisi başına bir istek-sıklığı sınırı.
   - Teknik çıktı: yeni `rate_limiter.py` — `RateLimiter` (sabit-pencere,
@@ -977,8 +993,18 @@
     birim) + `tests/test_ops_suite_api.py`'ye entegrasyon testi (düşük
     eşikli bir `RateLimiter` enjekte edilerek 429'un GERÇEKTEN
     tetiklendiği kanıtlanır).
+  - **Not (2026-08-14) — resmen kapatıldı:** kategoriler `f"{actor_id}:{category}"`
+    ile ayrılıyor (`approval_decision` vs `identity_admin`) — bir
+    actor'un onay/red sınırına ulaşması, kendi kimlik-yönetimi
+    eylemlerini KİLİTLEMİYOR (ayrıca test edildi). 13 yeni test (8 birim
+    — sahte saatle deterministik pencere/kısmi-pencere-sona-erme/retry_after
+    hesabı + 5 API entegrasyonu — gerçek 429, kategori-bağımsızlığı,
+    actor-bağımsızlığı, varsayılan eşiğin normal kullanımı etkilemediği).
+    Kanıt: `reports/security_hardening_2026-08-14T025654Z/` (21 ardışık
+    GERÇEK HTTP isteğiyle `identity_admin` sınırına fiilen ulaşıldı,
+    429 + `retry_after_seconds` doğrulandı).
 
-- [ ] **T52. Auth karar audit alanlarının standardizasyonu (BACKLOG.md B053, SECURITY)**
+- [x] **T52. Auth karar audit alanlarının standardizasyonu (BACKLOG.md B053, SECURITY)**
   - Amaç: `actor`/`scope`/`decision`/`reason_code` alanlarının (mevcut
     `request_id`/`timestamp` üst-seviye alanlarıyla birlikte) HER auth
     kararında (başarı/401/403/429) TUTARLI şekilde loglanması —
@@ -990,9 +1016,10 @@
     alanlarını DEĞİŞTİRMEZ/SİLMEZ — B044'ün mevcut testlerini BOZMAMAK
     için — yalnızca `details.auth_decision` altında yeni, standardize
     alanları EKLER); `identity.py`'deki `AuthenticationError`/
-    `AuthorizationError`'a `reason_code` alanı eklenmesi (`AUTH_MISSING_TOKEN`/
-    `AUTH_INVALID_TOKEN`/`AUTH_TOKEN_REVOKED`/`AUTHZ_INSUFFICIENT_SCOPE`/
-    `AUTHZ_OWNER_ONLY`/`RATE_LIMITED`); `app.py`'nin TÜM auth-karar
+    `AuthorizationError`'a `reason_code` alanı eklenmesi (`AUTH_TOKEN_MISSING`/
+    `AUTH_TOKEN_INVALID`/`AUTH_TOKEN_REVOKED`/`AUTHZ_INSUFFICIENT_SCOPE`/
+    `AUTHZ_OWNER_ONLY`/`RATE_LIMITED` — ilk iki isim T50'nin notundaki
+    secret-scanner düzeltmesiyle son haline getirildi); `app.py`'nin TÜM auth-karar
     noktalarının (`_get_current_identity` 401'i DAHİL, ÖNCEDEN
     loglanmıyordu) bu yardımcıyı çağırması.
   - **Dürüstlük sınırı:** hassas veri (ham token DEĞERİ) hiçbir audit
@@ -1006,6 +1033,15 @@
     `authority_source`/`decision_scope` alanları) BOZULMAMALI.
   - Kanıt gereksinimi: `tests/test_ops_suite_api.py`'ye 4 senaryoyu da
     kapsayan yeni testler.
+  - **Not (2026-08-14) — resmen kapatıldı:** 7 yeni test — 4 senaryonun
+    (401/403/429/başarı) DÖRDÜ de standardize alanlarla doğrulandı +
+    açık bir "ham token audit'te YOK" testi (rotate akışı için). Mevcut
+    `test_approve_writes_audit_record_with_full_identity_fields` testi
+    BOZULMADI (yalnızca yeni bir `auth_decision` alt-alan assertion'ı
+    EKLENDİ). Kanıt: `reports/security_hardening_2026-08-14T025654Z/`
+    — izole audit log dosyası GERÇEKTEN okunup 4 reason_code'un (`AUTH_TOKEN_REVOKED`/
+    `AUTHZ_OWNER_ONLY`/`RATE_LIMITED`/`OK`) TÜMÜNÜN mevcut olduğu VE
+    hiçbir ham token değerinin dosyada GEÇMEDİĞİ doğrulandı.
 
 ---
 
@@ -1523,3 +1559,49 @@ doğrulandı (uydurulmadı):
   kontrolü DEĞİL).
 - **Sorunlar:** Yok.
 - **Sonraki adım:** T50 (B051) uygulaması.
+
+### 2026-08-14 (devam 7) — Güvenlik Sertleştirme Sprint-1 kapatıldı (T50-T52)
+
+- **Yapılanlar (T50/B051):** `identity.py::hash_token()`/`TokenRevocationStore`
+  (hash-only JSONL) + `IdentityStore.rotate_token()`/`revoke_actor()` +
+  owner-only `POST /api/identity/{actor_id}/rotate`\|`revoke`;
+  `server.py`'nin `OPS_SUITE_DATA_DIR` izolasyonuna `data/identity/`
+  dahil edildi.
+- **Yapılanlar (T51/B052):** yeni `rate_limiter.py::RateLimiter`
+  (sabit-pencere, `HeartbeatTracker` ile aynı `clock` deseni) — onay/red
+  ile rotate/revoke uç noktalarına `f"{actor_id}:{category}"`
+  anahtarıyla entegre; aşıldığında yapılandırılmış 429.
+- **Yapılanlar (T52/B053):** yeni `auth_audit.py::build_auth_decision_details()`
+  (ADDITIVE) — 401/403/429 dahil TÜM auth kararları artık audit'e
+  standardize alanlarla yazılıyor (ÖNCEDEN yalnızca başarılı kararlar
+  loglanıyordu).
+- **Yeni ADR:** ADR-025 (3 dilimin tasarım kararları, kapsam sınırlaması
+  gerekçesi, bulunan secret-scanner hatası).
+- **Bulunan/düzeltilen gerçek hata:** `REASON_CODE_AUTH_MISSING_TOKEN`/
+  `REASON_CODE_AUTH_INVALID_TOKEN` repo'nun secret-scanner testini
+  (`generic_secret_assignment`) tetikledi — `AUTH_TOKEN_MISSING`/
+  `AUTH_TOKEN_INVALID` olarak yeniden adlandırılarak düzeltildi (bkz.
+  ADR-025, B044'teki `AUTH_METHOD_BEARER_TOKEN` hatasıyla AYNI sınıf).
+- **Test özeti:** 42 yeni test (15 identity birim + 7 API B051 + 8
+  rate_limiter birim + 5 API B052 + 7 API B053) — tam pytest regresyonu
+  **995/995 yeşil** (953 önceki + 42 yeni). Hiçbir mevcut B044 testi
+  BOZULMADI (additive tasarım, ADR-025).
+- **Kanıt:** `scripts/security_hardening_evidence.py` (yeni) — gerçek
+  bir `python -m ops_suite.server` alt-süreciyle, izole
+  `OPS_SUITE_DATA_DIR` ile 10 adımı çalıştırdı (rotate/eski-token-red/
+  yeni-token-çalışır/owner-only-guard/21-istekle-GERÇEK-429/audit-log'da
+  4-reason_code-doğrulaması/sıfır-ham-token-sızıntısı) — TÜMÜ PASS.
+  `reports/security_hardening_2026-08-14T025654Z/`, `git add -f` ile
+  arşivlendi. Gerçek proje `data/audit/`/`data/identity/` dosyalarına
+  SIZINTI YOK (doğrulandı — script kendi izole veri dizinini kullandı).
+- **Docs:** `docs/IDENTITY_AND_DELEGATION_POLICY.md` §5'teki "token
+  rotasyonu/iptali YOK" ve "rate limiting YOK" sınırlamaları KAPATILDI
+  (üstü çizilerek + kapatma tarihi eklenerek); `docs/RUNBOOK.md`'ye
+  operasyonel adımlar (rotate/revoke komutları, audit log inceleme,
+  yeni troubleshooting satırları) eklendi.
+- **Sorunlar:** Yok (1 gerçek hata bulundu+düzeltildi, yukarıda
+  belgelendi).
+- **Sonraki adım:** Yok — B051/B052/B053 tamamlandı. Kalan bilinen
+  sınırlamalar (rate limit eşiğinin config'ten beslenmemesi, token
+  rotasyonunun CLI'dan yapılamaması) `docs/IDENTITY_AND_DELEGATION_POLICY.md`
+  §5'te KAYITLI, henüz ayrı bir BACKLOG maddesi DEĞİL (P0 değil).
