@@ -304,6 +304,12 @@
       refreshApprovals();
     } else if (envelope.topic === "task.lifecycle") {
       refreshAgents();
+      // B048 (BACKLOG.md B048, PLAN.md T45) -- sahnenin (varsa) gorev
+      // isaretcisini bu GERCEK olayla GUNCELLER -- ONCEDEN bu payload
+      // burada tamamen ATILIYORDU (yalnizca refreshAgents() cagriliyordu).
+      if (scene) {
+        scene.applyTaskLifecycleEvent(envelope.payload);
+      }
     } else if (envelope.topic === "agent.presence") {
       // T38 (BACKLOG.md B046) -- sahneyi (varsa) DOGRUDAN bu tek WS
       // mesajiyla gunceller, bir sonraki `GET /api/agents` polling'ini

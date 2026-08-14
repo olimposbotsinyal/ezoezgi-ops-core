@@ -43,6 +43,23 @@
   var ASSISTANT_POS = { x: 590, y: 35 };
   var APPROVAL_TRAY_POS = { x: 40, y: 35 };
 
+  // B048 (BACKLOG.md B048, PLAN.md T45, DECISIONS.md ADR-023) -- gorev
+  // isaretcisi (task marker) sabit konumlari. "kuyrukta" -> bir masaya
+  // henuz ATANMAMIS (agent_id yok) gorevlerin bekledigi nokta;
+  // "tamamlandi" -> islemesi biten (basarili/basarisiz/onay-bekliyor
+  // farketmeksizin, bkz. ADR-023) gorevlerin biriktigi rafin baslangici.
+  var TASK_QUEUE_POS = { x: 40, y: 130 };
+  var TASK_COMPLETED_TRAY_POS = { x: 600, y: 190 };
+  var TASK_MARKER_SPACING = 22;
+  var MAX_TASK_MARKERS = 8; // v0 bellek siniri -- asimda en eski TAMAMLANMIS isaretciler GC edilir
+
+  var TASK_STAGE_COLORS = {
+    queued: "#8a97ad",
+    assigned: "#38bdf8",
+    working: "#4ade80",
+    completed: "#5a6580",
+  };
+
   var AGENT_STATE_COLORS = {
     working: "#4ade80",
     idle: "#8a97ad",
@@ -100,6 +117,11 @@
     this._sprites = {};
     this._loadSprites(options.spriteBasePath || DEFAULT_SPRITE_BASE_PATH);
     this._bindClickHandler();
+    // B048 -- request_id -> {x,y,targetX,targetY,stage,agentId,lifecycleState,seq}.
+    // `stage` in {"queued","assigned","working","completed"} -- bkz.
+    // ADR-023 icin GERCEK olay eslemesi.
+    this.taskMarkers = {};
+    this._taskSeq = 0;
   }
 
   // B047 -- her sprite GERCEK bir `Image` yuklemesi dener; sonuc
@@ -240,6 +262,99 @@
     }
     this._upsertAgentRaw(payload.agent_id, payload.state, payload.display_name);
     this._recomputeZones();
+    // B048 -- eslesen bir gorev isaretcisi varsa (last_task_id capraz
+    // referansi, B049'un onay-baglantisiyla AYNI desen), working/idle
+    // gecisini o gorevin GORSEL asamasina da yansit.
+    if (payload.last_task_id && this.taskMarkers[payload.last_task_id]) {
+      var marker = this.taskMarkers[payload.last_task_id];
+      if (payload.state === "working") {
+        marker.stage = "working";
+      } else if (payload.state === "idle" && marker.stage === "working") {
+        marker.stage = "completed";
+      }
+      this._recomputeTaskMarkerPositions();
+      this._evictOldTaskMarkers();
+    }
+  };
+
+  // B048 -- TEK bir `task.lifecycle` WS mesajini isler. Yalnizca GERCEKTEN
+  // yayinlanan durumlar goruluyor (received/translating/risk_checked +
+  // nihai completed/failed/awaiting_approval, bkz. ADR-023) -- `routed`/
+  // `executing` semada TANIMLI ama HICBIR kod yolunda URETILMEZ, bu
+  // yuzden burada da ELLE simule EDILMEZ.
+  OpsSuiteScene.prototype.applyTaskLifecycleEvent = function (payload) {
+    if (!payload || !payload.request_id || !payload.state) {
+      return;
+    }
+    var marker = this.taskMarkers[payload.request_id];
+    if (!marker) {
+      marker = this.taskMarkers[payload.request_id] = {
+        x: TASK_QUEUE_POS.x, y: TASK_QUEUE_POS.y,
+        targetX: TASK_QUEUE_POS.x, targetY: TASK_QUEUE_POS.y,
+        stage: "queued", agentId: null, lifecycleState: payload.state,
+        seq: this._taskSeq++,
+      };
+    }
+    marker.lifecycleState = payload.state;
+    if (payload.agent_id) {
+      // Nihai olay artik bir ajana atanmis oldugunu GERCEKTEN gosteriyor
+      // (agent_id yalnizca completed/failed/awaiting_approval olaylarinda
+      // dolu gelir, bkz. voice_bridge.py).
+      marker.agentId = payload.agent_id;
+      if (marker.stage === "queued") {
+        marker.stage = "assigned";
+      }
+    }
+    this._recomputeTaskMarkerPositions();
+    this._evictOldTaskMarkers();
+  };
+
+  // Butun gorev isaretcilerinin hedef konumunu, GUNCEL asamalarina gore
+  // yeniden hesaplar. "tamamlandi" asamasindaki isaretciler, üst üste
+  // binmemeleri icin (REST_SPACING ile AYNI desen) rafta yatay yayilir.
+  OpsSuiteScene.prototype._recomputeTaskMarkerPositions = function () {
+    var self = this;
+    var completedIds = Object.keys(this.taskMarkers).filter(function (id) {
+      return self.taskMarkers[id].stage === "completed";
+    });
+    completedIds.sort(function (a, b) {
+      return self.taskMarkers[a].seq - self.taskMarkers[b].seq;
+    });
+    Object.keys(this.taskMarkers).forEach(function (id) {
+      var m = self.taskMarkers[id];
+      var target;
+      if (m.stage === "assigned" || m.stage === "working") {
+        var desk = DESK_POSITIONS[m.agentId];
+        // Guvenli geri-dusme: agent_id bilinen bir masaya karsilik
+        // GELMIYORSA (v0'da gerceklesmez -- task.lifecycle'in agent_id'si
+        // her zaman orchestrator -- ama fabrike bir varsayim YAPILMAZ)
+        // isaretci kuyrukta KALIR.
+        target = desk ? { x: desk.x + 24, y: desk.y - 24 } : TASK_QUEUE_POS;
+      } else if (m.stage === "completed") {
+        var idx = completedIds.indexOf(id);
+        target = { x: TASK_COMPLETED_TRAY_POS.x, y: TASK_COMPLETED_TRAY_POS.y + idx * TASK_MARKER_SPACING };
+      } else {
+        target = TASK_QUEUE_POS;
+      }
+      m.targetX = target.x;
+      m.targetY = target.y;
+    });
+  };
+
+  // Iz sayisi MAX_TASK_MARKERS'i asarsa, en eski TAMAMLANMIS isaretciler
+  // (seq sirasina gore) silinir -- aktif (kuyrukta/atandi/calisiyor)
+  // isaretciler ASLA silinmez (v0 bellek siniri, bkz. ADR-023).
+  OpsSuiteScene.prototype._evictOldTaskMarkers = function () {
+    var self = this;
+    var ids = Object.keys(this.taskMarkers);
+    if (ids.length <= MAX_TASK_MARKERS) {
+      return;
+    }
+    var completedIds = ids.filter(function (id) { return self.taskMarkers[id].stage === "completed"; });
+    completedIds.sort(function (a, b) { return self.taskMarkers[a].seq - self.taskMarkers[b].seq; });
+    while (Object.keys(self.taskMarkers).length > MAX_TASK_MARKERS && completedIds.length) {
+      delete self.taskMarkers[completedIds.shift()];
+    }
   };
 
   // T34 -- asistan durumunu gunceller (konum sabit, yalnizca durum/renk degisir).
@@ -260,6 +375,12 @@
       var a = self.agents[id];
       a.x = lerp(a.x, a.targetX, LERP_SPEED);
       a.y = lerp(a.y, a.targetY, LERP_SPEED);
+    });
+    // B048 -- gorev isaretcileri de AYNI enterpolasyon dongusuyle hedefe yaklasir.
+    Object.keys(this.taskMarkers).forEach(function (id) {
+      var m = self.taskMarkers[id];
+      m.x = lerp(m.x, m.targetX, LERP_SPEED);
+      m.y = lerp(m.y, m.targetY, LERP_SPEED);
     });
   };
 
@@ -282,6 +403,29 @@
     ctx.fillText("Dinlenme Bölgesi", REST_ZONE.x, REST_ZONE.y + 48);
 
     ctx.fillText("Henüz Uygulanmadı", GHOST_SHELF_START_X + GHOST_SHELF_SPACING * 2.5, GHOST_SHELF_Y - 24);
+
+    ctx.fillText("Görev Kuyruğu", TASK_QUEUE_POS.x, TASK_QUEUE_POS.y + 20);
+    ctx.fillText("Tamamlanan Görevler", TASK_COMPLETED_TRAY_POS.x, TASK_COMPLETED_TRAY_POS.y - 16);
+  };
+
+  // B048 -- her gorev isaretcisini kucuk bir renkli nokta olarak cizer.
+  // "working" asamasindaki isaretciler GORSEL olarak nabiz atar (yalnizca
+  // estetik -- debugState()'te test edilen GERCEK veri stage/pozisyondur,
+  // piksel-tam nabiz genligi DEGIL).
+  OpsSuiteScene.prototype._drawTaskMarkers = function (ctx) {
+    var self = this;
+    Object.keys(this.taskMarkers).forEach(function (id) {
+      var m = self.taskMarkers[id];
+      var color = TASK_STAGE_COLORS[m.stage] || TASK_STAGE_COLORS.queued;
+      var radius = 6;
+      if (m.stage === "working") {
+        radius = 6 + 2 * Math.abs(Math.sin(Date.now() / 200));
+      }
+      ctx.beginPath();
+      ctx.fillStyle = color;
+      ctx.arc(m.x, m.y, radius, 0, Math.PI * 2);
+      ctx.fill();
+    });
   };
 
   OpsSuiteScene.prototype._drawAgent = function (ctx, agent, agentId) {
@@ -418,6 +562,7 @@
     });
     this._drawAssistant(ctx);
     this._drawApprovalTray(ctx);
+    this._drawTaskMarkers(ctx);
   };
 
   OpsSuiteScene.prototype._loop = function () {
@@ -464,11 +609,26 @@
     Object.keys(this._sprites).forEach(function (key) {
       spritesOut[key] = this._sprites[key].status;
     }, this);
+    var taskMarkersOut = {};
+    Object.keys(this.taskMarkers).forEach(function (id) {
+      var m = this.taskMarkers[id];
+      taskMarkersOut[id] = {
+        stage: m.stage,
+        agent_id: m.agentId,
+        lifecycle_state: m.lifecycleState,
+        x: Math.round(m.x),
+        y: Math.round(m.y),
+        target_x: Math.round(m.targetX),
+        target_y: Math.round(m.targetY),
+        at_rest_position: Math.round(m.x) === Math.round(m.targetX) && Math.round(m.y) === Math.round(m.targetY),
+      };
+    }, this);
     return {
       assistant_state: this.assistant.state,
       pending_approval_count: this.pendingApprovalCount,
       agents: agentsOut,
       sprites: spritesOut, // B047 -- test edilebilirlik: hangi varliklar GERCEKTEN yuklendi/basarisiz oldu
+      task_markers: taskMarkersOut, // B048 -- test edilebilirlik: her gorevin GERCEK asama/pozisyonu
     };
   };
 
