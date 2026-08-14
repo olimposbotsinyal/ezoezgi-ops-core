@@ -1228,3 +1228,34 @@ doğrulandı (uydurulmadı):
   çoklu-adım animasyon ve B050 ses efekti TASARLANMADI/açık kalıyor,
   bilinçli/dürüst bir kapsam sınırı olarak).
 
+
+### 2026-08-14 (devam 3) — Satır sonu normalizasyonu (.gitattributes)
+
+- **Yapılanlar:** Repo kökünde `.gitattributes` (yeni) eklendi —
+  `.py/.js/.ts/.tsx/.json/.md/.yml/.yaml/.svg/.sh` için `eol=lf`,
+  `.ps1/.bat` için `eol=crlf`, varsayılan `text=auto`. Amaç: satır sonu
+  davranışını her katkıda bulunanın yerel `core.autocrlf` ayarından
+  BAĞIMSIZ, repo düzeyinde kalıcı hale getirmek.
+- **Çalıştırılan komutlar:**
+
+  ```powershell
+  git add --renormalize .
+  ./.venv/Scripts/python.exe -m pytest -q
+  npx playwright test   # apps/ops-suite/e2e/ içinden
+  ```
+
+- **Sonuç (dürüst rapor):** `git add --renormalize .` **0 dosyayı
+  değiştirdi** — bu ortamın `core.autocrlf=true` (kullanıcı-global git
+  config, DOKUNULMADI) ayarı zaten tüm izlenen içeriği LF olarak
+  depoluyordu; `.gitattributes` davranışı DEĞİŞTİRMEDİ, yalnızca bunu artık
+  açıkça/taşınabilir şekilde kodladı (bkz. `docs/RUNBOOK.md` "Line Ending
+  Policy" — yeni bölüm). İçerik değişikliği YOK, dolayısıyla fonksiyonel
+  risk YOK.
+- **Test özeti:** pytest **953/953 yeşil**; Playwright **12/12 yeşil**.
+  Her ikisi de `.gitattributes` eklendikten SONRA gerçekten yeniden
+  çalıştırılarak doğrulandı (sayılar bir önceki checkpoint'le AYNI —
+  beklenen, çünkü hiçbir dosya içeriği değişmedi).
+- **Sorunlar:** Yok.
+- **Sonraki adım:** Yok — bu, tek seferlik bir altyapı/politika
+  görevidir; gelecekte yeni bir dosya türü eklenirse `.gitattributes`'a
+  karşılık gelen bir satır eklenmesi gerekir (bkz. RUNBOOK notu).

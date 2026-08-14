@@ -1243,6 +1243,48 @@ Restart-simülasyonunu GERÇEKTEN doğrulayan test:
 | Tam pytest koşusu sonrası `data/presence/agent_presence.jsonl` (GERÇEK proje dosyası) beklenmedik satırlarla doluyor | Bir test `presence_store` DI etmeden `create_app()` çağırıyor, varsayılan (gerçek) yola yazıyor | `tests/test_ops_suite_api.py`/`test_ops_suite_ws.py`'nin TÜM `create_app()` çağrılarına `presence_store=PresenceStore(tmp_path / "presence.jsonl")` eklenmeli (T39'da GERÇEKTEN yaşanan bir hata, bkz. `docs/PLAN.md` T39 notu) |
 | Bir sprite SVG'si ağ isteğinde 200 + doğru `image/svg+xml` dönüyor ama sahnede hiç görünmüyor (`debugState().sprites` hep `"error"`) | SVG dosyasının `<!-- -->` yorumu geçersiz bir `--` dizisi içeriyor — bu XML spesifikasyonuna aykırı, Chromium `Image.onload` yerine sessizce `onerror` tetikliyor | Yorumlarda `--` yerine `:`/`;`/tek tire kullanın (T40'ta GERÇEKTEN yaşanan bir hata, bkz. `docs/PLAN.md` T40 notu); `apps/ops-suite/frontend/assets/sprites/*.svg`'yi bir regex ile (`<!--(.*?)-->` içinde `--` var mı) tarayarak doğrulayın |
 
+## Line Ending Policy
+
+Repo kökünde `.gitattributes` (2026-08-14'te eklendi) satır sonu
+(line-ending) davranışını, katkıda bulunanın yerel `core.autocrlf`
+ayarından BAĞIMSIZ hale getirir — önceden bu tamamen her klonun kendi
+git config'ine bağlıydı (bu ortamda `core.autocrlf=true` idi, bu yüzden
+mevcut tüm izlenen dosyalar zaten LF olarak depolanıyordu; ama bu,
+`core.autocrlf=false`/farklı bir işletim sistemi kullanan bir katkıda
+bulunan için GARANTİ DEĞİLDİ).
+
+**Kural özeti:**
+
+| Desen | Depoda (blob) | Checkout'ta (çalışma kopyası) |
+|---|---|---|
+| `*` (varsayılan) | `text=auto` — git metin/ikili ayrımını otomatik tespit eder | Yerel `core.autocrlf`'e göre |
+| `.py .js .ts .tsx .json .md .yml .yaml .svg .sh` | LF | **LF** (platformdan bağımsız zorlanır) |
+| `.ps1 .bat` | LF | **CRLF** (Windows araçları/PowerShell ISE ile uyumluluk için zorlanır) |
+
+**Neden `.ps1`/`.bat` için CRLF:** bu betikler yalnızca Windows'ta
+çalıştırılıyor (`scripts/ops/*.ps1`, bkz. `MONITORING_STACK_RUNBOOK.md`);
+CRLF, Windows PowerShell/cmd araçlarıyla en yüksek uyumluluğu sağlar.
+Diğer tüm metin dosyaları (kod, doküman, config) LF'ye zorlanır —
+platformlar arası (Linux CI, WSL, macOS katkıda bulunanlar) tutarlılık
+için.
+
+**Uygulama (2026-08-14, tek seferlik):**
+
+```powershell
+git add --renormalize .
+```
+
+Bu ortamda **0 dosya** değişti — mevcut `core.autocrlf=true` ayarı zaten
+tüm izlenen içeriği LF olarak depoluyordu, bu yüzden `.gitattributes`
+davranışı DEĞİŞTİRMEDİ, yalnızca bunu artık repo düzeyinde AÇIKÇA ve
+KALICI olarak (herhangi bir klonun/katkıda bulunanın yerel git config'inden
+BAĞIMSIZ) kodladı. Farklı bir `core.autocrlf` ayarına sahip bir klonda
+`git add --renormalize .` GERÇEK içerik-olmayan (yalnızca satır sonu) diff
+üretebilir — bu BEKLENEN ve ZARARSIZDIR.
+
+**Yeni bir dosya türü eklerken:** `.gitattributes`'a karşılık gelen bir
+satır ekleyin (aksi halde `text=auto`'nun otomatik tespitine bırakılır).
+
 ## Sorun Giderme (Genel)
 
 | Belirti | Olası Neden | İlk Bakılacak Yer |
