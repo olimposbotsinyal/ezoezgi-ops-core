@@ -67,6 +67,22 @@ body {
   color: var(--danger);
 }
 
+/* B050 (BACKLOG.md B050, PLAN.md T46) -- ses sessize alma dugmesi. */
+.sound-mute-toggle {
+  font-size: 0.75rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.sound-mute-toggle[aria-pressed="true"] {
+  color: var(--warn);
+  border-color: var(--warn);
+}
+
 .token-form {
   display: flex;
   align-items: center;

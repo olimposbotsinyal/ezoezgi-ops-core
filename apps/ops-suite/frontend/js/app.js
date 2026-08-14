@@ -28,6 +28,7 @@
   var detailScope = document.getElementById("agent-detail-scope");
   var detailApprovalLink = document.getElementById("agent-detail-approval-link");
   var detailCloseBtn = document.getElementById("agent-detail-close");
+  var soundMuteToggle = document.getElementById("sound-mute-toggle");
 
   var MAX_FEED_ITEMS = 50;
   var TOKEN_STORAGE_KEY = "ops_suite_access_token";
@@ -52,6 +53,35 @@
     window.__ops_suite_scene_debug__ = function () {
       return scene.debugState();
     };
+  }
+
+  // B050 (BACKLOG.md B050, PLAN.md T46) -- ses ipucu cercevesi. `sound_cues.js`
+  // henuz yuklenmemisse (eski tarayici vb.) SESSIZCE atlanir -- geri
+  // kalan uygulama sese BAGIMLI DEGILDIR (B038'in canvas-yoksa-atla
+  // deseniyle AYNI).
+  var soundCues = window.OpsSuiteSoundCues ? new window.OpsSuiteSoundCues() : null;
+  if (soundCues) {
+    window.__ops_suite_sound_debug__ = function () {
+      return soundCues.debugState();
+    };
+  }
+
+  function refreshSoundMuteToggle() {
+    if (!soundMuteToggle || !soundCues) {
+      return;
+    }
+    var muted = soundCues.isMuted();
+    soundMuteToggle.textContent = muted ? "Ses: Kapalı" : "Ses: Açık";
+    soundMuteToggle.setAttribute("aria-pressed", muted ? "true" : "false");
+  }
+  if (soundMuteToggle && soundCues) {
+    refreshSoundMuteToggle();
+    soundMuteToggle.addEventListener("click", function () {
+      soundCues.setMuted(!soundCues.isMuted());
+      refreshSoundMuteToggle();
+    });
+  } else if (soundMuteToggle) {
+    soundMuteToggle.hidden = true;
   }
 
   // B049 -- bir ajan/asistan tiklandiginda cagirilir (bkz.
@@ -245,6 +275,13 @@
     })
       .then(function (r) {
         if (!r.ok) {
+          // B050 -- B044'un GERCEK owner-root-guard reddi (401/403) icin
+          // ayirt edilebilir bir "politika engeli" ses ipucu (ADR-024:
+          // backend'de AYRI bir "policy block" durumu yok, bu yuzden
+          // GERCEKTEN var olan auth reddi kullanildi).
+          if ((r.status === 401 || r.status === 403) && soundCues) {
+            soundCues.play("policy_block");
+          }
           return r.json().then(function (body) {
             throw new Error("HTTP " + r.status + ": " + (body.detail || "bilinmeyen hata"));
           });
@@ -302,6 +339,13 @@
       renderAssistant(envelope.payload);
     } else if (envelope.topic === "approval.queue") {
       refreshApprovals();
+      // B050 -- yalnizca YENI bir onay KAYDI (submit) sesi calar, bir
+      // KARAR yayini (approve/reject, payload'da `decision` alani VAR)
+      // DEGIL -- bkz. app.py::_decide_and_broadcast vs voice_command'in
+      // approval_submission yayini (ADR-024'un tetikleyici eslemesi).
+      if (envelope.payload && !envelope.payload.decision && soundCues) {
+        soundCues.play("approval_needed");
+      }
     } else if (envelope.topic === "task.lifecycle") {
       refreshAgents();
       // B048 (BACKLOG.md B048, PLAN.md T45) -- sahnenin (varsa) gorev
@@ -309,6 +353,11 @@
       // burada tamamen ATILIYORDU (yalnizca refreshAgents() cagriliyordu).
       if (scene) {
         scene.applyTaskLifecycleEvent(envelope.payload);
+      }
+      // B050 -- yalnizca BASARILI tamamlanma (STATUS_OK -> "completed")
+      // sesi calar, failed/awaiting_approval DEGIL (ayirt edilebilir olmali).
+      if (envelope.payload && envelope.payload.state === "completed" && soundCues) {
+        soundCues.play("task_complete");
       }
     } else if (envelope.topic === "agent.presence") {
       // T38 (BACKLOG.md B046) -- sahneyi (varsa) DOGRUDAN bu tek WS
