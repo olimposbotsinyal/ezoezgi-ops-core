@@ -431,6 +431,158 @@
     YAPILMADI — bu yüzden onun görsel regresyon kapsamı da yok; şu an
     yalnızca v0'ın MEVCUT statik/kart-tabanlı arayüzü test edildi.
 
+## B038 — Ops Suite Animasyonlu 2D Ofis Sahnesi (Faz 5 öne çekme, T29/T30 ön koşulları sağlandıktan sonra)
+
+> Yığın kararı ADR-020'de (Vanilla JS + Canvas2D) zaten kilitlendi.
+> Mevcut kart-tabanlı `#agent-grid`/`#assistant-card` DOM paneli
+> KALDIRILMIYOR — sahne, ONA EK bir görselleştirme katmanıdır (aynı
+> `AgentPresence`/`AssistantPresenceEvent`/onay kuyruğu verisini
+> tüketir, yeni bir backend uç noktası GEREKMEZ).
+
+- [x] **T31. Canvas sahne mimarisi + statik ofis düzeni**
+  - Amaç: `apps/ops-suite/frontend/js/scene.js` (yeni modül, `app.js`'e
+    DOKUNMADAN) — sabit masa/dinlenme-bölgesi/"henüz yok" rafı
+    koordinatlarını tanımlayan, boş bir `<canvas>`'ı render eden temel
+    iskelet.
+  - Teknik çıktı: `OpsSuiteScene` sınıfı (constructor + `render()`),
+    `index.html`'e yeni `panel--scene` bölümü, `style.css`'e panel
+    stili.
+  - Kabul kriteri: Sayfa yüklendiğinde canvas GERÇEKTEN görünür
+    (Playwright ile doğrulanacak, T36).
+  - **Not (2026-08-14) — resmen kapatıldı:** `scene.js` (640×320
+    canvas, üçüncü taraf kütüphane YOK) + `index.html`/`style.css`
+    entegrasyonu. Gerçek bir tarayıcıda görünürlüğü
+    `tests/scene.spec.js`/`smoke.spec.js` ile doğrulandı (T36).
+
+- [x] **T32. Ajan varlıkları + durum renkleri/ikonları + masa/dinlenme bölgeleri**
+  - Amaç: `AgentPresence` listesini (`GET /api/agents`) sahnede GERÇEK
+    varlıklara (avatar) çevirmek — `KNOWN_LIVE_AGENTS` (3) masa
+    konumlarında, `NOT_IMPLEMENTED_AGENTS` (6) AÇIKÇA soluk/hayalet
+    stilinde ayrı bir rafta (bkz. dürüstlük ilkesi,
+    `AGENT_PRESENCE_STATE_MODEL.md` §3 — ASLA gerçek personel gibi
+    gösterilmez).
+  - Teknik çıktı: `OpsSuiteScene.setAgents()`, `AGENT_STATES` →
+    renk/ikon eşleme tablosu.
+  - Kabul kriteri: Her ajan doğru bölgede/renkte render ediliyor;
+    `not_implemented` ajanlar görsel olarak AYIRT EDİLEBİLİR (asla
+    canlı personel yanılsaması vermiyor).
+  - **Not (2026-08-14) — resmen kapatıldı:** `_zoneForAgent()` —
+    `KNOWN_LIVE_AGENTS` dışındaki HER ajan (state'ten BAĞIMSIZ) her
+    zaman `"ghost"` bölgesine düşer; render'da `globalAlpha=0.35` +
+    küçültülmüş yarıçapla soluklaştırılır. Gerçek bir tarayıcıda
+    ekran görüntüsüyle (bkz. `reports/ops_suite_scene_<UTC>/01_initial_state.png`)
+    doğrulandı.
+  - **Bulunup düzeltilen gerçek hata:** İlk kanıt kosusunda 3 bilinen-canlı
+    ajanın (`orchestrator`/`bridge_agent`/`tool_runners`) hepsi
+    `offline` olduğunda AYNI dinlenme-bölgesi noktasında ÜST ÜSTE
+    bindiği (okunaksız) GERÇEK bir ekran görüntüsüyle keşfedildi —
+    `_targetForZone()`, bölge-içi sıraya göre yatay yayılım
+    (`REST_SPACING`) uygulayacak şekilde düzeltildi, yeniden çalıştırılıp
+    GERÇEKTEN doğrulandı.
+
+- [x] **T33. Hareket geçişleri (görev atandı → masa, boşta → dinlenme bölgesi)**
+  - Amaç: Durum değişince avatarın konumu ANINDA ZIPLAMAK yerine
+    kısa bir enterpolasyonla (ease) hedefe HAREKET etmesi.
+  - Teknik çıktı: `requestAnimationFrame` tabanlı basit lineer
+    enterpolasyon döngüsü (üçüncü taraf animasyon kütüphanesi YOK —
+    ADR-020 ile tutarlı).
+  - Kabul kriteri: `working`/`blocked`/`awaiting_approval` → masa
+    konumu, `idle`/`offline` → dinlenme bölgesi konumu; ara kareler
+    debug overlay'de GÖZLEMLENEBİLİR.
+  - **Not (2026-08-14) — resmen kapatıldı:** `_step()` her karede
+    `x`/`y`'yi `targetX`/`targetY`'ye `LERP_SPEED=0.18` ile yaklaştırır;
+    `debugState()`'in `at_rest_position` alanı ara-kare/hedefte-mi
+    ayrımını dışa açar.
+  - **Bilinçli sınırlama (dürüstçe işaretli):** Backend, bir sesli
+    komutu BAŞTAN SONA senkron işliyor (`voice_bridge.py::handle_voice_command`
+    tek bir HTTP isteği içinde tamamlanıyor) — bu yüzden `working` ara
+    durumu GERÇEK ama İSTEMCİ TARAFINDAN BAĞIMSIZ OLARAK
+    GÖZLEMLENEMEYECEK kadar kısa ömürlü; T36'nın testleri bu yüzden
+    `working`→masa geçişini DEĞİL, deterministik olarak gözlemlenebilen
+    `offline`→`idle` (dinlenme bölgesi) ve onay-tepsisi geçişlerini
+    doğrular (fabrike bir "working anı" YAKALANMADI).
+
+- [x] **T34. Asistan (EzoEzgi) avatar paneli + "rapor modu" görsel durumu**
+  - Amaç: `AssistantPresenceEvent`'i (idle/listening/thinking/speaking/blocked_policy)
+    sahnede ayrı bir avatar ile göstermek — `speaking` durumu, kullanıcıya
+    aktif "rapor veriyor" anlamına geldiği için görsel olarak AYRICA
+    vurgulanır (büyütülmüş halka + konuşma balonu ikonu).
+  - Teknik çıktı: `OpsSuiteScene.setAssistant()`, asistan durumu →
+    renk/ikon eşleme.
+  - Kabul kriteri: Sesli komut gönderildiğinde asistan avatarı GERÇEKTEN
+    `idle`'dan `speaking`'e geçiyor (deterministik, T36'da doğrulanacak).
+  - **Not (2026-08-14) — resmen kapatıldı:** `speaking` durumunda
+    avatar yarıçapı büyür (20→26px) + ek bir dış halka çizilir ("rapor
+    modu" vurgusu). Gerçek geçiş `tests/scene.spec.js` "geçiş 2"nde VE
+    `reports/ops_suite_scene_<UTC>/02_after_echo_command.png`'de
+    (mavi, büyümüş "Ez" avatarı) kanıtlandı.
+
+- [x] **T35. Gerçek-zamanlı WS-tetiklemeli sahne güncellemeleri + debug overlay**
+  - Amaç: Mevcut `app.js::handleLiveEvent()` WS tetikleyicilerini
+    (task.lifecycle/assistant.presence/approval.queue) sahne
+    güncellemelerine BAĞLAMAK (yeni bir WS konusu İCAT ETMEDEN —
+    backend DEĞİŞTİRİLMEZ) + Playwright'ın piksel-içeriği DOĞRUDAN
+    göremediği Canvas sınırlamasını (bkz. ADR-020 test edilebilirlik
+    notu) aşmak için `window.__ops_suite_scene_debug__()` köprüsü.
+  - Teknik çıktı: `app.js`'e minimal kablolama (mevcut
+    `refreshAgents`/`refreshAssistant`/`refreshApprovals` çağrılarının
+    sonuna `scene.set*()` eklenir), `scene.debugState()` → düz JSON.
+  - Kabul kriteri: `window.__ops_suite_scene_debug__()` gerçek bir
+    tarayıcıda çağrılabilir VE mevcut REST/WS verisiyle TUTARLI JSON
+    döndürüyor.
+  - **Not (2026-08-14) — resmen kapatıldı:** `app.js`'in `renderAgents`/`renderAssistant`/`renderApprovals`
+    fonksiyonlarına 3 satırlık `scene.set*()` çağrısı eklendi — `app.js`'in
+    KENDİ mantığı DEĞİŞTİRİLMEDİ. `window.__ops_suite_scene_debug__`
+    tüm `scene.spec.js` testlerinde GERÇEKTEN çağrıldı (5/5 PASS).
+  - **Bulunup düzeltilen gerçek hata (kapsamı aşan ama T35/T36'nın gerçek
+    kosusunda bulundu):** `apps/ops-suite/e2e/`'nin gerçek sunucu
+    alt-süreçleri, veri izolasyonu OLMADAN projenin GERÇEK
+    `data/approvals/approval_queue.jsonl` dosyasını kullanıyordu —
+    onaylanmamış test komutları kalıcı SUBMITTED kayıtları biriktirip
+    SONRAKİ test koşularını BOZUYORDU (ilk kosuda gerçekten yaşandı,
+    2 canli komut testte "beklenen 1, bulunan 2" hatasına yol açtı).
+    **Düzeltildi:** `ops_suite/server.py`'ye `OPS_SUITE_DATA_DIR` env
+    override eklendi (approval queue + audit log + identity config
+    hepsi izole edilebiliyor); `global-setup.js`/`capture_scene_evidence.js`
+    her kosuda `os.tmpdir()` altında YENİ bir gecici dizin kullanıyor.
+    Projenin GERÇEK `data/approvals/approval_queue.jsonl` dosyasına
+    kazayla eklenen 2 test kaydı da temizlendi.
+
+- [x] **T36. Playwright sahne-geçişi doğrulamaları + kanıt yakalama**
+  - Amaç: En az 3 gerçek, DETERMİNİSTİK görsel/durum geçişini gerçek
+    bir tarayıcıda kanıtlamak (ekran görüntüsü + JSON debug state ile).
+  - Teknik çıktı: `apps/ops-suite/e2e/tests/scene.spec.js` (yeni),
+    `apps/ops-suite/e2e/capture_scene_evidence.js` (yeni, bağımsız Node
+    scripti — `reports/ops_suite_scene_<UTC>/evidence.{md,json}` +
+    ekran görüntüsü `.png` dosyaları yazar).
+  - Kabul kriteri: Testler GERÇEKTEN koşuluyor VE geçiyor; kanıt
+    dizini gerçek PNG içeriyor (fabrike edilmiş/placeholder görüntü
+    DEĞİL).
+  - **Not (2026-08-14) — resmen kapatıldı:** `tests/scene.spec.js` (3
+    senaryo) + `tests/smoke.spec.js` (2, mevcut) — **5/5 PASS**, gerçek
+    Chromium'da. Doğrulanan 3 deterministik geçiş: (1) başlangıç —
+    bilinen-canlı ajanlar `offline`, `not_implemented` ajanlar hayalet
+    bölgede ayırt edilebilir; (2) echo komutu sonrası orchestrator
+    `offline→idle` VE asistan `idle→speaking`; (3) irreversible komut
+    + owner onayı (B044 bearer-token akışıyla, GERÇEK) — onay tepsisi
+    rozeti `0→1→0`. `capture_scene_evidence.js` GERÇEKTEN çalıştırıldı:
+    4 gerçek PNG ekran görüntüsü (900×700, `PNG image data` ile
+    doğrulandı, placeholder DEĞİL) + `evidence.{json,md}` →
+    `reports/ops_suite_scene_2026-08-14T0014Z/` (`git add -f` ile
+    arşivlendi).
+  - **Bulunup düzeltilen gerçek hata (ekran görüntüsünden GERÇEKTEN
+    keşfedildi):** İlk kanıt koşusunda 3 bilinen-canlı ajan `offline`
+    olduğunda dinlenme bölgesinde ÜST ÜSTE bindiği ("TO" okunaksız
+    metni) fark edildi — kod incelemesiyle DEĞİL, gerçek ekran
+    görüntüsünü İNCELEYEREK. T32'de düzeltildi, yeniden koşup GERÇEKTEN
+    doğrulandı (bkz. `01_initial_state.png`'de "OR"/"BR"/"TO" artık
+    ayrı ayrı okunabiliyor).
+  - **Bilinçli sınırlama (fabrike edilmedi):** Bu kanıt, B038'in TAM
+    görsel/etkileşimli kapsamını (ör. hareket animasyonunun ARA
+    KARELERİNİN piksel-seviyesinde doğruluğu, gerçek insan gözüyle
+    estetik değerlendirme) KAPSAMAZ — yalnızca durum/geçiş DOĞRULUĞUNU
+    (debug JSON + ekran görüntüsü) kanıtlar.
+
 ---
 
 ## Daily Log

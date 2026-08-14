@@ -142,6 +142,29 @@ body {
   letter-spacing: 0.05em;
 }
 
+.badge--muted {
+  background: var(--border);
+  color: var(--text-muted);
+}
+
+.panel--scene {
+  grid-column: 1 / -1;
+}
+
+#office-scene {
+  display: block;
+  width: 100%;
+  max-width: 640px;
+  height: auto;
+  aspect-ratio: 640 / 320;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  padding: 0.5rem;
+}
+
 .assistant-card {
   border: 1px solid var(--border);
   border-radius: 0.4rem;

@@ -103,6 +103,12 @@ reports/ops_suite_demo_*/
 apps/ops-suite/e2e/test-results/
 apps/ops-suite/e2e/playwright-report/
 
+# Ops Suite ofis sahnesi kanit paketleri (apps/ops-suite/e2e/capture_scene_evidence.js,
+# BACKLOG.md B038, PLAN.md T36) -- ayni gerekce: tekrar-uretilebilir.
+# Belirli bir kosunun GENUINELY bu ozelligin dogru calistiginin kaniti
+# olarak gerektigi durumlarda `git add -f` ile arsivlenir.
+reports/ops_suite_scene_*/
+
 # NOT: reports/weekly_observability_<YYYY-WW>/ KASITLI olarak burada
 # YOK -- bu, "Post-GO weekly ritual"in kalici governance gunlugudur
 # (her hafta EKLENIR, uzerine yazilmaz), diger raporlar gibi rutin/

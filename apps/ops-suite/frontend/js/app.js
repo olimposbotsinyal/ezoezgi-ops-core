@@ -1,8 +1,8 @@
 // EzoEzgi Ops Suite v0 -- Command Center shell mantigi. Sayfa yuklendiginde
 // REST ile ilk durumu ceker, sonra WebSocket'e abone olup canli gunceller.
-// Gorsel/etkilesimli dogrulugu bu ortamda TARAYICI OLMADIGI icin test
-// EDILEMEDI (SKIPPED, bkz. docs/RUNBOOK.md "Ops Suite -- Calistirma ve
-// Dogrulama") -- yalnizca `node --check` ile sozdizimi dogrulandi.
+// Gorsel/etkilesimli dogruluk artik GERCEK bir tarayicida (Playwright,
+// bkz. apps/ops-suite/e2e/, BACKLOG.md B039/B038) test EDILIYOR --
+// `node --check` yalnizca sozdizimini dogrular, render/etkilesimi DEGIL.
 
 (function () {
   "use strict";
@@ -18,9 +18,24 @@
   var tokenForm = document.getElementById("token-form");
   var tokenInput = document.getElementById("token-input");
   var whoamiEl = document.getElementById("whoami");
+  var sceneCanvas = document.getElementById("office-scene");
 
   var MAX_FEED_ITEMS = 50;
   var TOKEN_STORAGE_KEY = "ops_suite_access_token";
+
+  // B038 -- animasyonlu ofis sahnesi (bkz. scene.js). `OpsSuiteScene`
+  // henuz yuklenmemis/canvas desteklenmiyorsa (cok kucultulmus bir
+  // checkout, eski tarayici) SESSIZCE atlanir -- geri kalan uygulama
+  // (kart tabanli paneller) sahneye BAGIMLI DEGILDIR.
+  var scene = (sceneCanvas && window.OpsSuiteScene) ? new window.OpsSuiteScene(sceneCanvas) : null;
+  if (scene) {
+    scene.start();
+    // PLAN.md T35 -- Playwright'in gercek bir tarayicida cagirabilecegi
+    // deterministik durum koprusu (Canvas pikselleri DOM'dan GORULEMEZ).
+    window.__ops_suite_scene_debug__ = function () {
+      return scene.debugState();
+    };
+  }
 
   function apiUrl(path) {
     return path; // ayni-origin: FastAPI hem API'yi hem frontend'i sunuyor
@@ -71,6 +86,9 @@
   });
 
   function renderAgents(agents) {
+    if (scene) {
+      scene.setAgents(agents);
+    }
     agentGrid.innerHTML = "";
     agents.forEach(function (agent) {
       var card = document.createElement("div");
@@ -89,6 +107,9 @@
   }
 
   function renderApprovals(entries) {
+    if (scene) {
+      scene.setPendingApprovalCount(entries.length);
+    }
     approvalList.innerHTML = "";
     if (entries.length === 0) {
       var empty = document.createElement("li");
@@ -168,6 +189,9 @@
   }
 
   function renderAssistant(presence) {
+    if (scene) {
+      scene.setAssistant(presence);
+    }
     assistantState.textContent = presence.state;
     assistantUtterance.textContent = presence.utterance_tr || "";
   }

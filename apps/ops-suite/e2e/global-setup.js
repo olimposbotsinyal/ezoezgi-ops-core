@@ -4,10 +4,22 @@
 // senkron tutulmalidir, cunku alt-surec pytest'in path enjeksiyonundan
 // YARARLANAMAZ). Donen fonksiyon Playwright tarafindan global teardown
 // olarak cagrilir -- sureci GERCEKTEN sonlandirir (zombie process birakmaz).
+//
+// **Veri izolasyonu (PLAN.md T36 -- gercek bir kosuda GERCEKTEN kesfedilen
+// hata):** `OPS_SUITE_DATA_DIR` YOKSA, sunucu projenin GERCEK
+// `data/approvals/approval_queue.jsonl`/`data/audit/audit.log.jsonl`
+// dosyalarini kullanir -- her test kosusu (ozellikle onaylanmamis bir
+// irreversible komut gonderen testler) kalici, hic silinmeyen SUBMITTED
+// kayitlari biriktirir ve sonraki kosularda testleri BOZAR (ilk kosuda
+// tam olarak bu yasandi). Bu yuzden her E2E kosusu KENDI izole gecici
+// veri dizinini kullanir (bkz. `ops_suite/server.py::OPS_SUITE_DATA_DIR`).
 
 const { spawn } = require('child_process');
 const path = require('path');
 const http = require('http');
+const os = require('os');
+const fs = require('fs');
+const crypto = require('crypto');
 
 const E2E_DIR = __dirname;
 const REPO_ROOT = path.resolve(E2E_DIR, '..', '..', '..');
@@ -45,10 +57,33 @@ module.exports = async function globalSetup() {
     path.join(REPO_ROOT, 'tools'),
   ];
 
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ops-suite-e2e-data-'));
+
+  // scene.spec.js'in owner-onay gecisini (T36, gecis 3) GERCEK bir
+  // Bearer token ile calistirabilmesi icin -- bu, GERCEK bir kisi
+  // DEGIL, yalnizca bu E2E kosusu icin uretilen gecici bir kimlik
+  // (bkz. scripts/ops_suite_demo.py'nin ayni deseni).
+  const ownerToken = crypto.randomBytes(24).toString('base64url');
+  const identityConfigPath = path.join(dataDir, 'e2e_identities.json');
+  fs.writeFileSync(identityConfigPath, JSON.stringify({
+    schema_version: 1,
+    owner: {
+      actor_id: 'ops_suite_e2e_owner',
+      display_name: "E2E Owner (yalniz bu test kosusu icin -- GERCEK bir kisi DEGIL)",
+      token_env_var: 'OPS_SUITE_OWNER_TOKEN',
+    },
+    delegates: [],
+  }, null, 2), 'utf-8');
+
+  process.env.OPS_SUITE_E2E_OWNER_TOKEN = ownerToken;
+
   const env = {
     ...process.env,
     PYTHONPATH: pythonPathEntries.join(path.delimiter),
     OPS_SUITE_PORT: PORT,
+    OPS_SUITE_DATA_DIR: dataDir,
+    OPS_SUITE_IDENTITY_CONFIG_PATH: identityConfigPath,
+    OPS_SUITE_OWNER_TOKEN: ownerToken,
   };
 
   const serverProcess = spawn(PYTHON_EXE, ['-m', 'ops_suite.server'], {
@@ -70,5 +105,11 @@ module.exports = async function globalSetup() {
 
   return async function globalTeardown() {
     serverProcess.kill();
+    try {
+      fs.rmSync(dataDir, { recursive: true, force: true });
+    } catch (err) {
+      // temp dizin temizligi basarisiz olsa bile testlerin sonucunu ETKILEMEZ
+      console.warn('ops-suite e2e: gecici veri dizini temizlenemedi', dataDir, err.message);
+    }
   };
 };

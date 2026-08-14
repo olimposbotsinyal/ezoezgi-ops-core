@@ -1,4 +1,4 @@
-"""Gercek uvicorn giris noktasi (PLAN.md T24/T28) -- `python -m ops_suite.server`.
+"""Gercek uvicorn giris noktasi (PLAN.md T24/T28/T35) -- `python -m ops_suite.server`.
 
 Varsayilan olarak yalnizca loopback'e (`127.0.0.1`) baglanir -- disaridan
 erisim GEREKMEZ (v0, tek-kullanicili yerel kontrol merkezi). Port
@@ -8,22 +8,58 @@ erisim GEREKMEZ (v0, tek-kullanicili yerel kontrol merkezi). Port
 icin `config/ops_suite_identities.json` disinda bir dosya kullanmak
 gerektiginde (ornegin `scripts/ops_suite_demo.py`'nin gecici/demo-amacli
 owner+delegate kimlikleriyle GERCEK bearer-token akisini uctan uca
-kanitlamasi icin) -- bkz. BACKLOG.md B044."""
+kanitlamasi icin) -- bkz. BACKLOG.md B044.
+
+`OPS_SUITE_DATA_DIR` (opsiyonel) -- verilirse `data/approvals/`/`data/audit/`
+YERINE `{OPS_SUITE_DATA_DIR}/approvals/`/`{OPS_SUITE_DATA_DIR}/audit/`
+kullanilir. GERCEK bir uvicorn sureci baslatan ama izole olmayan
+tuketiciler (ornegin `apps/ops-suite/e2e/`'nin Playwright testleri)
+BUNU KULLANMALIDIR -- aksi halde her test kosusu, projenin GERCEK
+`data/approvals/approval_queue.jsonl` dosyasina kalici SUBMITTED
+kayitlari biriktirir (bkz. PLAN.md T36 -- bu, gercek bir E2E kosusunda
+GERCEKTEN kesfedilen bir hataydi, sessizce atlanmadi)."""
 
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 import uvicorn
+from audit_logger import AuditLogger
 
 from ops_suite.app import create_app
+from ops_suite.approval_queue import ApprovalQueueStore
+from ops_suite.assistant_presence import AssistantPresenceTracker
+from ops_suite.heartbeat import HeartbeatTracker
 from ops_suite.identity import DEFAULT_IDENTITY_CONFIG_PATH, IdentityStore
+from ops_suite.voice_bridge import VoiceBridge
 
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8420
 
 _identity_config_path = os.environ.get("OPS_SUITE_IDENTITY_CONFIG_PATH", str(DEFAULT_IDENTITY_CONFIG_PATH))
-app = create_app(identity_store=IdentityStore.from_config_path(_identity_config_path))
+_identity_store = IdentityStore.from_config_path(_identity_config_path)
+
+_data_dir_override = os.environ.get("OPS_SUITE_DATA_DIR")
+if _data_dir_override:
+    _data_dir = Path(_data_dir_override)
+    _approval_queue_path = _data_dir / "approvals" / "approval_queue.jsonl"
+    _audit_log_path = _data_dir / "audit" / "audit.log.jsonl"
+    _heartbeat_tracker = HeartbeatTracker()
+    _assistant_presence = AssistantPresenceTracker()
+    _approval_queue = ApprovalQueueStore(_approval_queue_path)
+    _audit_logger = AuditLogger(_audit_log_path)
+    _voice_bridge = VoiceBridge(
+        audit_log_path=_audit_log_path, approval_queue=_approval_queue,
+        assistant_presence=_assistant_presence, heartbeat_tracker=_heartbeat_tracker,
+    )
+    app = create_app(
+        identity_store=_identity_store, heartbeat_tracker=_heartbeat_tracker,
+        approval_queue=_approval_queue, assistant_presence=_assistant_presence,
+        voice_bridge=_voice_bridge, audit_logger=_audit_logger,
+    )
+else:
+    app = create_app(identity_store=_identity_store)
 
 
 def main() -> None:

@@ -1142,7 +1142,24 @@ cd ../../..
 Sonuçlar `apps/ops-suite/e2e/test-results/results.json`'a yazılır
 (gitignored — rutin/tekrar-üretilebilir, `reports/ops_suite_demo_*/`
 ile aynı gerekçe). **Bu ortamda 2026-08-14'te GERÇEKTEN çalıştırıldı —
-2/2 PASS** (bkz. `docs/PLAN.md` T29 Daily Log notu).
+5/5 PASS** (2 `smoke.spec.js` + 3 `scene.spec.js`, bkz. `docs/PLAN.md`
+T29/T36 Daily Log notları). Her kosu, projenin GERÇEK `data/` dosyalarını
+BOZMAMAK için izole bir gecici veri dizini kullanır (`OPS_SUITE_DATA_DIR`,
+bkz. `ops_suite/server.py`) — bu, ilk kosuda GERÇEKTEN kesfedilen bir
+hatanin duzeltmesidir (bkz. PLAN.md T35 notu).
+
+**Ops Suite — Animasyonlu Ofis Sahnesi Kanıtı (B038, PLAN.md T36):**
+
+```powershell
+node apps/ops-suite/e2e/capture_scene_evidence.js
+```
+
+Gerçek bir sunucu + gerçek bir (headless) Chromium ile 3 durum geçişini
+çalıştırır, her adımda tam sayfa ekran görüntüsü (`.png`) + sahne debug
+JSON'i alır, `reports/ops_suite_scene_<UTC>/evidence.{json,md}` +
+PNG'lere yazar. **Bu ortamda GERÇEKTEN çalıştırıldı — PASS** (bkz.
+`reports/ops_suite_scene_2026-08-14T0014Z/`, `git add -f` ile
+arşivlendi).
 
 **Bilinçli olarak toplanamayan kanıt (NOT_COLLECTED, `scripts/ops_suite_demo.py`
 çıktısında da görünür):**

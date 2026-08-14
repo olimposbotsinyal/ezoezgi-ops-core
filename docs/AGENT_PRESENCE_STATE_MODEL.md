@@ -1,8 +1,9 @@
 # Ajan/Asistan Durum Modeli (Agent Presence State Model)
 
-> Durum: v0, 2026-08-14 — bkz. [PLAN.md](PLAN.md) T21,
-> [DECISIONS.md](DECISIONS.md) ADR-015, kod:
-> `apps/ops-suite/backend/src/ops_suite/schemas.py`.
+> Durum: v0.1, 2026-08-14 — bkz. [PLAN.md](PLAN.md) T21/T31-T36,
+> [DECISIONS.md](DECISIONS.md) ADR-015/ADR-020, kod:
+> `apps/ops-suite/backend/src/ops_suite/schemas.py`,
+> `apps/ops-suite/frontend/js/scene.js`.
 
 ## 1. Üç şema, üç ayrı amaç
 
@@ -96,3 +97,29 @@ alındı) → `thinking` (orchestrator çalışıyor) → (yalnızca
 içinde `record()` çağırmadıysa `"offline"` sayılır. Bu eşik şu an TEK
 bir sabittir (tüm ajanlar için aynı) — ajan-bazlı farklı SLA'lar
 GELECEK bir iyileştirmedir (bkz. `docs/BACKLOG.md`).
+
+## 7. Görsel sahnede durustluk kuralinin uygulanmasi (B038, `scene.js`)
+
+`§3`'teki dürüstlük kuralı, animasyonlu ofis sahnesinde (BACKLOG.md
+B038) de AYNEN geçerlidir — `scene.js::_zoneForAgent()`:
+
+```js
+if (!DESK_POSITIONS[agentId]) { return "ghost"; }  // state'ten BAGIMSIZ, HER ZAMAN
+```
+
+`NOT_IMPLEMENTED_AGENTS`'taki bir ajan, backend `state` alanı ne olursa
+olsun (şu an her zaman `"offline"`, ama gelecekte state'ten BAĞIMSIZ
+olarak) **HER ZAMAN** ayrı, soluk (`globalAlpha=0.35`), küçültülmüş bir
+"hayalet raf"ta render edilir — ASLA `KNOWN_LIVE_AGENTS`'ın masa
+konumlarında, ASLA tam opaklıkta. Bu, kod incelemesiyle
+DOĞRULANABİLİR bir görsel ayrımdır (bkz.
+`reports/ops_suite_scene_<UTC>/01_initial_state.png`) — sahne
+katmanının §3'ün ihlal edilmediğini KANITLAYAN gerçek bir ekran
+görüntüsü.
+
+**Durum → görsel bölge eşlemesi** (`scene.js::_zoneForAgent`):
+
+| `AgentPresence.state` | `KNOWN_LIVE_AGENTS` için bölge | `NOT_IMPLEMENTED_AGENTS` için bölge |
+|---|---|---|
+| `working` / `blocked` / `awaiting_approval` | masa (`DESK_POSITIONS`) | hayalet raf (HER ZAMAN) |
+| `idle` / `offline` | dinlenme bölgesi (yayılmış) | hayalet raf (HER ZAMAN) |

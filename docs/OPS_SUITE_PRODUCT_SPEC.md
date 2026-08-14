@@ -1,7 +1,8 @@
-# Ops Suite — Ürün Spesifikasyonu (v0)
+# Ops Suite — Ürün Spesifikasyonu (v0.2)
 
-> Durum: **v0 (statik shell + gerçek backend), 2026-08-14** — bkz.
-> [PLAN.md](PLAN.md) T21–T27, [DECISIONS.md](DECISIONS.md) ADR-015..018,
+> Durum: **v0.2 (kart-tabanlı shell + Canvas2D ofis sahnesi + gerçek
+> backend + kimlik doğrulama), 2026-08-14** — bkz.
+> [PLAN.md](PLAN.md) T21–T36, [DECISIONS.md](DECISIONS.md) ADR-015..021,
 > [MASTER_ROADMAP.md](MASTER_ROADMAP.md) §11.
 
 ## 1. Amaç
@@ -18,8 +19,8 @@ kullanıcı isteği: "assistant and agents are visible in real-time").
 |---|---|---|
 | Ajan durumu | Gerçek heartbeat + audit-tail tabanlı `AgentPresence` (3 canlı ajan + 6 "not_implemented" ajan, dürüstçe işaretli) | Yeni ajanlar gerçek koda kavuştukça `KNOWN_LIVE_AGENTS`'a taşınır |
 | Görev akışı | `TaskLifecycleEvent` dizisi, WebSocket ile canlı yayın | Daha ince taneli ("routed"/"executing" alt-adımları) |
-| Onay kuyruğu | Gerçek, kalıcı (JSONL) kuyruk + REST approve/reject | Kimlik doğrulamalı `actor` (bkz. B0xx, IDENTITY_AND_DELEGATION_POLICY.md v0 sınırlaması) |
-| Frontend | Statik HTML/CSS/vanilla JS "Command Center" (ajan kartları, canlı akış, onay paneli, asistan paneli) | Tam animasyonlu 2D ofis sahnesi (B038), gerçek-tarayıcı E2E doğrulama (B039) |
+| Onay kuyruğu | Gerçek, kalıcı (JSONL) kuyruk + REST approve/reject, **bearer-token kimlik doğrulama + kapsam tabanlı yetkilendirme + owner-root-guard (B044, kapalı)** | Token rotasyon/iptal UI'ı, çoklu kimlik doğrulama yöntemi (bkz. IDENTITY_AND_DELEGATION_POLICY.md §5) |
+| Frontend | Kart-tabanlı "Command Center" (ajan kartları, canlı akış, onay paneli, asistan paneli) **+ saf Canvas2D animasyonlu ofis sahnesi (B038, kısmen — bkz. §7)**, gerçek-tarayıcı E2E doğrulama (B039, kısmen tamamlandı) | Tam görsel/etkileşimli regresyon paketi, hareket ara-karelerinin piksel-seviyesi doğrulaması |
 | Ses/GSM/kamera | Sesli komut YALNIZCA mocked TR metin girdisiyle (gerçek mikrofon/GSM/kamera donanımı bu ortamda YOK) | Gerçek STT/TTS/GSM/kamera entegrasyonu (B040, B004/B005) |
 
 ## 3. Panel envanteri — veri kaynağı eşlemesi
@@ -44,11 +45,18 @@ apps/ops-suite/
 │   ├── approval_queue.py    -- JSONL append-only kalici kuyruk
 │   ├── audit_tail.py        -- data/audit/audit.log.jsonl salt-okunur tail
 │   ├── assistant_presence.py
+│   ├── identity.py          -- B044: IdentityStore + owner-root-guard (bkz. ADR-019)
 │   ├── voice_bridge.py      -- bridge.py + orchestrator.py'yi SARAR, DEGISTIRMEZ
 │   ├── ws_manager.py        -- surec-ici asyncio yayinci (harici event bus YOK)
 │   ├── app.py                -- create_app() fabrikasi + tum REST/WS rotalari
-│   └── server.py             -- `python -m ops_suite.server` gercek girdi noktasi
-└── frontend/                 -- statik HTML/CSS/vanilla JS (npm/bundler YOK)
+│   └── server.py             -- `python -m ops_suite.server` gercek girdi noktasi,
+│                                OPS_SUITE_DATA_DIR/OPS_SUITE_IDENTITY_CONFIG_PATH ile izole edilebilir
+├── frontend/                 -- statik HTML/CSS/vanilla JS (npm/bundler YOK, ADR-018/020)
+│   └── js/scene.js           -- B038: saf Canvas2D animasyonlu ofis sahnesi
+└── e2e/                      -- B039: Playwright E2E test tooling (npm SADECE burada, ADR-021)
+    ├── tests/smoke.spec.js
+    ├── tests/scene.spec.js
+    └── capture_scene_evidence.js
 ```
 
 `ops_suite`, `apps/orchestrator/src`in mevcut modüllerini (`orchestrator.py`,
@@ -59,26 +67,58 @@ apps/ops-suite/
 ## 5. Güvenlik ve yetki
 
 - **Sahibi (owner) invaryantı:** Serkan Eryılmaz, sistemin tek kök
-  yetkilisidir — bu, kod tarafından DEĞİL, şu an yalnızca prosedürel
-  olarak korunur (bkz. `IDENTITY_AND_DELEGATION_POLICY.md`).
+  yetkilisidir — B044 (ADR-019) ile bu artık KOD SEVİYESİNDE de
+  uygulanır (`identity.py::authorize_decision` owner-root-guard):
+  `risk_level="irreversible"` onayı delegate'in config'i ne yazarsa
+  yazsın YALNIZCA owner'a açıktır (bkz. `IDENTITY_AND_DELEGATION_POLICY.md`).
 - Onay kuyruğu, mevcut `risk_engine.py`/`approval_stub.py` risk
   seviyelerini (yalnızca `high`/`irreversible`) kullanır — risk
   hesaplama mantığı Ops Suite tarafından DEĞİŞTİRİLMEZ/atlanamaz.
-- **v0 bilinen sınırlama:** onay API'sindeki `actor` alanı serbest
-  metindir, kimlik doğrulaması YOKTUR — bkz. §6 ve
-  `IDENTITY_AND_DELEGATION_POLICY.md`.
+- Onay/red uç noktaları `Authorization: Bearer <token>` ZORUNLU kılar;
+  audit izine `actor_id`/`auth_method`/`authority_source`/`decision_scope`
+  yazılır.
+- **Kalan bilinen sınırlamalar** (B044 sonrası bile): tek kimlik
+  doğrulama yöntemi (bearer-token), token rotasyon/iptal UI'ı yok, rate
+  limiting yok — bkz. `IDENTITY_AND_DELEGATION_POLICY.md` §5.
 
-## 6. Bilinen sınırlamalar (v0, dürüstçe)
+## 6. Bilinen sınırlamalar (v0.2, dürüstçe)
 
-- Tam animasyonlu 2D ofis sahnesi/avatar YOKTUR (statik kart grid'i) — B038.
-- Gerçek tarayıcıda görsel/etkileşimli doğrulama YAPILMADI (bu ortamda
-  tarayıcı-otomasyon aracı yok) — B039, yalnızca `node --check` ile
-  sözdizimi doğrulandı.
+- Ofis sahnesi (B038) yalnızca durum/geçiş doğruluğu kanıtlanmış bir
+  KISMİ uygulamadır — bkz. §7. Hareket animasyonunun ara-karelerinin
+  piksel-seviyesi doğruluğu, insan-gözü estetik değerlendirmesi
+  YAPILMADI.
+- Gerçek tarayıcı E2E altyapısı artık VAR ve GERÇEKTEN çalıştırıldı
+  (B039, ADR-021) — ama bu yalnızca BU oturumun/makinenin kanıtıdır,
+  CI/farklı bir ortamda yeniden doğrulanmalıdır.
 - Gerçek ses (mikrofon/hoparlör/STT/TTS), GSM/SIM, kamera/gesture
   donanımı bu ortamda YOKTUR — B040. Sesli komutlar yalnızca MOCKED TR
   metin girdisiyle test edildi (bkz. `scripts/ops_suite_demo.py`
   `NOT_COLLECTED` bölümü).
 - Heartbeat/presence durumu yalnızca BELLEK-İÇİ tutulur, sunucu yeniden
   başlatıldığında sıfırlanır — B041.
-- Onay `actor` alanı kimlik doğrulamasızdır — B0xx (bkz.
-  `IDENTITY_AND_DELEGATION_POLICY.md`).
+
+## 7. Ofis sahnesi (B038, v0 kısmi — PLAN.md T31-T36)
+
+**Kapsam (uygulandı):** saf Canvas2D (üçüncü taraf kütüphane YOK, ADR-020),
+3 bilinen-canlı ajan için sabit masa konumu + paylaşılan/yayılmış bir
+dinlenme bölgesi, 6 `not_implemented` ajan için AÇIKÇA soluk/ayrık bir
+"hayalet raf" (asla canlı personel yanılsaması vermez — bkz.
+`AGENT_PRESENCE_STATE_MODEL.md` §3), asistan avatarı (özel "rapor modu"
+görseli `speaking` durumunda), onay-tepsisi rozeti (bekleyen onay
+sayısı), `requestAnimationFrame` tabanlı basit hareket enterpolasyonu,
+`window.__ops_suite_scene_debug__()` test köprüsü.
+
+**Kapsam dışı (v1'e, bkz. BACKLOG.md B038'in devamı):** çoklu-adımlı
+görev animasyonları (ör. "belge taşınıyor" gibi ara adımlar), gerçek
+sprite/karakter illüstrasyonları (şu an geometrik daire/dikdörtgenler),
+ses efektleri, kullanıcı etkileşimi (sahneye tıklayarak ajan detayı
+açma).
+
+**Bilinçli mimari sınırlama:** backend bir sesli komutu BAŞTAN SONA
+senkron işler — bu yüzden bir ajanın `working` (masada aktif çalışıyor)
+görsel durumu GERÇEK ama son derece kısa ömürlüdür, istemci tarafından
+bağımsız olarak GÖZLEMLENEMEZ. Sahne bunu DOĞRU şekilde render eder
+(state değiştiğinde masaya geçer) ama bu geçiş T36'nın testlerinde
+DETERMİNİSTİK olarak doğrulanamadı — yalnızca `offline→idle` ve
+onay-tepsisi geçişleri doğrulandı (fabrike bir "working anı"
+YAKALANMADI, dürüstçe atlandı).
