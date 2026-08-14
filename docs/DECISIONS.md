@@ -495,4 +495,97 @@
 
 ---
 
-*Yeni ADR eklerken yukarıdaki formatı koru ve numarayı sırayla artır (ADR-023, ...).*
+## ADR-023
+- **Tarih:** 2026-08-14
+- **Karar:** Çoklu-adımlı görev animasyonu (PLAN.md T45, BACKLOG.md B048)
+  için 4 görsel aşama (kuyrukta/atandı/çalışıyor/tamamlandı), YENİ bir
+  backend olayı/durumu İCAT EDİLMEDEN, tamamen ZATEN VAR OLAN
+  `task.lifecycle` + `agent.presence` WS olaylarına eşlendi:
+  `received`/`translating`/`risk_checked` (agent_id yok) → kuyrukta;
+  nihai `task.lifecycle` olayı (agent_id artık var) → atandı; eşleşen
+  `agent.presence` `working` (last_task_id çapraz referansı, B049'un
+  onay-bağlantısı deseniyle AYNI) → çalışıyor; eşleşen `agent.presence`
+  `idle` → tamamlandı.
+- **Gerekçe (dürüstlük ilkesiyle uyum):** `schemas.py::TASK_LIFECYCLE_STATES`
+  şemada `routed`/`executing` durumlarını TANIMLAR ama `voice_bridge.py`
+  bunları HİÇBİR KOD YOLUNDA üretmez (yalnızca received/translating/
+  risk_checked + nihai bir durum üretilir). Şemadaki tanımlı-ama-hiç-
+  üretilmeyen durumları görsel aşamalara birebir eşlemeye çalışmak,
+  var olmayan ara adımları FABRİKE etmek anlamına gelirdi (T33/T36'nın
+  "working anı yakalanmadı, dürüstçe atlandı" ilkesiyle ÇELİŞirdi).
+  Bunun yerine gerçekten yayınlanan olaylar kullanıldı.
+- **"Tamamlandı" etiketinin GERÇEK anlamı:** `voice_bridge.py`'de
+  working→idle heartbeat çevrimi KOŞULSUZDUR (görev başarılı/başarısız/
+  onay-bekliyor olsun fark etmez, ikisi de aynı şekilde çalışır). Bu
+  yüzden "tamamlandı" görsel aşaması yalnızca "ajan bu görev için
+  İŞLEMEYİ BİTİRDİ" anlamına gelir, "görev BAŞARILI oldu" DEĞİL —
+  başarısız/reddedilen/onay-bekleyen görevler de AYNI görsel aşama ile
+  gösterilir. Bu, koda ve dokümana AÇIKÇA yazıldı (yanlış bir "başarı"
+  izlenimi vermemek için).
+- **Alternatif:** (a) `routed`/`executing` durumlarını backend'de
+  GERÇEKTEN üretmek (heartbeat/task.lifecycle'a yeni ara kayıtlar
+  eklemek) — reddedildi, kullanıcı talebi "büyük refactor değil,
+  minimal ama gerçek"; ayrıca senkron tek-istek modelinde bu ara
+  durumların GERÇEK bir zaman aralığı yoktur (T33'ün "working anı"
+  sorunuyla AYNI sınıf). (b) Sabit bir zamanlayıcıyla (`setTimeout`)
+  aşamaları simüle etmek — reddedildi, fabrike/sahte zamanlama, hiçbir
+  gerçek backend olayına dayanmaz, test edilemez şekilde flaky olurdu.
+- **Bilinen sınırlamalar:** `heartbeat_tracker` DI edilmeden (`app.py`'ye
+  hiç verilmezse) working/idle presence olayları hiç üretilmez — bu
+  durumda görev işaretçisi "atandı" aşamasında SIKIŞIR (gerçek üretim
+  konfigürasyonunda `server.py` her zaman bir tracker sağlar, bu yüzden
+  pratikte gözlenmez, ama teorik bir v0 sınırı olarak KAYDEDİLDİ).
+  Bellek sınırı: en fazla `MAX_TASK_MARKERS` (8) işaretçi izlenir, aşımda
+  en eski TAMAMLANMIŞ işaretçiler GC edilir (aktif olanlar asla silinmez).
+- **Sonuç:** Kabul edildi. Bkz. `apps/ops-suite/frontend/js/scene.js`,
+  `docs/PLAN.md` T45, `docs/BACKLOG.md` B048.
+
+## ADR-024
+- **Tarih:** 2026-08-14
+- **Karar:** Ses ipucu çerçevesi (PLAN.md T46, BACKLOG.md B050) için
+  **Web Audio API ile sentezlenmiş ton** (`OscillatorNode`) yaklaşımı
+  seçildi — GERÇEK ses DOSYASI (mp3/wav, CDN veya yerel binary) EKLENMEDİ.
+  3 ipucu: `approval_needed` (660Hz, üçgen dalga), `task_complete`
+  (880Hz, sinüs), `policy_block` (220Hz, testere dişi dalga).
+- **Tetikleyici eşleme (dürüstlük):** yalnızca 2 doğal/gerçek tetik
+  backend'de zaten ayrı ayrı gözlemlenebilir: `approval.queue` konusunda
+  YENİ bir kayıt (payload'da `decision` alanı YOK — `_decide_and_broadcast`'in
+  "karar verildi" yayınından `submit()`'in "yeni kayıt" yayınını ayırt
+  eder) → `approval_needed`; `task.lifecycle` `state=="completed"` →
+  `task_complete`. Backend'de bunlardan AYRI, üçüncü bir "politika engeli"
+  durumu YOK (`awaiting_approval`'dan farklı bir kod yolu yok) — bu
+  yüzden 3. ipucu, B044'ün (owner-root-guard) GERÇEK 401/403 red
+  yanıtlarına (`decide()` içinde, `/api/approvals/{id}/approve`\|`reject`)
+  bağlandı; bu GERÇEKTEN var olan, test edilmiş bir "politika tarafından
+  reddedildi" olayıdır — fabrike bir 3. backend durumu İCAT EDİLMEDİ.
+- **Neden ses dosyası değil sentezlenmiş ton:** (1) offline-first ilkesi
+  (ADR-018) ile doğrudan uyum — CDN YOK, ayrıca yeni bir binary asset
+  pipeline'ı da GEREKMEZ (B047'nin SVG sprite hattından farklı olarak);
+  (2) test edilebilirlik — bir `OscillatorNode`/`AudioContext` çağrısının
+  GERÇEKTEN yapılıp yapılmadığı (ve hangi parametrelerle) Playwright'ta
+  doğrudan gözlemlenebilir, bir ses dosyasının GERÇEKTEN çalınıp
+  çalınmadığını (dosya decode/playback) doğrulamak çok daha kırılgan
+  olurdu; (3) bu ortamda zaten hoparlör donanımı yok — insan kulağıyla
+  doğrulama HER İKİ yaklaşımda da NOT_COLLECTED olacaktı, bu yüzden
+  dosya-tabanlı yaklaşımın "gerçekçilik" avantajı bu bağlamda YOK.
+- **Sessize alma kalıcılığı:** `localStorage` (`ops_suite_sound_muted`,
+  B044'ün token deposuyla AYNI mekanizma) — sekme kapatılıp açılsa bile
+  kullanıcı tercihi korunur. `localStorage` erişilemezse (özel/gizli
+  tarayıcı modu vb.) GÜVENLİ varsayılan SESLİ (`false`/hata → sessizce
+  yutulur, oturum içi mute state hâlâ geçerli kalır).
+- **Politika kapısı:** v0'da `SoundCues` constructor'ında sabit
+  `policyEnabled=true` (gerçek bir merkezi config kaynağı — ör.
+  `/api/config` — HENÜZ YOK); `setPolicyEnabled()` metodu programatik
+  olarak (ve testte) kapatılabilir. Gelecekte gerçek bir config uç
+  noktası eklenirse bu değer ORADAN beslenecek — v0 bunu bilerek
+  ERTELİYOR (kapsam dışına atmak yerine, en azından KAPIYI hazır tutar).
+- **Bilinen sınırlamalar (NOT_COLLECTED):** bu ortamda hoparlör donanımı
+  yok — sesin insan kulağıyla GERÇEKTEN duyulduğu doğrulanamaz; test
+  edilen yalnızca doğru koşullarda doğru parametrelerle GERÇEK bir Web
+  Audio API çağrısının yapılıp YAPILMADIĞIDIR (`SoundCues.debugState().last_play`).
+- **Sonuç:** Kabul edildi. Bkz. `apps/ops-suite/frontend/js/sound_cues.js`,
+  `docs/PLAN.md` T46, `docs/BACKLOG.md` B050.
+
+---
+
+*Yeni ADR eklerken yukarıdaki formatı koru ve numarayı sırayla artır (ADR-025, ...).*

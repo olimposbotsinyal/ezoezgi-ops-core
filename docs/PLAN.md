@@ -817,6 +817,95 @@
   - Kapsam: TASARLANMADI — yalnızca BACKLOG.md B050 ile kaydedildi, bu
     checkpoint'te UYGULANMADI.
   - Bağımlılık: Yok.
+  - **Not (2026-08-14):** tasarım/uygulama **T46**'ya taşındı (aşağıya
+    bkz.) — bu satır yalnızca tarihsel izlenebilirlik için KORUNDU,
+    çift kayıt DEĞİLDİR.
+
+## Çoklu-Adımlı Animasyon + Ses İpuçları + Güvenlik Sertleştirme Hazırlığı (T45-T49)
+
+> Bu bölüm T41/T43'ün ("TASARLANMADI" placeholder) yerini alır — B048/B050
+> artık gerçekten tasarlanıp uygulanıyor (T45/T46). Ayrıca B044'ün
+> (owner-root-guard) DERINLEŞTIRILMESI için 3 yeni güvenlik-sertleştirme
+> hazırlık maddesi (T47-T49, BACKLOG.md B051-B053) yalnızca KAYDEDİLİYOR
+> — bu checkpoint'te büyük bir refactor YAPILMIYOR (kullanıcı talebi).
+
+- [ ] **T45. Çoklu-adımlı görev yaşam döngüsü animasyonu (BACKLOG.md B048)**
+  - Amaç: Sahnedeki durum-bazlı (anlık) konum geçişlerinin ÖTESİNDE, TEK
+    bir görevin (`request_id`) GERÇEK yaşam döngüsünü (zaten var olan
+    `task.lifecycle`/`agent.presence` WS olaylarıyla) görsel bir "görev
+    işaretçisi" ile canlandırmak.
+  - **Dürüstlük sınırı (tasarım kararı, bkz. ADR-023):** backend'in GERÇEKTEN
+    ürettiği `task.lifecycle` durumları yalnızca `received`/`translating`/
+    `risk_checked` + nihai `completed`/`failed`/`awaiting_approval`'dır
+    (`routed`/`executing` şema'da TANIMLI ama hiçbir kod yolunda hiç
+    ÜRETİLMEZ, bkz. `voice_bridge.py`). Bu yüzden 4 görsel aşama
+    (kuyrukta/atandı/çalışıyor/tamamlandı) şu GERÇEK olaylara eşlenir:
+    `received`/`translating`/`risk_checked` (agent_id YOK) → **kuyrukta**;
+    nihai `task.lifecycle` olayı (agent_id ARTIK VAR) → **atandı**;
+    eşleşen `agent.presence` `working` olayı (`last_task_id` çapraz
+    referansı, B049 ile AYNI desen) → **çalışıyor**; eşleşen
+    `agent.presence` `idle` olayı → **tamamlandı**. "Tamamlandı" etiketi
+    GÖREVİN BAŞARILI OLDUĞU anlamına GELMEZ — yalnızca ajanın bu görev
+    için işlemeyi bitirip boşa döndüğü anlamına gelir (başarısız/reddedilen/
+    onay-bekleyen görevler de AYNI görsel aşamaya ulaşır, çünkü
+    working→idle çevrimi `voice_bridge.py`'de KOŞULSUZDUR) — fabrike bir
+    "başarı" imajı VERİLMEZ.
+  - Teknik çıktı: `scene.js`'e `applyTaskLifecycleEvent()`,
+    `_recomputeTaskMarkerPositions()`, `_evictOldTaskMarkers()`,
+    `_drawTaskMarkers()`; `applyAgentPresenceEvent()`'in `last_task_id`
+    çapraz-referansıyla genişletilmesi; `app.js`'e `task.lifecycle` WS
+    olayının artık `scene.applyTaskLifecycleEvent()`'e de iletilmesi
+    (ÖNCEDEN yalnızca `refreshAgents()` çağrılıyordu, payload atılıyordu).
+    Backend/Python'a HİÇBİR DOKUNUŞ YOK — tüm veri zaten var olan WS
+    olaylarından gelir.
+  - Kabul kriteri: en az 2 çok-adımlı geçiş (ör. bir "completed" yol +
+    bir "awaiting_approval" yol, ikisi de working→idle çevrimi sayesinde
+    "tamamlandı" aşamasına ulaşır) gerçek bir tarayıcıda, gerçek WS
+    frame'leri dinlenerek (sleep/polling YOK) deterministik doğrulanmalı;
+    `debugState().task_markers` test köprüsü.
+
+- [ ] **T46. Ses ipucu çerçevesi — mute + politika kapısı (BACKLOG.md B050)**
+  - Amaç: CDN'siz, yerel (Web Audio API sentezlenmiş ton) bir ses ipucu
+    çerçevesi; global sessize alma + politika kapısı (config ile
+    açık/kapalı) + 3 ayırt edilebilir, GERÇEK koşullara bağlı ipucu.
+  - **Tetikleyici eşleme (dürüstlük — 3. ipucu için, bkz. ADR-024):**
+    yalnızca 2 gerçek/doğal tetik vardı (`approval.queue` YENİ kayıt →
+    onay-gerekli; `task.lifecycle` `state=="completed"` → görev-tamamlandı).
+    Backend'de ayrı bir "politika engeli" durumu (awaiting_approval'dan
+    FARKLI) YOK — bu yüzden 3. ipucu, B044'ün (owner-root-guard) GERÇEK
+    401/403 red yanıtlarına (`/api/approvals/{id}/approve`\|`reject`)
+    bağlandı — bu GERÇEKTEN var olan, ayrı bir "politika tarafından
+    engellendi" olayıdır (fabrike edilmiş bir 3. kategori DEĞİL).
+  - Teknik çıktı: `apps/ops-suite/frontend/js/sound_cues.js` (yeni,
+    `OpsSuiteSoundCues` — `play(cueName)`, `setMuted()`, `isMuted()`,
+    `setPolicyEnabled()`, `debugState()` test köprüsü); `app.js`'e
+    3 tetikleyici nokta + mute-toggle DOM kontrolü; `index.html`/
+    `style.css`'e mute düğmesi.
+  - Kabul kriteri: mute AÇIKKEN hiçbir GERÇEK `OscillatorNode` çağrısı
+    YAPILMAZ (test edilebilir — `debugState().last_play.played === false`,
+    `reason: "muted"`); politika kapısı KAPALIYKEN de aynı şekilde;
+    3 ipucunun HER BİRİ kendi GERÇEK tetikleyici koşulunda çağrıldığı
+    gerçek bir tarayıcıda doğrulanmalı. **Sınırlama (NOT_COLLECTED):** bu
+    ortamda hoparlör donanımı yok — sesin insan kulağıyla GERÇEKTEN
+    duyulduğu doğrulanamaz, yalnızca doğru koşullarda doğru parametrelerle
+    GERÇEK bir Web Audio API çağrısının yapılıp YAPILMADIĞI test edilir.
+
+- [ ] **T47. Token rotasyonu/iptali mekanizması — yalnızca kayıt (BACKLOG.md B051)**
+  - Kapsam: TASARLANMADI/UYGULANMADI — bu checkpoint'te yalnızca
+    BACKLOG.md B051 ile KAYDEDİLDİ (kullanıcı talebi: "büyük refactor
+    henüz yok"). Sonraki güvenlik-derinleştirme checkpoint'inin ilk
+    adayı.
+  - Bağımlılık: B044 (owner-root-guard, `identity.py`).
+
+- [ ] **T48. Auth-hassas uç noktalarda rate limiting — yalnızca kayıt (BACKLOG.md B052)**
+  - Kapsam: TASARLANMADI/UYGULANMADI — yalnızca KAYDEDİLDİ.
+  - Bağımlılık: B044.
+
+- [ ] **T49. Auth karar gözlemlenebilirlik alanları incelemesi — yalnızca kayıt (BACKLOG.md B053)**
+  - Kapsam: YAPILMADI — yalnızca KAYDEDİLDİ. B051/B052 tamamlandıktan
+    SONRA anlamlı bir envanter çıkarılabilir (yeni red kod yolları
+    doğana kadar mevcut envanter EKSİK sayılır).
+  - Bağımlılık: B044, B051, B052.
 
 ---
 
@@ -1259,3 +1348,18 @@ doğrulandı (uydurulmadı):
 - **Sonraki adım:** Yok — bu, tek seferlik bir altyapı/politika
   görevidir; gelecekte yeni bir dosya türü eklenirse `.gitattributes`'a
   karşılık gelen bir satır eklenmesi gerekir (bkz. RUNBOOK notu).
+
+### 2026-08-14 (devam 4) — Planlama: T45-T49 + B051-B053 + ADR-023/024
+
+- **Yapılanlar:** Yeni sprint planlandı — B048 (çoklu-adımlı görev
+  animasyonu) ve B050 (ses ipuçları) artık gerçekten TASARLANDI (önceki
+  T41/T43 placeholder'larının yerini T45/T46 aldı, T43'e çapraz-referans
+  notu eklendi). 3 yeni güvenlik-sertleştirme hazırlık maddesi eklendi
+  (T47/B051 token rotasyonu, T48/B052 rate limiting, T49/B053 auth
+  gözlemlenebilirlik incelemesi) — kullanıcı talebiyle TUTARLI olarak
+  bu üçü yalnızca KAYDEDİLDİ, bu checkpoint'te UYGULANMADI. ADR-023
+  (B048 görev-aşaması eşleme tasarımı + "tamamlandı" etiketinin gerçek
+  anlamı) ve ADR-024 (B050 ses çerçevesi tasarımı: sentezlenmiş ton,
+  tetikleyici eşleme, sessize alma kalıcılığı) eklendi.
+- **Sorunlar:** Yok.
+- **Sonraki adım:** T45 (B048) uygulaması.
