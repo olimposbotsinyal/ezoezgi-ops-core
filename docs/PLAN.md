@@ -628,34 +628,195 @@
     canlı akış paneline düşüyorlar) — sahnenin bunları kullanarak
     GERÇEK `working` anını görsel olarak render etmesi ayrı bir iştir.
 
-- [ ] **T38. `working`→`idle` geçişi için deterministik test kapsamı (BACKLOG.md B046)**
+- [x] **T38. `working`→`idle` geçişi için deterministik test kapsamı (BACKLOG.md B046)**
   - Amaç: T37'nin sağladığı gerçek WS gözlemlenebilirliğini kullanarak,
     hem `scene.js`'in HEM DE bir Playwright testinin `working` anını
     GERÇEKTEN (fabrike etmeden) yakalayabildiğini kanıtlamak.
-  - Kapsam (taslak, henüz uygulanmadı): `scene.js`'e `agent.presence`
-    WS mesajlarını dinleyen bir yol eklemek (`app.js::handleLiveEvent`'e
-    yeni bir `else if (topic === "agent.presence")` dalı), sahnenin
-    `working` durumunu (masaya geçiş) artık polling'e değil GERÇEK WS
-    mesajına göre güncellemesi; `apps/ops-suite/e2e/tests/scene.spec.js`'e
-    `working` durumunu GERÇEKTEN yakalayan (WS mesaj dinleyicisiyle,
-    zamanlamaya dayalı `waitForTimeout` TAHMİNİYLE DEĞİL) yeni bir
-    senaryo.
-  - Bağımlılık: T37 (tamamlandı).
+  - Teknik çıktı: `scene.js::applyAgentPresenceEvent()` (yeni) — TEK bir
+    `agent.presence` WS mesajını ANINDA uygular (bir sonraki REST
+    polling'ini beklemeden); `_recomputeZones()`'a refactor edildi ki
+    hem toplu (`setAgents`) hem tekli (`applyAgentPresenceEvent`)
+    güncelleme AYNI bölge-yayılma mantığını kullansın.
+    `app.js::handleLiveEvent()`'e `agent.presence` dalı eklendi.
+    `apps/ops-suite/e2e/tests/scene.spec.js`'e "geçiş 4" — Playwright'ın
+    NATIVE WebSocket frame API'si (`page.on('websocket', ...)` +
+    `ws.on('framereceived', ...)`) ile GERÇEK tarayıcı WS trafiğini
+    olay-tabanlı yakalar, hiçbir `waitForTimeout`/sleep KULLANMAZ.
+  - Kabul kriteri: Testler GERÇEKTEN koşuluyor VE geçiyor; `working`
+    durumu artık sleep/tahmin OLMADAN deterministik olarak kanıtlanmış.
+  - **Not (2026-08-14) — resmen kapatıldı:** `npx playwright test` →
+    **6/6 PASS** (3 kez ardışık çalıştırılıp tekrar doğrulandı,
+    bkz. aşağıdaki "bulunan hata" notu). `states` dizisi
+    `["working", "idle"]` olarak GERÇEK WS frame'lerinden okunuyor.
+  - **Bulunup düzeltilen GERÇEK hata (bu görevin kendisinde):** İlk
+    yazımda test, senkronizasyon sinyali olarak `#assistant-state ===
+    'speaking'` DOM beklentisini kullanıyordu — ama
+    `AssistantPresenceTracker`/`HeartbeatTracker` TÜM test dosyası
+    boyunca PAYLAŞILAN sunucu-taraflı singleton'lar olduğu için, bir
+    ÖNCEKİ testten kalan "speaking" durumu sayfa yüklenir yüklenmez
+    ZATEN doğruydu — assertion bu testin KENDİ komutu hiç
+    gönderilmeden ERKEN geçiyordu, frame'ler henüz gelmemişken kontrol
+    çalışıyordu (gerçek bir kosuda "gecis 2"/"gecis 3" testlerinden
+    SONRA çalıştırıldığında GERÇEKTEN gözlemlendi, izole çalıştırıldığında
+    GİZLİ kalıyordu). **Düzeltme:** senkronizasyon artık doğrudan
+    yakalanan WS frame DİZİSİNİN KENDİSİ — `expect.poll()` (sleep DEĞİL,
+    sınırlı/bounded polling yardımcısı) ile "2 frame geldi mi" sorusuna
+    bağlı, harici hiçbir DOM değerine GÜVENMİYOR.
 
-- [ ] **T39. Heartbeat/presence kalıcılığı — yeniden başlatmalar arası (BACKLOG.md B041)**
+- [x] **T39. Heartbeat/presence kalıcılığı — yeniden başlatmalar arası (BACKLOG.md B041)**
   - Amaç: `HeartbeatTracker`'ın BİLEREK bellek-içi olma sınırlamasını
     (bkz. `docs/OPS_SUITE_PRODUCT_SPEC.md` §6, BACKLOG.md B041 — ÖNCEDEN
     AÇILMIŞ madde, bu YENİ bir BACKLOG kaydı DEĞİL) kapatmak — sunucu
     yeniden başlatıldığında TÜM ajan durumu şu an sıfırlanıyor (yalnızca
     onay kuyruğu JSONL sayesinde kalıcı).
-  - Kapsam (taslak, henüz uygulanmadı): muhtemelen `approval_queue.py`
-    ile AYNI JSONL append-only deseni (ADR-009/ADR-016) — son bilinen
-    `AgentPresence` anlık görüntüsünü periyodik/olay-bazlı olarak
-    diske yazıp açılışta geri okumak. Kesin tasarım kararı ayrı bir ADR
-    gerektirebilir (SQLite'a mı geçilecek yoksa JSONL mi yeterli —
-    ADR-016'nın "bu ölçekte SQLite gereksiz" gerekçesiyle tutarlı
-    kalınacaksa JSONL tercih edilir).
-  - Bağımlılık: Yok (T37/T38'den bağımsız, paralel alınabilir).
+  - Teknik çıktı: `presence_store.py` (yeni) — JSONL append-only (bkz.
+    `docs/DECISIONS.md` ADR-022), `HeartbeatTracker.has_record()`
+    (yeni), `app.py::_seed_heartbeat_from_presence_store()` (yeni,
+    sunucu başlarken çağrılır), `POST /api/voice/command`'ın
+    presence_events döngüsü artık HER olayı da `presence_store.append()`
+    ile kalıcı hale getiriyor. `server.py`'nin `OPS_SUITE_DATA_DIR`
+    izolasyonu (T35'te eklenmişti) `presence/` alt-dizinini de kapsayacak
+    şekilde genişletildi.
+  - Kabul kriteri: Gerçek bir "restart" simülasyonu (yeni `HeartbeatTracker`
+    + aynı `presence_store` yolu) son bilinen durumu doğru yansıtmalı;
+    DI ile önceden doldurulmuş bir tracker'ın durumu SESSİZCE üzerine
+    yazılmamalı; sınırlamalar + çakışma çözümü kuralı belgelenmeli.
+  - **Not (2026-08-14) — resmen kapatıldı:** `tests/test_ops_suite_presence_store.py`
+    (7 test) + `tests/test_ops_suite_heartbeat.py::test_has_record_*`
+    (2 test) + `tests/test_ops_suite_api.py::test_agent_presence_survives_simulated_restart`
+    (GERÇEK restart simülasyonu — ikinci, TAMAMEN YENİ bir
+    `HeartbeatTracker` + `create_app()` örneği) +
+    `test_agent_presence_seed_does_not_override_existing_di_tracker_state`
+    (çakışma kuralı doğrulaması) — **11/11 yeni test yeşil**.
+  - **Bulunup düzeltilen GERÇEK hata (yine test-veri-izolasyonu, T35/T37
+    ile AYNI sınıf hata):** İlk yazımda `data/presence/agent_presence.jsonl`
+    (varsayılan yol) mevcut `test_ops_suite_api.py`/`test_ops_suite_ws.py`
+    testleri tarafından İZOLE EDİLMEDEN kullanılıyordu — tam pytest
+    koşusu GERÇEK proje dosyasına 34 satır yazdı (gerçek bir kosuda
+    GERÇEKTEN gözlemlendi, `ls data/presence/` ile doğrulandı).
+    **Düzeltildi:** her iki test dosyasındaki TÜM `create_app()`
+    çağrılarına `presence_store=PresenceStore(tmp_path / "presence.jsonl")`
+    eklendi (4+1 çağrı yeri), kirlenen dosya silindi, `.gitignore`'a
+    `data/presence/*`/`!data/presence/.gitkeep` eklendi.
+  - **Bilinen sınırlamalar + çakışma çözümü kuralı:** bkz.
+    `docs/DECISIONS.md` ADR-022 (dosya sınırsız büyür — rotasyon YOK;
+    yalnızca `HeartbeatTracker` kalıcı hale getirildi, `AssistantPresenceTracker`
+    DEĞİL; tohumlama YALNIZCA tracker'da hiç kaydı olmayan `agent_id`'ler
+    için uygulanır, DI'lı bir tracker'ın durumunu ASLA ezmez;
+    `last_heartbeat_ts` ORİJİNAL haliyle korunur — "şimdi" ile yeniden
+    damgalanmaz, böylece `resolve_state()`'in zaman-aşımı mantığı
+    restart öncesi/sonrası fark etmeksizin dürüstçe çalışır).
+
+## B038 Tamamlama Parçası — Sprite Varlıkları + Etkileşim (T40-T44)
+
+> `docs/OPS_SUITE_PRODUCT_SPEC.md` §7'nin "kapsam dışı" listesindeki 4
+> madde BACKLOG.md'ye B047-B050 olarak ayrıştırıldı. Bu bölüm, hangi
+> ikisinin (B047, B049) BU checkpoint'te uygulandığını, hangi ikisinin
+> (B048, B050) yalnızca KAYDEDİLDİĞİNİ (henüz uygulanmadı) izler.
+
+- [x] **T40. Yerel sprite/karakter varlık hattı (BACKLOG.md B047)**
+  - Amaç: Sahnenin geometrik-şekil render'ını (daire + baş harfler),
+    yerel (CDN'siz) sprite dosyalarıyla değiştirmek — GERİ DÜŞME
+    (fallback) garantisiyle.
+  - Teknik çıktı: `apps/ops-suite/frontend/assets/sprites/*.svg` (yeni,
+    5 dosya — 3 bilinen-canlı ajan + asistan + ortak "hayalet" ikonu),
+    `scene.js`'e sprite ön-yükleme + `drawImage()` render yolu.
+  - Kabul kriteri: Varlık başarıyla yüklenirse sprite render edilir;
+    yüklenemezse (bozuk/eksik yol) SESSİZCE BOŞ BIRAKMADAN mevcut
+    daire+baş-harf render'ına GERİ DÜŞER; gerçek bir tarayıcıda
+    doğrulanmalı (Playwright + ekran görüntüsü).
+  - **Not (2026-08-14) — resmen kapatıldı:** `apps/ops-suite/frontend/assets/sprites/`
+    altında 5 yerel SVG (`orchestrator.svg`, `bridge_agent.svg`,
+    `tool_runners.svg`, `assistant.svg`, `ghost.svg`); `scene.js`'e
+    `_loadSprites()`/`_spriteFor()`/sprite+fallback render yolu (`options.spriteBasePath`
+    enjekte edilebilir — testte kırık yol simüle edildi). **Gerçek bulunan
+    hata:** tüm 5 SVG'nin yorum satırlarında geçersiz XML (`<!-- .. -- .. -->`,
+    `--` içeren yorumlar) vardı — ağ isteği 200 + doğru `image/svg+xml`
+    dönüyordu ama Chromium `Image.onload` yerine `onerror` tetikliyordu;
+    kök neden bir Playwright tanı betiğiyle (network yanıtı → minimal
+    inline data-URI SVG karşılaştırması) izole edildi, tüm yorumlar `--`
+    içermeyecek şekilde düzeltildi, gerçek tarayıcıda 5/5 sprite
+    `status: "loaded"` doğrulandı. Kanıt: `apps/ops-suite/e2e/tests/interactions.spec.js`
+    (`B047 -- sprite varlik hatti` — 2 test: tüm sprite'lar yükleniyor +
+    bozuk yol çökmeden geri düşüyor) ve
+    `reports/ops_suite_interactions_2026-08-14T0126Z/01_sprites_loaded.png`
+    ile `evidence.json`/`evidence.md` (`capture_interactions_evidence.js`
+    ile üretildi, `genel_sonuc=PASS`).
+
+- [ ] **T41. Çoklu-adımlı görev animasyonları (BACKLOG.md B048)**
+  - Amaç: Durum-bazlı (anlık) konum geçişleri yerine, bir görevin
+    ARA adımlarını (ör. "masadan onay-tepsisine yürüyor") görsel
+    olarak canlandırmak.
+  - Kapsam: TASARLANMADI — yalnızca BACKLOG.md B048 ile kaydedildi, bu
+    checkpoint'te UYGULANMADI.
+  - Bağımlılık: T40 (sprite'lar varsa animasyon kareleri daha anlamlı
+    olur, ama teknik olarak ZORUNLU değil).
+
+- [x] **T42. Sahne tıklama etkileşimleri — ajan detay paneli (BACKLOG.md B049)**
+  - Amaç: Sahneyi salt-görsel olmaktan çıkarıp, bir ajana tıklandığında
+    GERÇEK durumunu (state/last_task_id/last_heartbeat_ts/detail)
+    gösteren bir panel açmak; ilgili bir bekleyen onay varsa ona
+    bağlantı vermek.
+  - Teknik çıktı: `scene.js`'e canvas tıklama hit-test'i +
+    `onAgentClick` kancası; `app.js`'e `openAgentDetailPanel()`
+    (son bilinen ajan/onay verisiyle çapraz referans);
+    `index.html`/`style.css`'e panel DOM'u.
+  - Kabul kriteri: Herhangi bir ajana (hayalet raftakiler DAHİL)
+    tıklamak paneli GERÇEK verilerle açar; ajanların KENDİ bir "yetki
+    kapsamı" OLMADIĞI açıkça belirtilir (fabrike edilmez); bekleyen
+    bir onayla eşleşen `last_task_id` varsa panelde bağlantı/vurgu
+    olur.
+  - **Not (2026-08-14) — resmen kapatıldı:** `scene.js`'e `_hitTestAt()`
+    (daire-mesafe hit-test, asistan + tüm ajanlar) + `_bindClickHandler()`
+    (`getBoundingClientRect()` ile CSS-ölçekli canvas koordinat dönüşümü);
+    `app.js`'e `openAgentDetailPanel()` (son bilinen ajan/onay verisiyle
+    çapraz referans, `agent.last_task_id === approval.request_id`
+    eşleşmesiyle onay bağlantısı — `agent.state === "awaiting_approval"`
+    DEĞİL, çünkü bu şema durumu kod tabanında hiçbir yerde gerçekten
+    üretilmiyor, bkz. `docs/AGENT_PRESENCE_STATE_MODEL.md`); `index.html`/
+    `style.css`'e `#agent-detail-panel` DOM'u + `.approval-item--highlighted`.
+    Dürüstlük kuralı: panelde "yetki kapsamı" alanı YOK — bunun yerine
+    "Ajanların kendi bir yetki kapsamı (authority scope) YOKTUR..."
+    açıklaması gösteriliyor (uydurulmuş veri YOK). Kanıt:
+    `apps/ops-suite/e2e/tests/interactions.spec.js` (`B049 -- sahne
+    tiklama etkilesimleri` — 4 test: canlı ajan tıklama, hayalet/
+    not_implemented ajan tıklama, asistan tıklama, bekleyen-onay
+    bağlantısı+vurgu) ve
+    `reports/ops_suite_interactions_2026-08-14T0126Z/02_agent_detail_panel.png`
+    … `05_approval_item_highlighted.png` (5 PNG'nin 4'ü) + `evidence.json`/
+    `evidence.md` (`genel_sonuc=PASS`).
+
+- [x] **T44. Playwright dosya-başına sunucu izolasyonu (test altyapısı, BACKLOG ID YOK)**
+  - Amaç: T40/T42 kanıt yakalaması sırasında GERÇEKTEN bulunan bir hatayı
+    düzeltmek — bu, yeni bir ürün özelliği DEĞİL, test altyapısı
+    düzeltmesidir (bu yüzden ayrı bir BACKLOG maddesi açılmadı).
+  - **Gerçek bulunan hata:** `interactions.spec.js` eklenip tüm paket
+    (`npx playwright test`, 3 dosya) birlikte çalıştırıldığında, eski
+    mimari (`global-setup.js`'in TÜM dosyalar için TEK bir paylaşılan
+    sunucu başlatması) nedeniyle `interactions.spec.js`'in gerçek sesli
+    komutları (`HeartbeatTracker`/`AssistantPresenceTracker`/
+    `ApprovalQueueStore` durumunu değiştiren) diğer dosyalara SIZDI —
+    `scene.spec.js`'in 3 testi + `smoke.spec.js`'in 1 testi GERÇEKTEN
+    başarısız oldu (pristine-başlangıç varsayımları bozulduğu için).
+  - **Düzeltme:** `apps/ops-suite/e2e/test-server.js` (yeni, yeniden
+    kullanılabilir modül, `startTestServer(port)` döndürür) çıkarıldı;
+    `global-setup.js` SİLİNDİ; `playwright.config.js`'ten `globalSetup`
+    kaldırıldı; her 3 spec dosyası artık KENDİ `test.beforeAll`/`afterAll`
+    çifti ile KENDİ izole sunucusunu (kendi geçici veri dizini + gerçek
+    alt-süreç) başlatıp durduruyor — dosyalar arası sızıntı yapısal
+    olarak imkansız hale geldi.
+  - **Not (2026-08-14) — resmen kapatıldı:** doğrulama: tüm paket
+    (`smoke.spec.js` + `scene.spec.js` + `interactions.spec.js`, toplam
+    12 test) birlikte iki kez art arda çalıştırıldı, 12/12 geçti, gerçek
+    `data/presence/`/`data/approvals/` dizinlerinde sıfır kirlenme
+    doğrulandı (her dosya kendi geçici `OPS_SUITE_DATA_DIR`'ını kullanıyor).
+
+- [ ] **T43. Ses efektleri/geri bildirimi (BACKLOG.md B050)**
+  - Amaç: Durum değişikliklerinde (ör. onay bekleniyor) kısa, yerel
+    (CDN'siz) sesli geri bildirim.
+  - Kapsam: TASARLANMADI — yalnızca BACKLOG.md B050 ile kaydedildi, bu
+    checkpoint'te UYGULANMADI.
+  - Bağımlılık: Yok.
 
 ---
 
@@ -1015,4 +1176,55 @@ doğrulandı (uydurulmadı):
 - **Sonraki adım:** T38 (frontend tüketimi + zamanlamaya dayanmayan
   Playwright kanıtı) veya T39 (kalıcılık) — hangisinin önce alınacağı
   henüz kararlaştırılmadı, ikisi de BAĞIMSIZ alınabilir.
+
+### 2026-08-14 (devam 2) — Etiket düzeltmesi + B038 Tamamlama Parçası (T40/T42/T44)
+
+- **Etiket düzeltmesi belgelendi:** `v0.3.1-presence-events` başlangıçta
+  yanlışlıkla `452eff1`'e işaret ediyordu, `6f5c5d4`'e düzeltildi — bkz.
+  `docs/releases/v0.3_OPS_SUITE_SCENE.md` (tam açıklama) ve bu Daily Log
+  girişi (kısa not, kalıcı kayıt).
+- **Yeni görevler:** `docs/BACKLOG.md`'ye B047 (varlık hattı, kapatıldı),
+  B048 (çoklu-adımlı animasyon, TASARLANMADI/açık), B049 (tıklama
+  etkileşimleri, kapatıldı), B050 (ses efektleri, TASARLANMADI/açık)
+  eklendi. `docs/PLAN.md`'ye T40 (B047, kapatıldı), T41 (B048, açık
+  placeholder), T42 (B049, kapatıldı), T43 (B050, açık placeholder)
+  eklendi.
+- **T40/B047 uygulaması:** `apps/ops-suite/frontend/assets/sprites/*.svg`
+  (5 yerel dosya, CDN yok); `scene.js`'e sprite ön-yükleme + geri-düşme
+  render yolu. **Gerçek bulunan hata:** SVG yorumlarındaki geçersiz XML
+  (`--` içeren `<!-- -->`) Chromium'un `Image.onload`'ını sessizce
+  engelliyordu (ağ yanıtı 200/doğru mimetype olmasına rağmen) — diagnostik
+  bir Playwright betiğiyle kök nedene inildi, 5 dosya da düzeltildi.
+- **T42/B049 uygulaması:** `scene.js`'e canvas tıklama hit-test'i +
+  koordinat ölçekleme; `app.js`'e `openAgentDetailPanel()`; yeni
+  `#agent-detail-panel` DOM'u. Dürüstlük kuralı: ajanların "yetki kapsamı"
+  YOK denilerek açıkça belirtiliyor (uydurulmuş alan yok); onay bağlantısı
+  `last_task_id === request_id` eşleşmesiyle kuruluyor (şema
+  `awaiting_approval` durumu kod tabanında hiç üretilmediği için).
+- **T44 (test altyapısı, BACKLOG ID yok):** `interactions.spec.js` eklenip
+  tüm Playwright paketi birlikte çalıştırıldığında, eski paylaşılan-tek-
+  sunucu mimarisi (`global-setup.js`) nedeniyle 4 test GERÇEKTEN
+  başarısız oldu (dosyalar arası durum sızıntısı). `apps/ops-suite/e2e/test-server.js`
+  (yeni, `startTestServer(port)`) çıkarıldı, `global-setup.js` silindi,
+  her spec dosyası artık kendi `beforeAll`/`afterAll` çifti ile kendi
+  izole sunucusunu yönetiyor.
+- **Test özeti:**
+  - Python: tam pytest regresyonu **953/953 yeşil** (bu checkpoint'te
+    Python tarafı değişmedi — sprite/tıklama/test-server işi tamamen
+    frontend + Playwright altyapısı; sayı önceki checkpoint'in 953'ü ile
+    aynı, gerçekten yeniden çalıştırılarak doğrulandı).
+  - Playwright: **12/12 yeşil** (3 dosya birlikte — 2 yeni B047 testi +
+    4 yeni B049 testi `interactions.spec.js`'te, 4 mevcut `scene.spec.js`,
+    2 mevcut `smoke.spec.js`), art arda 2 kez tam paket çalıştırılarak
+    doğrulandı; `data/presence/`/`data/approvals/` dizinlerinde bu
+    koşulardan kaynaklı sıfır yeni kirlenme doğrulandı.
+  - Gerçek kanıt: `reports/ops_suite_interactions_2026-08-14T0126Z/`
+    (`capture_interactions_evidence.js` ile üretildi — 5 PNG + `evidence.json`/
+    `evidence.md`, `genel_sonuc=PASS`, `git add -f` ile arşivlendi).
+- **Sorunlar:** Yok (2 gerçek hata bulundu ve düzeltildi — yukarıda
+  belgelendi; her ikisi de kanıtla doğrulandı, gizlenmedi).
+- **Sonraki adım:** B038, B047+B049 ile birlikte "tamamlandı" olarak
+  işaretlenebilir mi kararı — bkz. bu checkpoint'in GO/NO-GO raporu (B048
+  çoklu-adım animasyon ve B050 ses efekti TASARLANMADI/açık kalıyor,
+  bilinçli/dürüst bir kapsam sınırı olarak).
 

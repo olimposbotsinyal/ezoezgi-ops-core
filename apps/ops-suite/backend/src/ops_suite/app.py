@@ -23,6 +23,7 @@ Uc nokta ozeti:
 
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -36,6 +37,7 @@ from ops_suite.approval_queue import AlreadyDecidedError, ApprovalQueueStore, Un
 from ops_suite.assistant_presence import AssistantPresenceTracker
 from ops_suite.events import TOPIC_AGENT_PRESENCE, TOPIC_APPROVAL_QUEUE, TOPIC_ASSISTANT_PRESENCE, TOPIC_TASK_LIFECYCLE
 from ops_suite.identity import AUTH_METHOD_BEARER, AuthenticationError, AuthorizationError, Identity, IdentityStore, authorize_decision
+from ops_suite.presence_store import PresenceStore
 
 # apps/ops-suite/backend/src/ops_suite/app.py -> apps/ops-suite/frontend
 FRONTEND_DIR = Path(__file__).resolve().parents[3] / "frontend"
@@ -43,6 +45,32 @@ from ops_suite.heartbeat import HeartbeatTracker
 from ops_suite.status_resolver import AgentStatusResolver
 from ops_suite.voice_bridge import VoiceBridge
 from ops_suite.ws_manager import ConnectionManager
+
+
+def _seed_heartbeat_from_presence_store(heartbeat_tracker: HeartbeatTracker, presence_store: PresenceStore) -> None:
+    """PLAN.md T39 -- sunucu baslangicinda, diskteki SON bilinen anlik
+    goruntuyu `heartbeat_tracker`'a tohumlar. **Cakisma cozumu kurali:**
+    yalnizca tracker'da HENUZ hicbir kaydi OLMAYAN `agent_id`'ler icin
+    (bkz. modul dokustringi) -- DI ile onceden doldurulmus bir tracker'in
+    durumu SESSIZCE UZERINE YAZILMAZ. `last_heartbeat_ts` ORIJINAL haliyle
+    (SIMDI ile DEGISTIRILMEDEN) verilir, boylece `resolve_state()`'in
+    VAROLAN zaman-asimi mantigi restart oncesi/sonrasi FARK ETMEKSIZIN
+    dogru sonucu uretir."""
+    for agent_id, record in presence_store.load_latest().items():
+        if heartbeat_tracker.has_record(agent_id):
+            continue
+        last_heartbeat_ts = record.get("last_heartbeat_ts")
+        seed_ts = datetime.fromisoformat(last_heartbeat_ts).timestamp() if last_heartbeat_ts else None
+        if seed_ts is None:
+            continue
+        heartbeat_tracker.record(
+            agent_id,
+            declared_state=record.get("state"),
+            last_task_id=record.get("last_task_id"),
+            display_name=record.get("display_name"),
+            detail=record.get("detail"),
+            ts=seed_ts,
+        )
 
 _bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -69,8 +97,13 @@ def create_app(
     connection_manager: ConnectionManager | None = None,
     audit_logger: AuditLogger | None = None,
     identity_store: IdentityStore | None = None,
+    presence_store: PresenceStore | None = None,
 ) -> FastAPI:
     heartbeat_tracker = heartbeat_tracker or HeartbeatTracker()
+    presence_store = presence_store or PresenceStore()
+    # PLAN.md T39 -- VoiceBridge/status_resolver bu tracker'i KULLANMAYA
+    # baslamadan ONCE, diskteki son bilinen anlik goruntuyu tohumlar.
+    _seed_heartbeat_from_presence_store(heartbeat_tracker, presence_store)
     status_resolver = status_resolver or AgentStatusResolver(heartbeat_tracker)
     approval_queue = approval_queue or ApprovalQueueStore()
     assistant_presence = assistant_presence or AssistantPresenceTracker()
@@ -94,6 +127,7 @@ def create_app(
     app.state.connection_manager = connection_manager
     app.state.audit_logger = audit_logger
     app.state.identity_store = identity_store
+    app.state.presence_store = presence_store
 
     def _get_current_identity(credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme)) -> Identity:
         token = credentials.credentials if credentials is not None else None
@@ -178,6 +212,7 @@ def create_app(
         # olaylari gibi, SIRALI ayri WS mesajlari olarak yayinlanir.
         for presence in outcome["presence_events"]:
             await connection_manager.broadcast(TOPIC_AGENT_PRESENCE, presence.to_dict())
+            presence_store.append(presence)  # T39 (BACKLOG.md B041) -- restart-sonrasi tohumlama icin kalici kayit
         await connection_manager.broadcast(TOPIC_ASSISTANT_PRESENCE, assistant_presence.current().to_dict())
         if outcome["approval_submission"] is not None:
             await connection_manager.broadcast(TOPIC_APPROVAL_QUEUE, outcome["approval_submission"])

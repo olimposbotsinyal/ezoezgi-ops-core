@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Henüz uygulanmadı">
+  <!-- B047: kesikli-cizgi siluet, "henuz uygulanmadi" durustluk kurali
+       (bkz. AGENT_PRESENCE_STATE_MODEL.md SS3/SS7); BILEREK dolgusuz,
+       kesikli; canli bir ajan gibi GORUNMEMESI icin -->
+  <g fill="none" stroke="#0b1220" stroke-width="3" stroke-dasharray="4 3" stroke-linecap="round">
+    <circle cx="32" cy="20" r="10"/>
+    <path d="M14 52 q0 -18 18 -18 q18 0 18 18"/>
+  </g>
+</svg>

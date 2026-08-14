@@ -19,9 +19,25 @@
   var tokenInput = document.getElementById("token-input");
   var whoamiEl = document.getElementById("whoami");
   var sceneCanvas = document.getElementById("office-scene");
+  var detailPanel = document.getElementById("agent-detail-panel");
+  var detailName = document.getElementById("agent-detail-name");
+  var detailState = document.getElementById("agent-detail-state");
+  var detailTask = document.getElementById("agent-detail-task");
+  var detailHeartbeat = document.getElementById("agent-detail-heartbeat");
+  var detailDetail = document.getElementById("agent-detail-detail");
+  var detailScope = document.getElementById("agent-detail-scope");
+  var detailApprovalLink = document.getElementById("agent-detail-approval-link");
+  var detailCloseBtn = document.getElementById("agent-detail-close");
 
   var MAX_FEED_ITEMS = 50;
   var TOKEN_STORAGE_KEY = "ops_suite_access_token";
+
+  // B049 (PLAN.md T42) -- son cekilen ajan/onay listeleri, tiklama
+  // panelinin capraz-referans kurabilmesi icin burada tutulur (app.js
+  // KENDI sorumlulugu -- scene.js bu VERININ VARLIGINDAN HABERSIZDIR).
+  var lastAgents = [];
+  var lastApprovals = [];
+  var lastClickedApprovalRequestId = null;
 
   // B038 -- animasyonlu ofis sahnesi (bkz. scene.js). `OpsSuiteScene`
   // henuz yuklenmemis/canvas desteklenmiyorsa (cok kucultulmus bir
@@ -30,12 +46,76 @@
   var scene = (sceneCanvas && window.OpsSuiteScene) ? new window.OpsSuiteScene(sceneCanvas) : null;
   if (scene) {
     scene.start();
+    scene.onEntityClick = openAgentDetailPanel;
     // PLAN.md T35 -- Playwright'in gercek bir tarayicida cagirabilecegi
     // deterministik durum koprusu (Canvas pikselleri DOM'dan GORULEMEZ).
     window.__ops_suite_scene_debug__ = function () {
       return scene.debugState();
     };
   }
+
+  // B049 -- bir ajan/asistan tiklandiginda cagirilir (bkz.
+  // `scene.js::onEntityClick`). Panel yalnizca GERCEK, o an bilinen
+  // veriyi gosterir -- hicbir alan fabrike EDILMEZ.
+  function openAgentDetailPanel(hit) {
+    if (hit.kind === "assistant") {
+      detailName.textContent = "EzoEzgi (Asistan)";
+      detailState.textContent = assistantState.textContent || "—";
+      detailTask.textContent = "—";
+      detailHeartbeat.textContent = "—";
+      detailDetail.textContent = assistantUtterance.textContent || "—";
+      detailScope.textContent = "Asistanın kendisi bir yetki kapsamı taşımaz -- yetki/scope yalnızca insan kimliklerine (owner/delegate) aittir, bkz. IDENTITY_AND_DELEGATION_POLICY.md.";
+      detailApprovalLink.hidden = true;
+      detailPanel.hidden = false;
+      return;
+    }
+
+    var agent = lastAgents.filter(function (a) { return a.agent_id === hit.id; })[0];
+    if (!agent) {
+      return;
+    }
+    detailName.textContent = agent.display_name + " (" + agent.agent_id + ")";
+    detailState.textContent = agent.state;
+    detailTask.textContent = agent.last_task_id || "—";
+    detailHeartbeat.textContent = agent.last_heartbeat_ts || "—";
+    detailDetail.textContent = agent.detail || "—";
+    detailScope.textContent = "Ajanların kendi bir yetki kapsamı (authority scope) YOKTUR -- bu bir insan-kimlik kavramıdır (owner/delegate), bkz. IDENTITY_AND_DELEGATION_POLICY.md. Uydurulmuş bir kapsam GÖSTERİLMEZ.";
+
+    // B049 -- bu ajanin SON gorevi, bekleyen bir onay kaydiyla eslesiyorsa
+    // (agent.state'in kendisi DEGIL -- "awaiting_approval" ajan-durumu
+    // v0'da GERCEKTE hic uretilmiyor, bkz. PLAN.md T42 notu) bir
+    // bagliyi/vurguyu goster.
+    var matchingApproval = agent.last_task_id
+      ? lastApprovals.filter(function (p) { return p.request_id === agent.last_task_id; })[0]
+      : null;
+    if (matchingApproval) {
+      lastClickedApprovalRequestId = matchingApproval.request_id;
+      detailApprovalLink.hidden = false;
+    } else {
+      lastClickedApprovalRequestId = null;
+      detailApprovalLink.hidden = true;
+    }
+
+    detailPanel.hidden = false;
+  }
+
+  detailCloseBtn.addEventListener("click", function () {
+    detailPanel.hidden = true;
+  });
+
+  detailApprovalLink.addEventListener("click", function () {
+    if (!lastClickedApprovalRequestId) {
+      return;
+    }
+    var item = approvalList.querySelector('[data-request-id="' + lastClickedApprovalRequestId + '"]');
+    if (item) {
+      item.scrollIntoView({ behavior: "smooth", block: "center" });
+      item.classList.add("approval-item--highlighted");
+      window.setTimeout(function () {
+        item.classList.remove("approval-item--highlighted");
+      }, 2000);
+    }
+  });
 
   function apiUrl(path) {
     return path; // ayni-origin: FastAPI hem API'yi hem frontend'i sunuyor
@@ -86,6 +166,7 @@
   });
 
   function renderAgents(agents) {
+    lastAgents = agents; // B049 -- tiklama panelinin capraz-referansi icin
     if (scene) {
       scene.setAgents(agents);
     }
@@ -107,6 +188,7 @@
   }
 
   function renderApprovals(entries) {
+    lastApprovals = entries; // B049 -- tiklama panelinin capraz-referansi icin
     if (scene) {
       scene.setPendingApprovalCount(entries.length);
     }
@@ -222,6 +304,18 @@
       refreshApprovals();
     } else if (envelope.topic === "task.lifecycle") {
       refreshAgents();
+    } else if (envelope.topic === "agent.presence") {
+      // T38 (BACKLOG.md B046) -- sahneyi (varsa) DOGRUDAN bu tek WS
+      // mesajiyla gunceller, bir sonraki `GET /api/agents` polling'ini
+      // BEKLEMEDEN -- `working` gibi kisa omurlu durumlar boylece
+      // GERCEKTEN render edilebiliyor (T37 yalnizca olayi
+      // YAYINLIYORDU, burasi onu TUKETIYOR). Kart-tabanli `#agent-grid`
+      // panel HALA yalnizca `task.lifecycle` sonrasi REST ile
+      // guncellenir (degismedi) -- bu, yalnizca Canvas sahnesine ozel
+      // ek bir gercek-zamanlilik katmanidir.
+      if (scene) {
+        scene.applyAgentPresenceEvent(envelope.payload);
+      }
     }
   }
 

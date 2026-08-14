@@ -1142,11 +1142,22 @@ cd ../../..
 Sonuçlar `apps/ops-suite/e2e/test-results/results.json`'a yazılır
 (gitignored — rutin/tekrar-üretilebilir, `reports/ops_suite_demo_*/`
 ile aynı gerekçe). **Bu ortamda 2026-08-14'te GERÇEKTEN çalıştırıldı —
-5/5 PASS** (2 `smoke.spec.js` + 3 `scene.spec.js`, bkz. `docs/PLAN.md`
-T29/T36 Daily Log notları). Her kosu, projenin GERÇEK `data/` dosyalarını
-BOZMAMAK için izole bir gecici veri dizini kullanır (`OPS_SUITE_DATA_DIR`,
-bkz. `ops_suite/server.py`) — bu, ilk kosuda GERÇEKTEN kesfedilen bir
-hatanin duzeltmesidir (bkz. PLAN.md T35 notu).
+12/12 PASS** (2 `smoke.spec.js` + 4 `scene.spec.js` + 6
+`interactions.spec.js`, bkz. `docs/PLAN.md` T29/T36/T40/T42/T44 Daily
+Log notları), art arda 2 kez tam paket çalıştırılarak doğrulandı. Her
+kosu, projenin GERÇEK `data/` dosyalarını BOZMAMAK için izole bir gecici
+veri dizini kullanır (`OPS_SUITE_DATA_DIR`, bkz. `ops_suite/server.py`)
+— bu, ilk kosuda GERÇEKTEN kesfedilen bir hatanin duzeltmesidir (bkz.
+PLAN.md T35 notu).
+
+**Dosya-başına sunucu izolasyonu (T44, PLAN.md):** her spec dosyası
+(`smoke.spec.js`/`scene.spec.js`/`interactions.spec.js`) artık KENDİ
+`test.beforeAll`/`afterAll` çifti ile KENDİ izole sunucusunu (`apps/ops-suite/e2e/test-server.js::startTestServer()`)
+başlatıp durdurur — eski tek-paylaşılan-sunucu mimarisi (`global-setup.js`,
+ARTIK SİLİNDİ) `interactions.spec.js` eklendiğinde dosyalar arası GERÇEK
+bir durum sızıntısına yol açmıştı (4 test başarısız olmuştu). `workers: 1`
+(sıralı çalışma, `playwright.config.js`) bu modelin güvenle çalışması
+için ZORUNLUDUR.
 
 **Ops Suite — Animasyonlu Ofis Sahnesi Kanıtı (B038, PLAN.md T36):**
 
@@ -1159,6 +1170,22 @@ Gerçek bir sunucu + gerçek bir (headless) Chromium ile 3 durum geçişini
 JSON'i alır, `reports/ops_suite_scene_<UTC>/evidence.{json,md}` +
 PNG'lere yazar. **Bu ortamda GERÇEKTEN çalıştırıldı — PASS** (bkz.
 `reports/ops_suite_scene_2026-08-14T0014Z/`, `git add -f` ile
+arşivlendi).
+
+**Ops Suite — Sprite Varlıkları + Tıklama Etkileşimleri Kanıtı (B047/B049, PLAN.md T40/T42):**
+
+```powershell
+node apps/ops-suite/e2e/capture_interactions_evidence.js
+```
+
+Gerçek bir sunucu + gerçek bir (headless) Chromium ile 5 adımı çalıştırır
+(sprite'ların gerçekten yüklendiğini doğrulama, bilinen-canlı bir ajana
+tıklama, hayalet raftaki bir ajana tıklama, bekleyen bir onayla eşleşen
+bağlantının görünmesi, bağlantıya tıklayınca ilgili kaydın vurgulanması),
+her adımda tam sayfa ekran görüntüsü + JSON durumu alır,
+`reports/ops_suite_interactions_<UTC>/evidence.{json,md}` + PNG'lere
+yazar. **Bu ortamda GERÇEKTEN çalıştırıldı — PASS** (bkz.
+`reports/ops_suite_interactions_2026-08-14T0126Z/`, `git add -f` ile
 arşivlendi).
 
 **Bilinçli olarak toplanamayan kanıt (NOT_COLLECTED, `scripts/ops_suite_demo.py`
@@ -1184,6 +1211,21 @@ yayınlanır (bkz. `ops_suite/heartbeat.py::on_change`,
 tam olarak şu sırayla 7 mesaj üretir: 4× `task.lifecycle`, 2×
 `agent.presence` (`working` sonra `idle`), 1× `assistant.presence`.
 
+**Ajan presence kalıcılığı (T39, BACKLOG.md B041):**
+
+Sunucu artık yeniden başlatıldığında `data/presence/agent_presence.jsonl`'daki
+(veya `OPS_SUITE_DATA_DIR` set edilmişse `{OPS_SUITE_DATA_DIR}/presence/agent_presence.jsonl`)
+SON bilinen ajan durumunu tohumlar — TAMAMEN sıfırlanmaz. Bu bir CACHE'tir,
+sunucu çalışırken `HeartbeatTracker`'in bellek-içi durumu HER ZAMAN otoritedir
+(bkz. `docs/DECISIONS.md` ADR-022). Manuel kontrol:
+
+```powershell
+Get-Content data/presence/agent_presence.jsonl -Tail 5
+```
+
+Restart-simülasyonunu GERÇEKTEN doğrulayan test:
+`tests/test_ops_suite_api.py::test_agent_presence_survives_simulated_restart`.
+
 **Sorun giderme (Ops Suite'e özel):**
 
 | Belirti | Olası Neden | İlk Bakılacak Yer |
@@ -1195,8 +1237,11 @@ tam olarak şu sırayla 7 mesaj üretir: 4× `task.lifecycle`, 2×
 | `POST /api/approvals/{id}/approve` → **401** | `Authorization: Bearer <token>` header YOK/geçersiz VEYA `OPS_SUITE_OWNER_TOKEN` hiç set edilmemiş | Yukarıdaki "Kimlik doğrulama (B044)" bölümü |
 | `POST /api/approvals/{id}/approve` → **403** | Token GEÇERLİ ama kapsam/yetki yetersiz (BEKLENEN davranış — ör. delegate `irreversible` onaylamaya çalıştı) | `docs/IDENTITY_AND_DELEGATION_POLICY.md` §4 owner-root-guard; hata mesajı hangi kapsamın eksik olduğunu söyler |
 | `npx playwright test` → `browserType.launch: Executable doesn't exist` | `npx playwright install chromium` hiç çalıştırılmamış | Yukarıdaki "Gerçek Tarayıcı E2E" bölümü |
-| `npx playwright test` → sunucu 15s içinde ayağa kalkmadı hatası | Port 8421 zaten kullanımda VEYA `.venv` kurulu değil | `apps/ops-suite/e2e/global-setup.js`, `OPS_SUITE_E2E_PORT` ile port değiştirilebilir |
+| `npx playwright test` → sunucu 15s içinde ayağa kalkmadı hatası | Port 8421 zaten kullanımda VEYA `.venv` kurulu değil | `apps/ops-suite/e2e/test-server.js` (T44 — her spec dosyası kendi sunucusunu başlatır), `OPS_SUITE_E2E_PORT` ile port değiştirilebilir |
 | WS testinde beklenenden FAZLA mesaj geliyor / sabit-sayılı `range(N)` okuma beklenen konuyu KAÇIRIYOR | T37 (B045) sonrası her sesli komut artık 2 ekstra `agent.presence` mesajı da yayınlıyor (working+idle) | Yukarıdaki "Ajan/asistan durum geçişlerini gözlemleme" bölümü; `tests/test_ops_suite_ws.py`'deki güncel sayılara bakın |
+| Playwright testi TEK BAŞINA geçiyor ama TAM suite'te ARADA BİR başarısız oluyor (özellikle dosya sırasında SONRAKİ testler) | Sunucu SÜREÇ ömrü boyunca PAYLAŞILAN singleton'lar (`HeartbeatTracker`/`AssistantPresenceTracker`) — bir DOM değerini (ör. "speaking") senkronizasyon sinyali olarak kullanmak, ÖNCEKİ bir testten kalan durum ZATEN doğruysa erken geçebilir | `tests/scene.spec.js` "gecis 4" (T38) notu — senkronizasyon sinyali olarak DOM DEĞİL, doğrudan yakalanan WS frame/event dizisini kullanın |
+| Tam pytest koşusu sonrası `data/presence/agent_presence.jsonl` (GERÇEK proje dosyası) beklenmedik satırlarla doluyor | Bir test `presence_store` DI etmeden `create_app()` çağırıyor, varsayılan (gerçek) yola yazıyor | `tests/test_ops_suite_api.py`/`test_ops_suite_ws.py`'nin TÜM `create_app()` çağrılarına `presence_store=PresenceStore(tmp_path / "presence.jsonl")` eklenmeli (T39'da GERÇEKTEN yaşanan bir hata, bkz. `docs/PLAN.md` T39 notu) |
+| Bir sprite SVG'si ağ isteğinde 200 + doğru `image/svg+xml` dönüyor ama sahnede hiç görünmüyor (`debugState().sprites` hep `"error"`) | SVG dosyasının `<!-- -->` yorumu geçersiz bir `--` dizisi içeriyor — bu XML spesifikasyonuna aykırı, Chromium `Image.onload` yerine sessizce `onerror` tetikliyor | Yorumlarda `--` yerine `:`/`;`/tek tire kullanın (T40'ta GERÇEKTEN yaşanan bir hata, bkz. `docs/PLAN.md` T40 notu); `apps/ops-suite/frontend/assets/sprites/*.svg`'yi bir regex ile (`<!--(.*?)-->` içinde `--` var mı) tarayarak doğrulayın |
 
 ## Sorun Giderme (Genel)
 

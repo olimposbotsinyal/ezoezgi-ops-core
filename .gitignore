@@ -20,6 +20,8 @@ data/metrics/*
 !data/metrics/.gitkeep
 data/approvals/*
 !data/approvals/.gitkeep
+data/presence/*
+!data/presence/.gitkeep
 
 .claude/
 # Runtime incident watch evidence
@@ -108,6 +110,13 @@ apps/ops-suite/e2e/playwright-report/
 # Belirli bir kosunun GENUINELY bu ozelligin dogru calistiginin kaniti
 # olarak gerektigi durumlarda `git add -f` ile arsivlenir.
 reports/ops_suite_scene_*/
+
+# Ops Suite sprite varliklari (B047) + tiklama etkilesimleri (B049) kanit
+# paketleri (apps/ops-suite/e2e/capture_interactions_evidence.js,
+# BACKLOG.md B047/B049, PLAN.md T40/T42) -- ayni gerekce: tekrar-uretilebilir.
+# Belirli bir kosunun GENUINELY bu ozelliklerin dogru calistiginin kaniti
+# olarak gerektigi durumlarda `git add -f` ile arsivlenir.
+reports/ops_suite_interactions_*/
 
 # NOT: reports/weekly_observability_<YYYY-WW>/ KASITLI olarak burada
 # YOK -- bu, "Post-GO weekly ritual"in kalici governance gunlugudur

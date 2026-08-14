@@ -163,6 +163,73 @@ body {
   color: var(--text-muted);
   font-size: 0.75rem;
   padding: 0.5rem;
+  cursor: pointer;
+}
+
+.scene-hint {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin: 0.5rem 0 0;
+}
+
+.agent-detail-panel {
+  position: relative;
+  margin-top: 0.75rem;
+  max-width: 640px;
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: 0.4rem;
+  padding: 0.75rem 1rem;
+}
+
+.agent-detail-panel__close {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.6rem;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.agent-detail-panel h3 {
+  margin: 0 1.5rem 0.5rem 0;
+  font-size: 1rem;
+}
+
+.agent-detail-panel__fields {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.2rem 0.75rem;
+  margin: 0;
+  font-size: 0.8rem;
+}
+
+.agent-detail-panel__fields dt {
+  color: var(--text-muted);
+}
+
+.agent-detail-panel__fields dd {
+  margin: 0;
+  word-break: break-all;
+}
+
+.agent-detail-panel__approval-link {
+  margin-top: 0.6rem;
+  background: var(--warn);
+  color: #0b1220;
+  border: none;
+  border-radius: 0.25rem;
+  padding: 0.3rem 0.6rem;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.approval-item--highlighted {
+  outline: 2px solid var(--warn);
+  outline-offset: 2px;
 }
 
 .assistant-card {

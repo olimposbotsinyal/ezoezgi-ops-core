@@ -121,6 +121,20 @@ def test_on_change_fires_once_per_record_call_with_each_states_snapshot():
     assert [p.state for p in received] == ["working", "idle"]
 
 
+def test_has_record_false_for_unseen_agent():
+    tracker = HeartbeatTracker()
+    assert tracker.has_record("ghost_agent") is False
+
+
+def test_has_record_true_after_record_even_if_offline_by_timeout():
+    clock = _FakeClock()
+    tracker = HeartbeatTracker(timeout_seconds=5.0, clock=clock)
+    tracker.record("a1", declared_state="working")
+    clock.now += 100.0
+    assert tracker.resolve_state("a1") == "offline"
+    assert tracker.has_record("a1") is True  # T39 -- "kayit var mi" != "canli mi"
+
+
 def test_on_change_can_be_reassigned_after_construction():
     """`create_app()`/`VoiceBridge`'in DI ile verilmis bir tracker'a bile
     SONRADAN kanca baglayabilmesi icin -- `on_change` duz bir ozelliktir,

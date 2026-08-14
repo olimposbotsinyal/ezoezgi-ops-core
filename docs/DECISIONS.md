@@ -441,6 +441,58 @@
   `.gitignore`'da; `package.json`/`package-lock.json`/config/test dosyaları
   normal izlenir.
 
+## ADR-022
+- **Tarih:** 2026-08-14
+- **Karar:** Ajan presence kalıcılığı (PLAN.md T39, BACKLOG.md B041) için
+  **JSONL append-only** deseni (ADR-009/ADR-016 ile AYNI) seçildi —
+  SQLite veya başka bir veritabanına GEÇİLMEDİ. Tasarımın 3 temel
+  parçası: (1) `presence_store.py::PresenceStore.append()` her
+  `HeartbeatTracker` değişikliğini (T37'nin zaten ürettiği
+  `presence_events` listesi üzerinden, `app.py::voice_command`
+  içinde) bir satır olarak ekler; (2) `load_latest()` dosyayı BAŞTAN
+  SONA okuyup HER `agent_id` için EN SON satırı döner ("last write
+  wins" çakışma çözümü); (3) sunucu başlarken (`create_app()`),
+  `HeartbeatTracker`'da HENÜZ kaydı OLMAYAN her `agent_id` için,
+  persisted `last_heartbeat_ts` ORİJİNAL haliyle (yeniden
+  damgalanmadan) `HeartbeatTracker.record(ts=...)`'e verilir.
+- **Gerekçe (dürüstlük ilkesiyle uyum):** `last_heartbeat_ts`'in
+  ORİJİNAL haliyle korunması kritik bir tasarım kararıdır — eğer
+  yeniden başlatma anında "şimdi" ile damgalansaydı, sunucu bir ajanın
+  restart'tan HEMEN ÖNCE gerçekten CANLI olduğunu (fabrike bir
+  "yeniden canlanma" izlenimi) iddia etmiş olurdu. Bunun yerine,
+  `HeartbeatTracker.resolve_state()`'in VAROLAN zaman-aşımı mantığı
+  (`timeout_seconds=30s`) hiçbir ÖZEL DURUM KODU olmadan doğal olarak
+  çalışır: restart'tan bu yana 30s'den fazla geçtiyse `offline`
+  (doğru — kanıt yok), geçmediyse son bilinen durum geçerli sayılır
+  (kısa bir restart penceresinde makul bir varsayım, hâlâ GERÇEK bir
+  geçmiş kayda dayanıyor, uydurulmuş değil).
+- **Çakışma çözümü kuralı:** Tohumlama YALNIZCA `HeartbeatTracker`'da
+  HİÇBİR kaydı OLMAYAN `agent_id`'ler için uygulanır
+  (`HeartbeatTracker.has_record()`, yeni) — DI ile önceden
+  doldurulmuş bir tracker'ın (örn. testlerde) durumu SESSİZCE ÜZERİNE
+  YAZILMAZ. Bu, "disk her zaman kazanır" gibi daha basit ama testleri
+  öngörülemez kılacak bir kurala tercih edildi.
+- **Alternatif:** (a) SQLite (reddedildi — ADR-016'nın "bu ölçekte
+  gereksiz bağımlılık" gerekçesiyle tutarlı kalındı, JSONL zaten
+  kanıtlanmış); (b) periyodik tam-anlık-görüntü dosyası (`snapshot.json`,
+  her N saniyede bir üzerine yazılan) — reddedildi, append-only
+  denetlenebilirlik/geçmiş izini kaybettirir VE ADR-009'un genel
+  "hiçbir satır asla değiştirilmez" ilkesinden sapardı; (c) restart
+  anında "şimdi" ile yeniden damgalama — reddedildi, yukarıdaki
+  dürüstlük gerekçesiyle AÇIKÇA reddedildi.
+- **Bilinen sınırlamalar (v0.1, dürüstçe):** Dosya sınırsız büyür
+  (rotasyon/budama YOK — v0 ölçeğinde pratik bir sorun değil, gelecekte
+  gerekirse ayrı bir madde); yalnızca `HeartbeatTracker`/`AgentPresence`
+  kalıcı hale getirildi, `AssistantPresenceTracker`/`ApprovalQueueStore`'un
+  KENDİ kalıcılığı (ikincisi zaten ADR-016 ile kalıcı) kapsam dışı.
+  Test: `tests/test_ops_suite_presence_store.py` (7 test) +
+  `tests/test_ops_suite_heartbeat.py::test_has_record_*` (2 test) +
+  `tests/test_ops_suite_api.py::test_agent_presence_survives_simulated_restart`/`test_agent_presence_seed_does_not_override_existing_di_tracker_state`
+  (2 test, gerçek "restart" simülasyonu — ikinci bir `create_app()`
+  örneği, tamamen yeni bir `HeartbeatTracker` ile).
+- **Sonuç:** Kabul edildi. Bkz. `apps/ops-suite/backend/src/ops_suite/presence_store.py`,
+  `docs/PLAN.md` T39, `docs/BACKLOG.md` B041.
+
 ---
 
-*Yeni ADR eklerken yukarıdaki formatı koru ve numarayı sırayla artır (ADR-022, ...).*
+*Yeni ADR eklerken yukarıdaki formatı koru ve numarayı sırayla artır (ADR-023, ...).*

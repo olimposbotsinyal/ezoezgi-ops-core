@@ -1,18 +1,18 @@
-// Testlerden ONCE, GERCEK bir `python -m ops_suite.server` alt-surecini
-// baslatir (scripts/ops_suite_demo.py'nin PYTHONPATH insa deseniyle AYNI --
-// bu liste, pyproject.toml'daki [tool.pytest.ini_options].pythonpath ile
-// senkron tutulmalidir, cunku alt-surec pytest'in path enjeksiyonundan
-// YARARLANAMAZ). Donen fonksiyon Playwright tarafindan global teardown
-// olarak cagrilir -- sureci GERCEKTEN sonlandirir (zombie process birakmaz).
+// Ops Suite E2E -- paylasilan test-sunucusu yardimcisi.
 //
-// **Veri izolasyonu (PLAN.md T36 -- gercek bir kosuda GERCEKTEN kesfedilen
-// hata):** `OPS_SUITE_DATA_DIR` YOKSA, sunucu projenin GERCEK
-// `data/approvals/approval_queue.jsonl`/`data/audit/audit.log.jsonl`
-// dosyalarini kullanir -- her test kosusu (ozellikle onaylanmamis bir
-// irreversible komut gonderen testler) kalici, hic silinmeyen SUBMITTED
-// kayitlari biriktirir ve sonraki kosularda testleri BOZAR (ilk kosuda
-// tam olarak bu yasandi). Bu yuzden her E2E kosusu KENDI izole gecici
-// veri dizinini kullanir (bkz. `ops_suite/server.py::OPS_SUITE_DATA_DIR`).
+// **Neden dosya-basina bir sunucu (T44, PLAN.md -- gercek bir kosuda GERCEKTEN
+// kesfedilen hata):** Tek bir PAYLASILAN sunucu (eskiden `global-setup.js`
+// TUM test dosyalari icin TEK SEFER baslatiyordu), dosyalar ARASI durum
+// sizintisina yol acti -- `interactions.spec.js` (B049) gercek sesli
+// komutlar gonderip sunucunun `HeartbeatTracker`/`AssistantPresenceTracker`/
+// `ApprovalQueueStore` durumunu degistiriyordu; `scene.spec.js`'in "gecis 1/2/3"
+// testleri ise BASLANGIC/PRISTINE durumu (orchestrator=offline,
+// assistant=idle, pending_approval_count=0) VARSAYIYORDU -- dosyalar
+// birlikte calistirildiginda (tek `npx playwright test`, ayri ayri
+// DEGIL) 4 test GERCEKTEN basarisiz oldu. **Duzeltme:** her spec dosyasi
+// artik KENDI `test.beforeAll`/`afterAll` cifti ile KENDI izole
+// sunucusunu (kendi gecici veri dizini + GERCEK bir alt-surec) baslatip
+// durduruyor -- dosyalar arasi SIZINTI YAPISAL olarak imkansiz.
 
 const { spawn } = require('child_process');
 const path = require('path');
@@ -25,7 +25,7 @@ const E2E_DIR = __dirname;
 const REPO_ROOT = path.resolve(E2E_DIR, '..', '..', '..');
 const OPS_SUITE_BACKEND_SRC = path.join(REPO_ROOT, 'apps', 'ops-suite', 'backend', 'src');
 const PYTHON_EXE = path.join(REPO_ROOT, '.venv', 'Scripts', 'python.exe');
-const PORT = process.env.OPS_SUITE_E2E_PORT || '8421';
+const DEFAULT_PORT = Number(process.env.OPS_SUITE_E2E_PORT || '8421');
 
 function waitForServer(url, timeoutMs) {
   const deadline = Date.now() + timeoutMs;
@@ -47,7 +47,12 @@ function waitForServer(url, timeoutMs) {
   });
 }
 
-module.exports = async function globalSetup() {
+// `port` verilmezse varsayilan (8421) kullanilir -- dosyalar SIRALI
+// calistigi surece (playwright.config.js::workers=1) ayni portun
+// TEKRAR kullanilmasi GUVENLIDIR (onceki sunucu `stop()` ile TAMAMEN
+// kapatildiktan SONRA bir sonraki `beforeAll` calisir).
+async function startTestServer(port) {
+  port = port || DEFAULT_PORT;
   const pythonPathEntries = [
     OPS_SUITE_BACKEND_SRC,
     path.join(REPO_ROOT, 'apps', 'orchestrator', 'src'),
@@ -59,10 +64,10 @@ module.exports = async function globalSetup() {
 
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ops-suite-e2e-data-'));
 
-  // scene.spec.js'in owner-onay gecisini (T36, gecis 3) GERCEK bir
-  // Bearer token ile calistirabilmesi icin -- bu, GERCEK bir kisi
-  // DEGIL, yalnizca bu E2E kosusu icin uretilen gecici bir kimlik
-  // (bkz. scripts/ops_suite_demo.py'nin ayni deseni).
+  // scene.spec.js'in owner-onay gecisi GERCEK bir Bearer token
+  // gerektirir -- bu, GERCEK bir kisi DEGIL, yalnizca bu kosum icin
+  // uretilen gecici bir kimlik (bkz. scripts/ops_suite_demo.py'nin
+  // ayni deseni).
   const ownerToken = crypto.randomBytes(24).toString('base64url');
   const identityConfigPath = path.join(dataDir, 'e2e_identities.json');
   fs.writeFileSync(identityConfigPath, JSON.stringify({
@@ -75,12 +80,10 @@ module.exports = async function globalSetup() {
     delegates: [],
   }, null, 2), 'utf-8');
 
-  process.env.OPS_SUITE_E2E_OWNER_TOKEN = ownerToken;
-
   const env = {
     ...process.env,
     PYTHONPATH: pythonPathEntries.join(path.delimiter),
-    OPS_SUITE_PORT: PORT,
+    OPS_SUITE_PORT: String(port),
     OPS_SUITE_DATA_DIR: dataDir,
     OPS_SUITE_IDENTITY_CONFIG_PATH: identityConfigPath,
     OPS_SUITE_OWNER_TOKEN: ownerToken,
@@ -96,20 +99,26 @@ module.exports = async function globalSetup() {
   serverProcess.stdout.on('data', (chunk) => { serverLog += chunk.toString(); });
   serverProcess.stderr.on('data', (chunk) => { serverLog += chunk.toString(); });
 
+  const baseUrl = `http://127.0.0.1:${port}`;
   try {
-    await waitForServer(`http://127.0.0.1:${PORT}/api/agents`, 15000);
+    await waitForServer(baseUrl + '/api/agents', 15000);
   } catch (err) {
     serverProcess.kill();
     throw new Error(`${err.message}\n--- sunucu log kuyrugu ---\n${serverLog.slice(-4000)}`);
   }
 
-  return async function globalTeardown() {
-    serverProcess.kill();
-    try {
-      fs.rmSync(dataDir, { recursive: true, force: true });
-    } catch (err) {
-      // temp dizin temizligi basarisiz olsa bile testlerin sonucunu ETKILEMEZ
-      console.warn('ops-suite e2e: gecici veri dizini temizlenemedi', dataDir, err.message);
-    }
+  return {
+    baseUrl,
+    ownerToken,
+    async stop() {
+      serverProcess.kill();
+      try {
+        fs.rmSync(dataDir, { recursive: true, force: true });
+      } catch (err) {
+        console.warn('ops-suite e2e: gecici veri dizini temizlenemedi', dataDir, err.message);
+      }
+    },
   };
-};
+}
+
+module.exports = { startTestServer, DEFAULT_PORT };

@@ -7,6 +7,20 @@
 // tamamlandiktan SONRA genisletilecek.
 
 const { test, expect } = require('@playwright/test');
+const { startTestServer } = require('../test-server');
+
+// T44 -- bu dosya KENDI izole sunucusunu yonetir (bkz. test-server.js
+// dokustringi) -- diger spec dosyalarinin (ozellikle sesli komut
+// gonderen `interactions.spec.js`) durumu buraya SIZMAZ.
+let server;
+test.beforeAll(async () => {
+  server = await startTestServer();
+});
+test.afterAll(async () => {
+  if (server) {
+    await server.stop();
+  }
+});
 
 test('kok sayfa yukleniyor, ajan kartlari GERCEK fetch ile render ediliyor, WS baglaniyor', async ({ page }) => {
   await page.goto('/');

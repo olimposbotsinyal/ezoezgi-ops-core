@@ -95,6 +95,12 @@ class HeartbeatTracker:
             updated_at=datetime.fromtimestamp(self._clock(), tz=timezone.utc).isoformat(),
         )
 
+    def has_record(self, agent_id: str) -> bool:
+        """`agent_id` icin en az bir `record()` cagrisi yapilmis mi
+        (T39 -- restart-sonrasi tohumlamanin "cakisma cozumu kurali"
+        icin: yalnizca hic kaydi OLMAYAN ajanlar tohumlanir)."""
+        return agent_id in self._records
+
     def resolve_state(self, agent_id: str) -> str:
         """Hic `record()` edilmemis VEYA son gorulmeden bu yana
         `timeout_seconds`'tan FAZLA gecmis bir ajan icin `"offline"`

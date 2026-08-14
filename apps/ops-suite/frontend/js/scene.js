@@ -61,18 +61,84 @@
 
   var LERP_SPEED = 0.18; // kare-basi enterpolasyon orani (0-1) -- T33
 
+  // B047 (BACKLOG.md B047, PLAN.md T40) -- yerel (CDN'siz) sprite hatti.
+  // `spriteBasePath` constructor'da EZILEBILIR (test edilebilirlik icin --
+  // ornegin var-olmayan bir yola isaret ederek GERI DUSME yolunu GERCEKTEN
+  // tetiklemek) -- varsayilan gercek uygulama yolunu kullanir.
+  var DEFAULT_SPRITE_BASE_PATH = "/assets/sprites/";
+  var AGENT_SPRITE_FILES = {
+    orchestrator: "orchestrator.svg",
+    bridge_agent: "bridge_agent.svg",
+    tool_runners: "tool_runners.svg",
+  };
+  var ASSISTANT_SPRITE_FILE = "assistant.svg";
+  var GHOST_SPRITE_FILE = "ghost.svg"; // NOT_IMPLEMENTED_AGENTS icin ORTAK
+
   function lerp(a, b, t) {
     return a + (b - a) * t;
   }
 
-  function OpsSuiteScene(canvasEl) {
+  function distance(x1, y1, x2, y2) {
+    var dx = x1 - x2;
+    var dy = y1 - y2;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  function OpsSuiteScene(canvasEl, options) {
+    options = options || {};
     this.canvas = canvasEl;
     this.ctx = canvasEl.getContext ? canvasEl.getContext("2d") : null;
     this.agents = {}; // agent_id -> {x,y,targetX,targetY,state,display_name,zone}
     this.assistant = { x: ASSISTANT_POS.x, y: ASSISTANT_POS.y, state: "idle" };
     this.pendingApprovalCount = 0;
     this._running = false;
+    // B049 (PLAN.md T42) -- bir varlik (ajan/asistan) tiklandiginda
+    // cagirilir: `{kind: "agent"|"assistant", id: string}`. `app.js`
+    // bunu detay panelini acmak icin baglar -- scene.js KENDISI DOM
+    // paneli hakkinda hicbir sey BILMEZ (ayri sorumluluk).
+    this.onEntityClick = null;
+    this._sprites = {};
+    this._loadSprites(options.spriteBasePath || DEFAULT_SPRITE_BASE_PATH);
+    this._bindClickHandler();
   }
+
+  // B047 -- her sprite GERCEK bir `Image` yuklemesi dener; sonuc
+  // ("loaded"/"error") `debugState()` uzerinden gozlemlenebilir (test
+  // edilebilirlik). `window.Image` yoksa (ornegin bir SSR/test ortami)
+  // GUVENLI sekilde "error" sayilir -- render KESINLIKLE COKMEZ.
+  OpsSuiteScene.prototype._loadSprites = function (basePath) {
+    var self = this;
+    function load(key, filename) {
+      var record = { img: null, status: "pending" };
+      self._sprites[key] = record;
+      if (typeof window === "undefined" || !window.Image) {
+        record.status = "error";
+        return;
+      }
+      var img = new window.Image();
+      record.img = img;
+      img.onload = function () {
+        record.status = "loaded";
+      };
+      img.onerror = function () {
+        record.status = "error";
+      };
+      img.src = basePath + filename;
+    }
+    load("assistant", ASSISTANT_SPRITE_FILE);
+    load("ghost", GHOST_SPRITE_FILE);
+    Object.keys(AGENT_SPRITE_FILES).forEach(function (agentId) {
+      load(agentId, AGENT_SPRITE_FILES[agentId]);
+    });
+  };
+
+  // Yuklenmis (GERCEKTEN kullanilabilir) bir sprite doner, YOKSA `null`
+  // -- cagiran taraf `null` durumunda MEVCUT baş-harf render'ina GERI
+  // DUSMELIDIR (bkz. `_drawAgent`/`_drawAssistant`).
+  OpsSuiteScene.prototype._spriteFor = function (key) {
+    var record = this._sprites[key];
+    return record && record.status === "loaded" ? record.img : null;
+  };
 
   OpsSuiteScene.prototype._zoneForAgent = function (agentId, state) {
     if (!DESK_POSITIONS[agentId]) {
@@ -98,48 +164,82 @@
     return { x: REST_ZONE.x + offset, y: REST_ZONE.y };
   };
 
+  OpsSuiteScene.prototype._upsertAgentRaw = function (agentId, state, displayName) {
+    var existing = this.agents[agentId];
+    if (!existing) {
+      // `x`/`y` BILEREK `undefined` -- `_recomputeZones()` bunu, ilk
+      // hedefine ESITLEYEREK doldurur (yeni bir ajanin (0,0)'dan
+      // sahneye KAYMASINI onlemek icin, bkz. asagisi).
+      this.agents[agentId] = {
+        x: undefined, y: undefined, targetX: 0, targetY: 0,
+        state: state, display_name: displayName, zone: "rest",
+      };
+    } else {
+      existing.state = state;
+      existing.display_name = displayName;
+    }
+  };
+
+  // Su an izlenen TUM ajanlarin bolge/hedef konumunu YENIDEN hesaplar.
+  // Hem `setAgents()` (toplu REST anlik goruntusu) HEM DE
+  // `applyAgentPresenceEvent()` (T38, tek bir WS mesaji) TARAFINDAN
+  // cagrilir -- boylece "rest" gibi PAYLASILAN bir bolgedeki yayilma
+  // (bkz. `_targetForZone`) HER ZAMAN TUM ajanlarla TUTARLI kalir,
+  // ister toplu ister tekli bir guncelleme sonrasi olsun.
+  OpsSuiteScene.prototype._recomputeZones = function () {
+    var self = this;
+    var ids = Object.keys(this.agents);
+    var zoneCounts = { ghost: 0, rest: 0 };
+    var zoneOf = {};
+    ids.forEach(function (id) {
+      var zone = self._zoneForAgent(id, self.agents[id].state);
+      zoneOf[id] = zone;
+      if (zone === "ghost" || zone === "rest") {
+        zoneCounts[zone] += 1;
+      }
+    });
+    var runningIndex = { ghost: 0, rest: 0 };
+    ids.forEach(function (id) {
+      var zone = zoneOf[id];
+      var index = zone === "ghost" || zone === "rest" ? runningIndex[zone] : 0;
+      var target = self._targetForZone(id, zone, index, zoneCounts[zone]);
+      if (zone === "ghost" || zone === "rest") {
+        runningIndex[zone] += 1;
+      }
+      var entry = self.agents[id];
+      entry.targetX = target.x;
+      entry.targetY = target.y;
+      entry.zone = zone;
+      if (entry.x === undefined) {
+        entry.x = target.x;
+        entry.y = target.y;
+      }
+    });
+  };
+
   // T32/T33 -- ajan listesini (GET /api/agents ciktisi) sahne
   // varliklarina esler; zaten var olan bir varlik icin yalnizca
   // HEDEF konumu gunceller (GERCEK konum, animasyon dongusunde ADIM
-  // ADIM hedefe yaklasir -- aninda ZIPLAMAZ). Ayni bolgeye (ozellikle
-  // "rest") birden fazla ajan dusebilir -- UST USTE binmemeleri icin
-  // once her ajanin bolgesi hesaplanir, SONRA o bolge icindeki sirasina
-  // gore yatay olarak yayilir (bkz. `_targetForZone`).
+  // ADIM hedefe yaklasir -- aninda ZIPLAMAZ).
   OpsSuiteScene.prototype.setAgents = function (agentList) {
     var self = this;
-    var zoneCounts = { ghost: 0, rest: 0 };
-    var withZones = (agentList || []).map(function (agent) {
-      var zone = self._zoneForAgent(agent.agent_id, agent.state);
-      return { agent: agent, zone: zone };
+    (agentList || []).forEach(function (agent) {
+      self._upsertAgentRaw(agent.agent_id, agent.state, agent.display_name);
     });
-    withZones.forEach(function (entry) {
-      if (entry.zone === "ghost" || entry.zone === "rest") {
-        zoneCounts[entry.zone] += 1;
-      }
-    });
-    var zoneRunningIndex = { ghost: 0, rest: 0 };
-    withZones.forEach(function (entry) {
-      var agent = entry.agent;
-      var zone = entry.zone;
-      var index = zone === "ghost" || zone === "rest" ? zoneRunningIndex[zone] : 0;
-      var target = self._targetForZone(agent.agent_id, zone, index, zoneCounts[zone]);
-      if (zone === "ghost" || zone === "rest") {
-        zoneRunningIndex[zone] += 1;
-      }
-      var existing = self.agents[agent.agent_id];
-      if (!existing) {
-        self.agents[agent.agent_id] = {
-          x: target.x, y: target.y, targetX: target.x, targetY: target.y,
-          state: agent.state, display_name: agent.display_name, zone: zone,
-        };
-      } else {
-        existing.targetX = target.x;
-        existing.targetY = target.y;
-        existing.state = agent.state;
-        existing.display_name = agent.display_name;
-        existing.zone = zone;
-      }
-    });
+    this._recomputeZones();
+  };
+
+  // T38 (BACKLOG.md B046) -- TEK bir `agent.presence` WS mesajini
+  // ANINDA uygular, bir sonraki `GET /api/agents` REST-polling'ini
+  // BEKLEMEDEN. T37'nin yayinladigi `working` gibi kisa omurlu ara
+  // durumlarin sahnede GERCEKTEN gorunur olmasini saglayan taraf
+  // BUDUR -- T37 yalnizca olayi YAYINLIYORDU, bunu TUKETEN yoktu.
+  OpsSuiteScene.prototype.applyAgentPresenceEvent = function (payload) {
+    if (!payload || !payload.agent_id) {
+      return;
+    }
+    this._upsertAgentRaw(payload.agent_id, payload.state, payload.display_name);
+    this._recomputeZones();
   };
 
   // T34 -- asistan durumunu gunceller (konum sabit, yalnizca durum/renk degisir).
@@ -184,21 +284,35 @@
     ctx.fillText("Henüz Uygulanmadı", GHOST_SHELF_START_X + GHOST_SHELF_SPACING * 2.5, GHOST_SHELF_Y - 24);
   };
 
-  OpsSuiteScene.prototype._drawAgent = function (ctx, agent) {
+  OpsSuiteScene.prototype._drawAgent = function (ctx, agent, agentId) {
     var color = AGENT_STATE_COLORS[agent.state] || AGENT_STATE_COLORS.offline;
     var isGhost = agent.zone === "ghost";
+    var radius = isGhost ? 14 : 18;
     ctx.beginPath();
     ctx.globalAlpha = isGhost ? 0.35 : 1.0;
     ctx.fillStyle = color;
-    ctx.arc(agent.x, agent.y, isGhost ? 14 : 18, 0, Math.PI * 2);
+    ctx.arc(agent.x, agent.y, radius, 0, Math.PI * 2);
     ctx.fill();
     ctx.globalAlpha = 1.0;
-    ctx.fillStyle = "#0b1220";
-    ctx.font = "10px sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText((agent.display_name || "?").slice(0, 2).toUpperCase(), agent.x, agent.y + 3);
+
+    // B047 -- sprite varsa cizilir; YOKSA (henuz yuklenmedi/basarisiz)
+    // MEVCUT baş-harf render'ina GERI DUSER -- sessizce bos BIRAKILMAZ.
+    var sprite = this._spriteFor(isGhost ? "ghost" : agentId);
+    if (sprite) {
+      var size = radius * 1.3;
+      ctx.globalAlpha = isGhost ? 0.55 : 1.0;
+      ctx.drawImage(sprite, agent.x - size / 2, agent.y - size / 2, size, size);
+      ctx.globalAlpha = 1.0;
+    } else {
+      ctx.fillStyle = "#0b1220";
+      ctx.font = "10px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText((agent.display_name || "?").slice(0, 2).toUpperCase(), agent.x, agent.y + 3);
+    }
+
     ctx.fillStyle = isGhost ? "#5a6580" : "#e6ecf5";
     ctx.font = "10px sans-serif";
+    ctx.textAlign = "center";
     ctx.fillText(agent.state, agent.x, agent.y + (isGhost ? 26 : 32));
   };
 
@@ -215,12 +329,63 @@
       ctx.arc(this.assistant.x, this.assistant.y, radius + 6, 0, Math.PI * 2);
       ctx.stroke();
     }
-    ctx.fillStyle = "#0b1220";
+
+    var sprite = this._spriteFor("assistant");
+    if (sprite) {
+      var size = radius * 1.3;
+      ctx.drawImage(sprite, this.assistant.x - size / 2, this.assistant.y - size / 2, size, size);
+    } else {
+      ctx.fillStyle = "#0b1220";
+      ctx.font = "10px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("Ez", this.assistant.x, this.assistant.y + 3);
+    }
+
+    ctx.fillStyle = "#e6ecf5";
     ctx.font = "10px sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText("Ez", this.assistant.x, this.assistant.y + 3);
-    ctx.fillStyle = "#e6ecf5";
     ctx.fillText(this.assistant.state, this.assistant.x, this.assistant.y + radius + 14);
+  };
+
+  // B049 (PLAN.md T42) -- canvas-ici koordinatta (x,y) hangi varlik var,
+  // varsa doner (`{kind, id}`), YOKSA `null`. Asistan + TUM ajanlar
+  // (hayalet raftakiler DAHIL) tiklanabilir.
+  OpsSuiteScene.prototype._hitTestAt = function (canvasX, canvasY) {
+    var assistantRadius = this.assistant.state === "speaking" ? 26 : 20;
+    if (distance(canvasX, canvasY, this.assistant.x, this.assistant.y) <= assistantRadius) {
+      return { kind: "assistant", id: "assistant" };
+    }
+    var ids = Object.keys(this.agents);
+    for (var i = 0; i < ids.length; i++) {
+      var a = this.agents[ids[i]];
+      var r = a.zone === "ghost" ? 14 : 18;
+      if (distance(canvasX, canvasY, a.x, a.y) <= r) {
+        return { kind: "agent", id: ids[i] };
+      }
+    }
+    return null;
+  };
+
+  // Gercek bir DOM `click` olayina baglanir; canvas'in EKRANDAKI boyutu
+  // ile ICTEKI cizim cozunurlugu FARKLI olabilecegi icin (bkz. CSS
+  // `max-width`), tiklama noktasi canvas-ici koordinata OLCEKLENEREK
+  // cevrilir -- yalnizca 1:1 gorunum icin dogru varsayimlar YAPILMAZ.
+  OpsSuiteScene.prototype._bindClickHandler = function () {
+    var self = this;
+    if (!this.canvas || typeof this.canvas.addEventListener !== "function") {
+      return;
+    }
+    this.canvas.addEventListener("click", function (event) {
+      var rect = self.canvas.getBoundingClientRect();
+      var scaleX = self.canvas.width / rect.width;
+      var scaleY = self.canvas.height / rect.height;
+      var canvasX = (event.clientX - rect.left) * scaleX;
+      var canvasY = (event.clientY - rect.top) * scaleY;
+      var hit = self._hitTestAt(canvasX, canvasY);
+      if (hit && typeof self.onEntityClick === "function") {
+        self.onEntityClick(hit);
+      }
+    });
   };
 
   OpsSuiteScene.prototype._drawApprovalTray = function (ctx) {
@@ -249,7 +414,7 @@
     this._drawZoneLabels(ctx);
     var self = this;
     Object.keys(this.agents).forEach(function (id) {
-      self._drawAgent(ctx, self.agents[id]);
+      self._drawAgent(ctx, self.agents[id], id);
     });
     this._drawAssistant(ctx);
     this._drawApprovalTray(ctx);
@@ -295,10 +460,15 @@
         at_rest_position: Math.round(a.x) === Math.round(a.targetX) && Math.round(a.y) === Math.round(a.targetY),
       };
     }, this);
+    var spritesOut = {};
+    Object.keys(this._sprites).forEach(function (key) {
+      spritesOut[key] = this._sprites[key].status;
+    }, this);
     return {
       assistant_state: this.assistant.state,
       pending_approval_count: this.pendingApprovalCount,
       agents: agentsOut,
+      sprites: spritesOut, // B047 -- test edilebilirlik: hangi varliklar GERCEKTEN yuklendi/basarisiz oldu
     };
   };
 

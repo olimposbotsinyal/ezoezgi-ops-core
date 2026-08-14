@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Bridge Agent">
+  <!-- B047: iki karsit yatay ok (TR/EN koprusu, ceviri) -->
+  <g fill="none" stroke="#0b1220" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M10 24 H46"/>
+    <path d="M38 16 L46 24 L38 32"/>
+    <path d="M54 40 H18"/>
+    <path d="M26 32 L18 40 L26 48"/>
+  </g>
+</svg>

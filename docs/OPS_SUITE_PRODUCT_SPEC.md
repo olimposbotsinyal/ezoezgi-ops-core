@@ -97,7 +97,7 @@ apps/ops-suite/
 - Heartbeat/presence durumu yalnızca BELLEK-İÇİ tutulur, sunucu yeniden
   başlatıldığında sıfırlanır — B041.
 
-## 7. Ofis sahnesi (B038, v0 kısmi — PLAN.md T31-T36)
+## 7. Ofis sahnesi (B038 — PLAN.md T31-T44)
 
 **Kapsam (uygulandı):** saf Canvas2D (üçüncü taraf kütüphane YOK, ADR-020),
 3 bilinen-canlı ajan için sabit masa konumu + paylaşılan/yayılmış bir
@@ -106,19 +106,29 @@ dinlenme bölgesi, 6 `not_implemented` ajan için AÇIKÇA soluk/ayrık bir
 `AGENT_PRESENCE_STATE_MODEL.md` §3), asistan avatarı (özel "rapor modu"
 görseli `speaking` durumunda), onay-tepsisi rozeti (bekleyen onay
 sayısı), `requestAnimationFrame` tabanlı basit hareket enterpolasyonu,
-`window.__ops_suite_scene_debug__()` test köprüsü.
+`window.__ops_suite_scene_debug__()` test köprüsü. **T40/B047 (2026-08-14):**
+geometrik daire/baş-harf render'ının yerini yerel (CDN'siz) SVG
+sprite'lar aldı — ajan/asistan/hayalet başına ayırt edilebilir bir ikon,
+varlık eksik/bozuksa MEVCUT geometrik render'a sessizce-boş-bırakmadan
+GERİ DÜŞME garantisiyle. **T42/B049 (2026-08-14):** sahne artık
+tıklanabilir — bir ajana (hayalet raftakiler dahil) veya asistana
+tıklamak, GERÇEK durumunu (state/last_task_id/last_heartbeat_ts/detail)
+gösteren bir detay paneli açar; ajanların KENDİ bir "yetki kapsamı"
+OLMADIĞI panelde açıkça belirtilir (fabrike edilmez); bekleyen bir
+onayla eşleşen `last_task_id` varsa panelde bağlantı/vurgu olur.
 
-**Kapsam dışı (v1'e, bkz. BACKLOG.md B038'in devamı):** çoklu-adımlı
-görev animasyonları (ör. "belge taşınıyor" gibi ara adımlar), gerçek
-sprite/karakter illüstrasyonları (şu an geometrik daire/dikdörtgenler),
-ses efektleri, kullanıcı etkileşimi (sahneye tıklayarak ajan detayı
-açma).
+**Kapsam dışı (v1'e, bkz. BACKLOG.md B048/B050):** çoklu-adımlı görev
+animasyonları (ör. "belge taşınıyor" gibi ara adımlar, B048 — TASARLANMADI),
+ses efektleri (B050 — TASARLANMADI). Sprite varlıkları (B047) ve tıklama
+etkileşimi (B049) artık YUKARIDAKİ "Kapsam (uygulandı)" bölümünde —
+bu listeden çıkarıldı.
 
-**Bilinçli mimari sınırlama:** backend bir sesli komutu BAŞTAN SONA
-senkron işler — bu yüzden bir ajanın `working` (masada aktif çalışıyor)
-görsel durumu GERÇEK ama son derece kısa ömürlüdür, istemci tarafından
-bağımsız olarak GÖZLEMLENEMEZ. Sahne bunu DOĞRU şekilde render eder
-(state değiştiğinde masaya geçer) ama bu geçiş T36'nın testlerinde
-DETERMİNİSTİK olarak doğrulanamadı — yalnızca `offline→idle` ve
-onay-tepsisi geçişleri doğrulandı (fabrike bir "working anı"
-YAKALANMADI, dürüstçe atlandı).
+**Mimari sınırlama (T37/T38 ile ÇÖZÜLDÜ):** backend bir sesli komutu
+BAŞTAN SONA senkron işler, bu yüzden bir ajanın `working` (masada aktif
+çalışıyor) görsel durumu GERÇEK ama son derece kısa ömürlüdür. T36'da
+bu, istemci tarafından bağımsız olarak GÖZLEMLENEMEZ kabul edilmişti.
+T37 (`heartbeat.py::on_change` kancası + `agent.presence` WS yayını) ve
+T38 (Playwright'ın native WS frame API'siyle deterministik doğrulama,
+sleep/polling YOK) bunu tersine çevirdi — `working`→`idle` sırası artık
+hem sahnede GERÇEK ZAMANLI tüketiliyor hem de testte kanıtlanabiliyor,
+bkz. `apps/ops-suite/e2e/tests/scene.spec.js` "geçiş 4 (T38)".

@@ -12,6 +12,7 @@ from ops_suite.approval_queue import ApprovalQueueStore
 from ops_suite.assistant_presence import AssistantPresenceTracker
 from ops_suite.heartbeat import HeartbeatTracker
 from ops_suite.identity import AUTHORITY_OWNER, Identity, IdentityStore
+from ops_suite.presence_store import PresenceStore
 from ops_suite.voice_bridge import VoiceBridge
 
 OWNER_TOKEN = "dummy-owner-token"  # noqa: S105 -- test-only dummy deger, gercek secret DEGIL
@@ -32,6 +33,7 @@ def _client(tmp_path) -> TestClient:
     app = create_app(
         heartbeat_tracker=heartbeat, approval_queue=approval_queue, assistant_presence=assistant_presence,
         voice_bridge=voice_bridge, audit_logger=audit_logger, identity_store=identity_store,
+        presence_store=PresenceStore(tmp_path / "presence.jsonl"),
     )
     return TestClient(app)
 

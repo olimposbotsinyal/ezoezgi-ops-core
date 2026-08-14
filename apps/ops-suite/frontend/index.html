@@ -30,6 +30,21 @@
         Tarayıcınız canvas'ı desteklemiyor -- ajan/asistan durumu için
         yukarıdaki kart tabanlı panellere bakın.
       </canvas>
+      <p class="scene-hint">Bir ajana veya asistana tıklayarak ayrıntıları görüntüleyin.</p>
+      <div id="agent-detail-panel" class="agent-detail-panel" hidden>
+        <button type="button" id="agent-detail-close" class="agent-detail-panel__close" aria-label="Kapat">×</button>
+        <h3 id="agent-detail-name">—</h3>
+        <dl class="agent-detail-panel__fields">
+          <dt>Durum</dt><dd id="agent-detail-state">—</dd>
+          <dt>Güncel görev (request_id)</dt><dd id="agent-detail-task">—</dd>
+          <dt>Son heartbeat</dt><dd id="agent-detail-heartbeat">—</dd>
+          <dt>Detay</dt><dd id="agent-detail-detail">—</dd>
+          <dt>Yetki kapsamı</dt><dd id="agent-detail-scope">—</dd>
+        </dl>
+        <button type="button" id="agent-detail-approval-link" class="agent-detail-panel__approval-link" hidden>
+          İlgili onay kaydını göster →
+        </button>
+      </div>
     </section>
 
     <section class="panel panel--assistant" aria-label="Asistan durumu">

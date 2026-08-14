@@ -29,6 +29,8 @@ from ops_suite.identity import (
     Identity,
     IdentityStore,
 )
+from ops_suite.presence_store import PresenceStore
+from ops_suite.schemas import AgentPresence
 from ops_suite.status_resolver import KNOWN_LIVE_AGENTS, NOT_IMPLEMENTED_AGENTS
 from ops_suite.voice_bridge import VoiceBridge
 
@@ -71,6 +73,7 @@ def _client(tmp_path) -> TestClient:
     app = create_app(
         heartbeat_tracker=heartbeat, approval_queue=approval_queue, assistant_presence=assistant_presence,
         voice_bridge=voice_bridge, audit_logger=audit_logger, identity_store=_identity_store(),
+        presence_store=PresenceStore(tmp_path / "presence.jsonl"),
     )
     return TestClient(app)
 
@@ -201,6 +204,7 @@ def test_delegate_with_low_scope_can_approve_low_risk_entry(tmp_path):
     app = create_app(
         heartbeat_tracker=heartbeat, approval_queue=approval_queue, assistant_presence=assistant_presence,
         voice_bridge=voice_bridge, audit_logger=audit_logger, identity_store=_identity_store(),
+        presence_store=PresenceStore(tmp_path / "presence.jsonl"),
     )
     client = TestClient(app)
 
@@ -223,6 +227,7 @@ def test_delegate_without_matching_scope_returns_403(tmp_path):
     app = create_app(
         heartbeat_tracker=heartbeat, approval_queue=approval_queue, assistant_presence=assistant_presence,
         voice_bridge=voice_bridge, audit_logger=audit_logger, identity_store=_identity_store(),
+        presence_store=PresenceStore(tmp_path / "presence.jsonl"),
     )
     client = TestClient(app)
 
@@ -244,6 +249,7 @@ def test_delegate_without_reject_scope_returns_403(tmp_path):
     app = create_app(
         heartbeat_tracker=heartbeat, approval_queue=approval_queue, assistant_presence=assistant_presence,
         voice_bridge=voice_bridge, audit_logger=audit_logger, identity_store=_identity_store(),
+        presence_store=PresenceStore(tmp_path / "presence.jsonl"),
     )
     client = TestClient(app)
 
@@ -319,3 +325,72 @@ def test_static_css_is_served(tmp_path):
     response = client.get("/css/style.css")
     assert response.status_code == 200
     assert "--accent" in response.text
+
+
+# --- T39 (BACKLOG.md B041) -- restart-sonrasi presence yeniden yukleme ------
+
+
+def test_agent_presence_survives_simulated_restart(tmp_path):
+    """GERCEK "restart" senaryosunu simule eder: 1) ilk `create_app()`
+    ornegi bir sesli komut isler (presence diske YAZILIR), 2) TAMAMEN
+    YENI bir `HeartbeatTracker` (bellek-ici durum SIFIRLANMIS -- gercek
+    bir surec yeniden baslatmasiyla AYNI) + AYNI `presence_store` yolu
+    ile IKINCI bir `create_app()` ornegi kurulur -- `GET /api/agents`
+    ilk ornegin SON bildirdigi durumu (polling'in KENDISI degil,
+    disk-tohumlu baslangic degeri) yansitmali."""
+    presence_path = tmp_path / "presence.jsonl"
+
+    heartbeat_1 = HeartbeatTracker()
+    approval_queue_1 = ApprovalQueueStore(tmp_path / "approval_queue.jsonl")
+    assistant_presence_1 = AssistantPresenceTracker()
+    audit_logger_1 = AuditLogger(tmp_path / "audit.log.jsonl")
+    voice_bridge_1 = VoiceBridge(
+        audit_log_path=tmp_path / "audit.log.jsonl", approval_queue=approval_queue_1,
+        assistant_presence=assistant_presence_1, heartbeat_tracker=heartbeat_1,
+    )
+    app_1 = create_app(
+        heartbeat_tracker=heartbeat_1, approval_queue=approval_queue_1, assistant_presence=assistant_presence_1,
+        voice_bridge=voice_bridge_1, audit_logger=audit_logger_1, identity_store=_identity_store(),
+        presence_store=PresenceStore(presence_path),
+    )
+    client_1 = TestClient(app_1)
+    client_1.post("/api/voice/command", json={"input_tr": "Ezo, echo ile 'merhaba' yaz"})
+    # Ilk ornekte SON durum "idle" (working -> idle, T37) -- bkz. test_ops_suite_ws.py.
+    agents_1 = {a["agent_id"]: a for a in client_1.get("/api/agents").json()}
+    assert agents_1["orchestrator"]["state"] == "idle"
+
+    # "Restart" -- TAMAMEN YENI bir HeartbeatTracker (bellek-ici durum YOK),
+    # ama AYNI presence_store dosya yolu.
+    heartbeat_2 = HeartbeatTracker()
+    app_2 = create_app(
+        heartbeat_tracker=heartbeat_2, identity_store=_identity_store(),
+        presence_store=PresenceStore(presence_path),
+    )
+    client_2 = TestClient(app_2)
+    agents_2 = {a["agent_id"]: a for a in client_2.get("/api/agents").json()}
+    assert agents_2["orchestrator"]["state"] == "idle"
+    assert agents_2["orchestrator"]["detail"] == ""
+
+
+def test_agent_presence_seed_does_not_override_existing_di_tracker_state(tmp_path):
+    """Cakisma cozumu kurali: bir tracker'a DI ile ONCEDEN bir kayit
+    verilmisse (testlerdeki gibi), disk-tohumlama BUNU SESSIZCE UZERINE
+    YAZMAZ."""
+    presence_path = tmp_path / "presence.jsonl"
+    PresenceStore(presence_path).append(
+        AgentPresence(
+            agent_id="orchestrator", display_name="Orchestrator", state="working",
+            last_heartbeat_ts="2026-08-14T00:00:00+00:00",
+        )
+    )
+
+    pre_seeded_tracker = HeartbeatTracker()
+    pre_seeded_tracker.record("orchestrator", declared_state="blocked", display_name="Orchestrator")
+
+    app = create_app(
+        heartbeat_tracker=pre_seeded_tracker, identity_store=_identity_store(),
+        presence_store=PresenceStore(presence_path),
+    )
+    client = TestClient(app)
+    agents = {a["agent_id"]: a for a in client.get("/api/agents").json()}
+    assert agents["orchestrator"]["state"] == "blocked"  # disktaki "working" DEGIL

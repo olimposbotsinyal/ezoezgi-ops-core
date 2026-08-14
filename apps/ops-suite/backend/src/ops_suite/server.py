@@ -10,14 +10,15 @@ gerektiginde (ornegin `scripts/ops_suite_demo.py`'nin gecici/demo-amacli
 owner+delegate kimlikleriyle GERCEK bearer-token akisini uctan uca
 kanitlamasi icin) -- bkz. BACKLOG.md B044.
 
-`OPS_SUITE_DATA_DIR` (opsiyonel) -- verilirse `data/approvals/`/`data/audit/`
-YERINE `{OPS_SUITE_DATA_DIR}/approvals/`/`{OPS_SUITE_DATA_DIR}/audit/`
+`OPS_SUITE_DATA_DIR` (opsiyonel) -- verilirse `data/approvals/`/`data/audit/`/
+`data/presence/` YERINE `{OPS_SUITE_DATA_DIR}/approvals|audit|presence/`
 kullanilir. GERCEK bir uvicorn sureci baslatan ama izole olmayan
 tuketiciler (ornegin `apps/ops-suite/e2e/`'nin Playwright testleri)
 BUNU KULLANMALIDIR -- aksi halde her test kosusu, projenin GERCEK
-`data/approvals/approval_queue.jsonl` dosyasina kalici SUBMITTED
-kayitlari biriktirir (bkz. PLAN.md T36 -- bu, gercek bir E2E kosusunda
-GERCEKTEN kesfedilen bir hataydi, sessizce atlanmadi)."""
+`data/approvals/approval_queue.jsonl`/`data/presence/agent_presence.jsonl`
+dosyalarina kalici kayitlar biriktirir (bkz. PLAN.md T36/T39 -- bu,
+gercek bir E2E kosusunda GERCEKTEN kesfedilen bir hataydi, sessizce
+atlanmadi)."""
 
 from __future__ import annotations
 
@@ -32,6 +33,7 @@ from ops_suite.approval_queue import ApprovalQueueStore
 from ops_suite.assistant_presence import AssistantPresenceTracker
 from ops_suite.heartbeat import HeartbeatTracker
 from ops_suite.identity import DEFAULT_IDENTITY_CONFIG_PATH, IdentityStore
+from ops_suite.presence_store import PresenceStore
 from ops_suite.voice_bridge import VoiceBridge
 
 DEFAULT_HOST = "127.0.0.1"
@@ -45,10 +47,12 @@ if _data_dir_override:
     _data_dir = Path(_data_dir_override)
     _approval_queue_path = _data_dir / "approvals" / "approval_queue.jsonl"
     _audit_log_path = _data_dir / "audit" / "audit.log.jsonl"
+    _presence_log_path = _data_dir / "presence" / "agent_presence.jsonl"
     _heartbeat_tracker = HeartbeatTracker()
     _assistant_presence = AssistantPresenceTracker()
     _approval_queue = ApprovalQueueStore(_approval_queue_path)
     _audit_logger = AuditLogger(_audit_log_path)
+    _presence_store = PresenceStore(_presence_log_path)
     _voice_bridge = VoiceBridge(
         audit_log_path=_audit_log_path, approval_queue=_approval_queue,
         assistant_presence=_assistant_presence, heartbeat_tracker=_heartbeat_tracker,
@@ -56,7 +60,7 @@ if _data_dir_override:
     app = create_app(
         identity_store=_identity_store, heartbeat_tracker=_heartbeat_tracker,
         approval_queue=_approval_queue, assistant_presence=_assistant_presence,
-        voice_bridge=_voice_bridge, audit_logger=_audit_logger,
+        voice_bridge=_voice_bridge, audit_logger=_audit_logger, presence_store=_presence_store,
     )
 else:
     app = create_app(identity_store=_identity_store)
