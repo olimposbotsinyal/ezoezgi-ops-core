@@ -915,16 +915,97 @@
     henüz yok"). Sonraki güvenlik-derinleştirme checkpoint'inin ilk
     adayı.
   - Bağımlılık: B044 (owner-root-guard, `identity.py`).
+  - **Not (2026-08-14):** tasarım/uygulama **T50**'ye taşındı (aşağıya
+    bkz.) — bu satır yalnızca tarihsel izlenebilirlik için KORUNDU.
 
 - [ ] **T48. Auth-hassas uç noktalarda rate limiting — yalnızca kayıt (BACKLOG.md B052)**
   - Kapsam: TASARLANMADI/UYGULANMADI — yalnızca KAYDEDİLDİ.
   - Bağımlılık: B044.
+  - **Not (2026-08-14):** tasarım/uygulama **T51**'e taşındı.
 
 - [ ] **T49. Auth karar gözlemlenebilirlik alanları incelemesi — yalnızca kayıt (BACKLOG.md B053)**
   - Kapsam: YAPILMADI — yalnızca KAYDEDİLDİ. B051/B052 tamamlandıktan
     SONRA anlamlı bir envanter çıkarılabilir (yeni red kod yolları
     doğana kadar mevcut envanter EKSİK sayılır).
   - Bağımlılık: B044, B051, B052.
+  - **Not (2026-08-14):** tasarım/uygulama **T52**'ye taşındı.
+
+## Güvenlik Sertleştirme Sprint-1 (T50-T52, BACKLOG.md B051-B053)
+
+> B044'ün (owner-root-guard) derinleştirilmesi — token rotasyonu/iptali,
+> hız sınırlama, standardize audit alanları. Büyük bir refactor DEĞİL —
+> her biri `identity.py`/`app.py`'ye minimal-ama-gerçek bir ek (yeni
+> modüller + mevcut auth akışına DAR entegrasyon noktaları).
+
+- [ ] **T50. Token rotasyonu/iptali mekanizması (BACKLOG.md B051, SECURITY)**
+  - Amaç: bir token'ı sahibi-only bir API ile iptal edebilmek/yenisiyle
+    değiştirebilmek — sunucu yeniden başlasa BİLE (env değişkeni HALA
+    eski değeri taşısa bile) eski token GEÇERSİZ kalmalı.
+  - Teknik çıktı: `identity.py`'ye `hash_token()` (SHA-256, GERİ
+    DÖNDÜRÜLEMEZ), `TokenRevocationStore` (JSONL append-only, YALNIZCA
+    hash yazılır — ADR-009/016/022 ile AYNI desen), `IdentityStore.rotate_token()`/
+    `revoke_actor()`, `IdentityStore.authenticate()`'in iptal listesini
+    kontrol etmesi; `app.py`'ye `POST /api/identity/{actor_id}/rotate`\|`revoke`
+    (owner-only guard); `server.py`'nin `OPS_SUITE_DATA_DIR` izolasyonuna
+    `data/identity/token_revocations.jsonl` dahil edilmesi (T35/T39/T44
+    ile AYNI veri-kirlenmesi hatasını BAŞTAN önlemek için).
+  - Kabul kriteri: mutlu yol (owner kendi/bir delegate'in token'ını
+    rotate/revoke edebilir, yeni token ÇALIŞIR) + iptal edilen token'ın
+    SONRAKİ bir `authenticate()` çağrısında GERÇEKTEN reddedildiği
+    (`AuthenticationError`, `reason_code=AUTH_TOKEN_REVOKED`) pytest ile
+    kanıtlanmalı; ham token DEĞERİ hiçbir diske yazılan dosyada
+    GÖRÜNMEMELİ (yalnızca hash).
+  - Kanıt gereksinimi: `tests/test_ops_suite_identity.py`'ye yeni testler
+    ile birlikte `reports/security_hardening_<UTC>/` içinde rotate/revoke
+    akışının gerçek bir `TestClient` isteğiyle çalıştığının kaydı.
+
+- [ ] **T51. Auth-hassas uç noktalarda hız sınırlama (BACKLOG.md B052, SECURITY)**
+  - Amaç: onay/red + T50'nin rotate/revoke uç noktalarında, kimlik
+    doğrulanmış actor+eylem-kategorisi başına bir istek-sıklığı sınırı.
+  - Teknik çıktı: yeni `rate_limiter.py` — `RateLimiter` (sabit-pencere,
+    `HeartbeatTracker` ile AYNI enjekte-edilebilir `clock` deseni,
+    bellek-içi, kalıcılık YOK — kalıcılığa gerek yok, restart zaten
+    pencereyi doğal olarak sıfırlar) + `RateLimitExceededError`;
+    `app.py`'ye `_check_rate_limit()` yardımcı fonksiyonu, onay/red +
+    rotate/revoke uç noktalarına entegre.
+  - Kabul kriteri: sınır AŞILMADIĞINDA normal davranış DEĞİŞMEZ (mevcut
+    testler BOZULMAZ — varsayılan eşik cömert, ör. 20/60sn); sınır
+    AŞILDIĞINDA yapılandırılmış bir 429 (`detail.reason_code="RATE_LIMITED"`,
+    `detail.retry_after_seconds`) döner; test SAHTE bir saat (`clock`
+    parametresi) ile deterministik — GERÇEK `sleep()` YOK.
+  - Kanıt gereksinimi: `tests/test_ops_suite_rate_limiter.py` (yeni,
+    birim) + `tests/test_ops_suite_api.py`'ye entegrasyon testi (düşük
+    eşikli bir `RateLimiter` enjekte edilerek 429'un GERÇEKTEN
+    tetiklendiği kanıtlanır).
+
+- [ ] **T52. Auth karar audit alanlarının standardizasyonu (BACKLOG.md B053, SECURITY)**
+  - Amaç: `actor`/`scope`/`decision`/`reason_code` alanlarının (mevcut
+    `request_id`/`timestamp` üst-seviye alanlarıyla birlikte) HER auth
+    kararında (başarı/401/403/429) TUTARLI şekilde loglanması —
+    ÖNCEDEN yalnızca BAŞARILI onay/red kararları audit'e yazılıyordu,
+    401/403/429 HİÇ loglanmıyordu (gerçek, sessiz bir gözlemlenebilirlik
+    boşluğu).
+  - Teknik çıktı: yeni `auth_audit.py` — `build_auth_decision_details()`
+    (ADDITIVE: mevcut `actor_id`/`authority_source`/`decision_scope`
+    alanlarını DEĞİŞTİRMEZ/SİLMEZ — B044'ün mevcut testlerini BOZMAMAK
+    için — yalnızca `details.auth_decision` altında yeni, standardize
+    alanları EKLER); `identity.py`'deki `AuthenticationError`/
+    `AuthorizationError`'a `reason_code` alanı eklenmesi (`AUTH_MISSING_TOKEN`/
+    `AUTH_INVALID_TOKEN`/`AUTH_TOKEN_REVOKED`/`AUTHZ_INSUFFICIENT_SCOPE`/
+    `AUTHZ_OWNER_ONLY`/`RATE_LIMITED`); `app.py`'nin TÜM auth-karar
+    noktalarının (`_get_current_identity` 401'i DAHİL, ÖNCEDEN
+    loglanmıyordu) bu yardımcıyı çağırması.
+  - **Dürüstlük sınırı:** hassas veri (ham token DEĞERİ) hiçbir audit
+    kaydında ASLA yer almaz — yalnızca `actor_id` (zaten kamuya açık bir
+    tanımlayıcı, sır DEĞİL) ve token'ın GERİ DÖNDÜRÜLEMEZ hash'i (T50'nin
+    iptal listesinde, audit logunda DEĞİL) yazılır.
+  - Kabul kriteri: 401 (eksik/geçersiz/iptal-edilmiş token), 403
+    (yetersiz kapsam/owner-only), 429 (hız sınırı), BAŞARILI karar — 4
+    senaryonun DÖRDÜNDE de `details.auth_decision.{actor,scope,decision,reason_code}`
+    dolu olduğu test edilmeli; mevcut B044 testleri (`actor_id`/
+    `authority_source`/`decision_scope` alanları) BOZULMAMALI.
+  - Kanıt gereksinimi: `tests/test_ops_suite_api.py`'ye 4 senaryoyu da
+    kapsayan yeni testler.
 
 ---
 
@@ -1428,3 +1509,17 @@ doğrulandı (uydurulmadı):
   (değişen dosyalar, test özeti, GO/NO-GO). T47/T48/T49 (güvenlik
   sertleştirme hazırlığı) yalnızca KAYITLI kalıyor, bu checkpoint'te
   UYGULANMADI (kullanıcı talebi).
+
+### 2026-08-14 (devam 6) — Güvenlik Sertleştirme Sprint-1 planlaması (T50-T52)
+
+- **Yapılanlar:** T47/T48/T49'un ("yalnızca kayıt" placeholder) yerini
+  T50 (B051 token rotasyonu/iptali), T51 (B052 hız sınırlama), T52
+  (B053 audit alan standardizasyonu) aldı — üçü de "Güvenlik
+  Sertleştirme Sprint-1" bölümünde somut kabul kriterleri + kanıt
+  gereksinimleriyle tanımlandı. `docs/BACKLOG.md`'de B051/B052/B053
+  durumu "Açık (yalnızca kayıt)" → **"Devam Ediyor"**'a güncellendi,
+  öncelikleri B051/B052 için "Yüksek (SECURITY)"'e yükseltildi (B053
+  "Orta" kaldı — gözlemlenebilirlik incelemesi, doğrudan bir erişim
+  kontrolü DEĞİL).
+- **Sorunlar:** Yok.
+- **Sonraki adım:** T50 (B051) uygulaması.
