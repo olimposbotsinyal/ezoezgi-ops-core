@@ -39,6 +39,7 @@ from ops_suite.events import TOPIC_AGENT_PRESENCE, TOPIC_APPROVAL_QUEUE, TOPIC_A
 from ops_suite.identity import (
     AUTH_METHOD_BEARER,
     AUTHORITY_OWNER,
+    REASON_CODE_RATE_LIMITED,
     AuthenticationError,
     AuthorizationError,
     Identity,
@@ -47,6 +48,7 @@ from ops_suite.identity import (
     authorize_decision,
 )
 from ops_suite.presence_store import PresenceStore
+from ops_suite.rate_limiter import RateLimitExceededError, RateLimiter
 
 # apps/ops-suite/backend/src/ops_suite/app.py -> apps/ops-suite/frontend
 FRONTEND_DIR = Path(__file__).resolve().parents[3] / "frontend"
@@ -107,6 +109,7 @@ def create_app(
     audit_logger: AuditLogger | None = None,
     identity_store: IdentityStore | None = None,
     presence_store: PresenceStore | None = None,
+    rate_limiter: RateLimiter | None = None,
 ) -> FastAPI:
     heartbeat_tracker = heartbeat_tracker or HeartbeatTracker()
     presence_store = presence_store or PresenceStore()
@@ -122,6 +125,12 @@ def create_app(
     )
     connection_manager = connection_manager or ConnectionManager()
     identity_store = identity_store or IdentityStore.from_config_path()
+    # B052 (BACKLOG.md B052, PLAN.md T51, SECURITY) -- varsayilan esik
+    # COMERTTIR (20 istek/60sn) -- mevcut testlerin AYNI actor ile 1-2
+    # ardisik cagri yaptigi senaryolari BOZMAMAK icin (bkz. PLAN.md T51
+    # notu); dusuk-esikli bir limiter yalnizca 429 davranisini test eden
+    # senaryolarda ACIKCA enjekte edilir.
+    rate_limiter = rate_limiter or RateLimiter()
 
     app = FastAPI(title="EzoEzgi Ops Suite", version="0.1.0")
 
@@ -137,6 +146,24 @@ def create_app(
     app.state.audit_logger = audit_logger
     app.state.identity_store = identity_store
     app.state.presence_store = presence_store
+    app.state.rate_limiter = rate_limiter
+
+    def _check_rate_limit(identity: Identity, *, category: str) -> None:
+        """B052 -- `identity.actor_id` + `category` basina hiz sinirini
+        kontrol eder. Kategoriler AYRI sayaclar kullanir (`f"{actor_id}:{category}"`)
+        boylece ornegin bir dizi onay/red islemi, ayni actor'un rotate/revoke
+        gibi kimlik-yonetimi eylemlerini YANLISLIKLA KILITLEMEZ."""
+        try:
+            rate_limiter.check(f"{identity.actor_id}:{category}")
+        except RateLimitExceededError as exc:
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "reason_code": REASON_CODE_RATE_LIMITED,
+                    "message": f"'{category}' icin istek sikligi siniri asildi",
+                    "retry_after_seconds": round(exc.retry_after_seconds, 1),
+                },
+            ) from exc
 
     def _get_current_identity(credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme)) -> Identity:
         token = credentials.credentials if credentials is not None else None
@@ -186,6 +213,7 @@ def create_app(
         bu yanitta, TEK SEFERLIK gorunur -- hicbir yerde duz metin olarak
         KALICI hale getirilmez (bkz. `identity.py::IdentityStore.rotate_token`)."""
         _require_owner(identity, action="rotate")
+        _check_rate_limit(identity, category="identity_admin")
         try:
             new_token = identity_store.rotate_token(actor_id, revoked_by=identity.actor_id)
         except UnknownActorError as exc:
@@ -197,6 +225,7 @@ def create_app(
         """B051 -- `actor_id`'nin GUNCEL token'ini KALICI olarak iptal
         eder, YENI bir token URETMEZ (acil erisim-kesme senaryosu)."""
         _require_owner(identity, action="revoke")
+        _check_rate_limit(identity, category="identity_admin")
         try:
             identity_store.revoke_actor(actor_id, revoked_by=identity.actor_id)
         except UnknownActorError as exc:
@@ -204,6 +233,7 @@ def create_app(
         return {"actor_id": actor_id, "revoked": True}
 
     async def _decide_and_broadcast(request_id: str, decision: str, body: ApprovalDecisionRequest, identity: Identity) -> dict[str, Any]:
+        _check_rate_limit(identity, category="approval_decision")
         pending_entry = approval_queue.get_pending_entry(request_id)
         risk_level = pending_entry.risk_level if pending_entry is not None else None
 

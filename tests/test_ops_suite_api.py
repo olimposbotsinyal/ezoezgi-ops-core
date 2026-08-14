@@ -30,6 +30,7 @@ from ops_suite.identity import (
     IdentityStore,
 )
 from ops_suite.presence_store import PresenceStore
+from ops_suite.rate_limiter import RateLimiter
 from ops_suite.schemas import AgentPresence
 from ops_suite.status_resolver import KNOWN_LIVE_AGENTS, NOT_IMPLEMENTED_AGENTS
 from ops_suite.voice_bridge import VoiceBridge
@@ -61,7 +62,7 @@ def _auth(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
-def _client(tmp_path) -> TestClient:
+def _client(tmp_path, *, rate_limiter=None) -> TestClient:
     heartbeat = HeartbeatTracker()
     approval_queue = ApprovalQueueStore(tmp_path / "approval_queue.jsonl")
     assistant_presence = AssistantPresenceTracker()
@@ -74,6 +75,7 @@ def _client(tmp_path) -> TestClient:
         heartbeat_tracker=heartbeat, approval_queue=approval_queue, assistant_presence=assistant_presence,
         voice_bridge=voice_bridge, audit_logger=audit_logger, identity_store=_identity_store(),
         presence_store=PresenceStore(tmp_path / "presence.jsonl"),
+        rate_limiter=rate_limiter,
     )
     return TestClient(app)
 
@@ -458,6 +460,96 @@ def test_revoke_endpoint_unknown_actor_returns_404(tmp_path):
     client = _client(tmp_path)
     response = client.post("/api/identity/does-not-exist/revoke", headers=_auth(OWNER_TOKEN))
     assert response.status_code == 404
+
+
+# --- B052 (BACKLOG.md B052, PLAN.md T51): rate limiting --------------------
+
+
+def test_approval_decision_rate_limit_returns_structured_429(tmp_path):
+    """Dusuk esikli (1 istek/pencere) bir RateLimiter enjekte edilerek,
+    GERCEK bir 2. onay/red isteginin 429 ile REDDEDILDIGI kanitlanir --
+    sahte saat GEREKMEZ (pencere ASILMIYOR, sinir zaten 1 -- 2. istek
+    HER ZAMAN asar)."""
+    client = _client(tmp_path, rate_limiter=RateLimiter(max_requests=1, window_seconds=60.0))
+    req1 = client.post("/api/voice/command", json={"input_tr": "Ezo, tüm dosyaları sil"}).json()["request_id"]
+    req2 = client.post("/api/voice/command", json={"input_tr": "Ezo, tüm dosyaları sil"}).json()["request_id"]
+
+    first = client.post(f"/api/approvals/{req1}/approve", json={}, headers=_auth(OWNER_TOKEN))
+    assert first.status_code == 200
+
+    second = client.post(f"/api/approvals/{req2}/approve", json={}, headers=_auth(OWNER_TOKEN))
+    assert second.status_code == 429
+    body = second.json()["detail"]
+    assert body["reason_code"] == "RATE_LIMITED"
+    assert body["retry_after_seconds"] > 0
+
+    # Rate-limited istek GERCEKTEN hicbir yan etki YARATMAMIS olmali --
+    # req2 hala kuyrukta bekliyor olmali (approve EDILMEDI).
+    assert any(a["request_id"] == req2 for a in client.get("/api/approvals").json())
+
+
+def test_identity_admin_rate_limit_returns_structured_429(tmp_path):
+    client = _client(tmp_path, rate_limiter=RateLimiter(max_requests=1, window_seconds=60.0))
+    first = client.post("/api/identity/delegate_low/rotate", headers=_auth(OWNER_TOKEN))
+    assert first.status_code == 200
+
+    second = client.post("/api/identity/delegate_full/rotate", headers=_auth(OWNER_TOKEN))
+    assert second.status_code == 429
+    assert second.json()["detail"]["reason_code"] == "RATE_LIMITED"
+
+
+def test_rate_limit_categories_are_independent(tmp_path):
+    """Onay/red kategorisinde sinira ULASMIS bir actor, KENDI
+    kimlik-yonetimi (identity_admin) kategorisinde HALA izinli olmali --
+    ayri sayaclar (bkz. app.py `_check_rate_limit` kategorileri)."""
+    client = _client(tmp_path, rate_limiter=RateLimiter(max_requests=1, window_seconds=60.0))
+    req_id = client.post("/api/voice/command", json={"input_tr": "Ezo, tüm dosyaları sil"}).json()["request_id"]
+    assert client.post(f"/api/approvals/{req_id}/approve", json={}, headers=_auth(OWNER_TOKEN)).status_code == 200
+
+    # AYNI actor (owner), FARKLI kategori -- HALA izinli.
+    rotate_response = client.post("/api/identity/delegate_low/rotate", headers=_auth(OWNER_TOKEN))
+    assert rotate_response.status_code == 200
+
+
+def test_rate_limit_is_per_actor_not_global(tmp_path):
+    """Bir actor'un sinira ulasmasi, BASKA bir actor'u ETKILEMEMELI."""
+    heartbeat = HeartbeatTracker()
+    approval_queue = ApprovalQueueStore(tmp_path / "approval_queue.jsonl")
+    assistant_presence = AssistantPresenceTracker()
+    audit_logger = AuditLogger(tmp_path / "audit.log.jsonl")
+    voice_bridge = VoiceBridge(
+        audit_log_path=tmp_path / "audit.log.jsonl", approval_queue=approval_queue,
+        assistant_presence=assistant_presence, heartbeat_tracker=heartbeat,
+    )
+    app = create_app(
+        heartbeat_tracker=heartbeat, approval_queue=approval_queue, assistant_presence=assistant_presence,
+        voice_bridge=voice_bridge, audit_logger=audit_logger, identity_store=_identity_store(),
+        presence_store=PresenceStore(tmp_path / "presence.jsonl"),
+        rate_limiter=RateLimiter(max_requests=1, window_seconds=60.0),
+    )
+    client = TestClient(app)
+
+    req1 = client.post("/api/voice/command", json={"input_tr": "Ezo, tüm dosyaları sil"}).json()["request_id"]
+    assert client.post(f"/api/approvals/{req1}/approve", json={}, headers=_auth(OWNER_TOKEN)).status_code == 200
+
+    # DELEGATE_LOW_TOKEN (delegate_low) HENUZ bu kategoride hic istek
+    # yapmadi -- KENDI (ayri) sayacinda hala izinli olmali. Dusuk-riskli
+    # bir kayit DOGRUDAN kuyruga submit edilir (irreversible sahibi-only
+    # oldugu icin bir delegate ile GERCEKCI bir onay senaryosu kurmak icin,
+    # `test_delegate_with_low_scope_can_approve_low_risk_entry` ile AYNI desen).
+    approval_queue.submit(request_id="low-r1", alias="ezo", task="SHOW_DAILY_SPENDING", risk_level="low", original_tr="harcama")
+    response = client.post("/api/approvals/low-r1/approve", json={}, headers=_auth(DELEGATE_LOW_TOKEN))
+    assert response.status_code == 200
+
+
+def test_default_rate_limit_does_not_interfere_with_normal_usage(tmp_path):
+    """Varsayilan (enjekte edilmemis) RateLimiter cok comert -- 5 ardisik
+    farkli-gorev onaylamasi (ayni actor) 429 TETIKLEMEMELI."""
+    client = _client(tmp_path)
+    for _ in range(5):
+        req_id = client.post("/api/voice/command", json={"input_tr": "Ezo, tüm dosyaları sil"}).json()["request_id"]
+        response = client.post(f"/api/approvals/{req_id}/approve", json={}, headers=_auth(OWNER_TOKEN))
+        assert response.status_code == 200
 
 
 def test_rotate_endpoint_owner_can_rotate_own_token(tmp_path):
