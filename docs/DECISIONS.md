@@ -401,6 +401,46 @@
   modül, mevcut `app.js`'i BOZMADAN) altında, mevcut `AgentPresence`
   şemasını (`schemas.py`) tüketerek inşa edilmeli.
 
+## ADR-021
+- **Tarih:** 2026-08-14
+- **Karar:** Ops Suite için GERÇEK tarayıcı E2E test altyapısı
+  (**Playwright**, `@playwright/test`) eklendi — `apps/ops-suite/e2e/`
+  altında, repo'nun İLK `package.json`'ı. Bu, **yalnızca test-zamanlı
+  tooling'dir** — ADR-018'in "sunulan frontend uygulaması npm/bundler
+  KULLANMAZ" kararını DEĞİŞTİRMEZ (`apps/ops-suite/frontend/` hâlâ saf
+  HTML/CSS/vanilla-JS, hiçbir build adımı YOK).
+- **Gerekçe:** BACKLOG.md B039, bu ortamda "tarayıcı-otomasyon aracı
+  YOK" diye tekrar tekrar NOT_COLLECTED işaretlenmişti (T26, T27
+  notları). Bu oturumda GERÇEKTEN denendi: `npx playwright install
+  chromium` ile ~306MB'lık gerçek bir Chrome for Testing ikili dosyası
+  indirilip çalıştırıldı, `chromium.launch()` + gerçek DOM render +
+  gerçek bir sayfaya `page.goto()` GERÇEKTEN başarılı oldu (bkz.
+  `apps/ops-suite/e2e/tests/smoke.spec.js`, 2/2 PASS). Bu, önceki
+  NOT_COLLECTED varsayımını **bu ortam için** tersine çeviren, doğrudan
+  gözlemlenmiş bir kanıttır — fabrike edilmedi, gerçekten çalıştırıldı.
+- **Kapsam notu (önemli):** bu, "her ortamda/CI'da her zaman tarayıcı
+  otomasyonu mevcuttur" ANLAMINA GELMEZ — yalnızca BU oturumun/makinenin
+  bu anda gerçek bir Chromium indirip çalıştırabildiğini kanıtlar.
+  Gelecekteki bir CI/farklı ortam kurulumunda aynı adımın (`npm install`
+  + `npx playwright install chromium`) tekrar doğrulanması gerekir.
+- **Alternatif:** Puppeteer (reddedildi — Playwright'ın
+  `@playwright/test` runner'ı, `globalSetup`/`globalTeardown` ve
+  otomatik retry/trace desteğiyle daha az elle-yazılmış altyapı
+  gerektiriyor); Cypress (reddedildi — gerçek bir alt-süreç sunucusuna
+  karşı çalışmak Playwright kadar doğal değil, bu deponun "gerçek
+  subprocess'e karşı test et" desenine — bkz. `scripts/ops_suite_demo.py`
+  — Playwright daha yakın).
+- **Sonuç:** Kabul edildi. `apps/ops-suite/e2e/global-setup.js`, gerçek
+  `python -m ops_suite.server` alt-sürecini başlatır (PYTHONPATH,
+  `scripts/ops_suite_demo.py::_subprocess_env()` ile AYNI listeyle elle
+  senkron tutulur), testler bittikten sonra GERÇEKTEN sonlandırır.
+  `tests/smoke.spec.js` (2 senaryo): kök sayfa + ajan kartı render'ı +
+  gerçek WS bağlantısı; sesli komut gönderimi → onay kuyruğu DOM
+  güncellemesi. Çalıştırma: `docs/RUNBOOK.md` "Ops Suite — Gerçek
+  Tarayıcı E2E (B039)". `node_modules/`/`test-results/`/`playwright-report/`
+  `.gitignore`'da; `package.json`/`package-lock.json`/config/test dosyaları
+  normal izlenir.
+
 ---
 
-*Yeni ADR eklerken yukarıdaki formatı koru ve numarayı sırayla artır (ADR-021, ...).*
+*Yeni ADR eklerken yukarıdaki formatı koru ve numarayı sırayla artır (ADR-022, ...).*

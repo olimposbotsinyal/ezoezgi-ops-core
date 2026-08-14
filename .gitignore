@@ -95,6 +95,14 @@ reports/promotion_drill_*/
 # durumlarda `git add -f` ile arsivlenir.
 reports/ops_suite_demo_*/
 
+# Ops Suite gercek-tarayici E2E test tooling (BACKLOG.md B039, PLAN.md
+# T29, docs/DECISIONS.md ADR-021) -- `package.json`/`playwright.config.js`/
+# `global-setup.js`/`tests/` NORMAL sekilde izlenir (kod); yalnizca
+# npm'in kendi ciktilari (node_modules, kilit-disi kurulum artefaktlari,
+# test kosusu raporlari) yok sayilir -- rutin/tekrar-uretilebilir.
+apps/ops-suite/e2e/test-results/
+apps/ops-suite/e2e/playwright-report/
+
 # NOT: reports/weekly_observability_<YYYY-WW>/ KASITLI olarak burada
 # YOK -- bu, "Post-GO weekly ritual"in kalici governance gunlugudur
 # (her hafta EKLENIR, uzerine yazilmaz), diger raporlar gibi rutin/

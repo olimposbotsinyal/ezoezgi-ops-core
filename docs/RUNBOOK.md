@@ -1124,11 +1124,33 @@ curl -X POST http://127.0.0.1:8420/api/approvals/<request_id>/approve `
 ./.venv/Scripts/python.exe -m pytest   # tam repo regresyonu
 ```
 
+**Ops Suite — Gerçek Tarayıcı E2E (B039, ADR-021):**
+
+`apps/ops-suite/e2e/`'de gerçek bir Playwright altyapısı var — gerçek bir
+Chromium indirir/başlatır, gerçek bir `python -m ops_suite.server`
+alt-sürecine karşı, gerçek DOM/fetch/WebSocket davranışını doğrular
+(`node --check`'in ÖTESİNDE — bu, yalnızca sözdizimi kontrolüydü).
+
+```powershell
+cd apps/ops-suite/e2e
+npm install                    # ilk kez: @playwright/test kurar
+npx playwright install chromium  # ilk kez: gerçek tarayıcı ikilisini indirir (~300MB)
+npx playwright test            # gerçek E2E kosusu (varsayılan port 8421)
+cd ../../..
+```
+
+Sonuçlar `apps/ops-suite/e2e/test-results/results.json`'a yazılır
+(gitignored — rutin/tekrar-üretilebilir, `reports/ops_suite_demo_*/`
+ile aynı gerekçe). **Bu ortamda 2026-08-14'te GERÇEKTEN çalıştırıldı —
+2/2 PASS** (bkz. `docs/PLAN.md` T29 Daily Log notu).
+
 **Bilinçli olarak toplanamayan kanıt (NOT_COLLECTED, `scripts/ops_suite_demo.py`
 çıktısında da görünür):**
 
-- Gerçek tarayıcı render'ı/etkileşimi — bu ortamda tarayıcı-otomasyon
-  aracı yok (bkz. `docs/BACKLOG.md` B039).
+- Gerçek tarayıcı render'ı/etkileşimi — 2026-08-14'te ARTIK KISMEN
+  TOPLANDI (yukarıdaki Playwright altyapısı, bkz. B039/ADR-021) —
+  yalnızca B038'in (henüz yapılmamış) animasyonlu sahnesinin görsel
+  regresyonu hâlâ toplanamıyor.
 - Gerçek mikrofon/hoparlör/TTS sesi — ses donanımı yok (B040).
 - Gerçek GSM/SIM çağrı akışı — modem yok, `services/gsm-gateway` boş (B040/B043).
 - Gerçek kamera/gesture girdisi — kamera donanımı yok, `services/gesture-vision` boş (B040).
@@ -1143,6 +1165,8 @@ curl -X POST http://127.0.0.1:8420/api/approvals/<request_id>/approve `
 | WS bağlantısı hemen kapanıyor/hiç açılmıyor | `fastapi`/`uvicorn`/`websockets` kurulu değil | `pip install --group ops-suite` çalıştırıldı mı kontrol et |
 | `POST /api/approvals/{id}/approve` → **401** | `Authorization: Bearer <token>` header YOK/geçersiz VEYA `OPS_SUITE_OWNER_TOKEN` hiç set edilmemiş | Yukarıdaki "Kimlik doğrulama (B044)" bölümü |
 | `POST /api/approvals/{id}/approve` → **403** | Token GEÇERLİ ama kapsam/yetki yetersiz (BEKLENEN davranış — ör. delegate `irreversible` onaylamaya çalıştı) | `docs/IDENTITY_AND_DELEGATION_POLICY.md` §4 owner-root-guard; hata mesajı hangi kapsamın eksik olduğunu söyler |
+| `npx playwright test` → `browserType.launch: Executable doesn't exist` | `npx playwright install chromium` hiç çalıştırılmamış | Yukarıdaki "Gerçek Tarayıcı E2E" bölümü |
+| `npx playwright test` → sunucu 15s içinde ayağa kalkmadı hatası | Port 8421 zaten kullanımda VEYA `.venv` kurulu değil | `apps/ops-suite/e2e/global-setup.js`, `OPS_SUITE_E2E_PORT` ile port değiştirilebilir |
 
 ## Sorun Giderme (Genel)
 

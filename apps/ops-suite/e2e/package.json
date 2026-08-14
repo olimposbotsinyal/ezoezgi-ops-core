@@ -1,0 +1,12 @@
+{
+  "name": "ops-suite-e2e",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Ops Suite icin gercek tarayici E2E duman (smoke) testleri (BACKLOG.md B039, PLAN.md T29). BU, apps/ops-suite/frontend'in SUNULAN UYGULAMA kodu icin bir bagimlilik DEGILDIR (ADR-018 saf HTML/CSS/vanilla-JS kararini DEGISTIRMEZ) -- yalnizca test-zamanli tooling, bkz. docs/DECISIONS.md ADR-021.",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.47.0"
+  }
+}

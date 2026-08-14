@@ -402,6 +402,35 @@
     edilebilirlik/performans/bakım kriterleriyle karşılaştırıldı,
     Vanilla JS + Canvas2D seçildi. BACKLOG.md B042 → **Kapalı**.
 
+- [x] **T30. B039 — Ops Suite gerçek tarayıcı E2E hazırlığı (B038 ön koşulu)**
+  - Amaç: Önceki checkpoint'in NO-GO gerekçesindeki "tarayıcı-otomasyon
+    aracı YOK" varsayımını GERÇEKTEN test etmek (varsaymak değil).
+  - Teknik çıktı: `apps/ops-suite/e2e/` (yeni — `package.json`,
+    `playwright.config.js`, `global-setup.js`, `tests/smoke.spec.js`),
+    `docs/DECISIONS.md` ADR-021 (npm'in yalnızca test-tooling kapsamı,
+    ADR-018'i YENİDEN AÇMAZ).
+  - Kabul kriteri: Gerçek bir Chromium indirilip GERÇEKTEN çalıştırılabiliyor
+    mu (varsayım değil, kanıt) VE en az 1 gerçek tarayıcı E2E testi PASS
+    ediyor mu.
+  - **Not (2026-08-14) — resmen kapatıldı:** `npx playwright install
+    chromium` GERÇEKTEN denendi — ~306MB gerçek bir Chrome for Testing
+    ikili dosyası indirildi (`C:\Users\...\AppData\Local\ms-playwright\`),
+    `chromium.launch()` + gerçek DOM render doğrulandı (önce izole bir
+    scratchpad probe'unda, sonra gerçek `apps/ops-suite/e2e/`'de).
+    `npx playwright test` → **2/2 PASS**: (1) kök sayfa yükleniyor, ≥9
+    ajan kartı GERÇEK fetch+render ile DOM'da görünüyor, WS bağlantısı
+    GERÇEKTEN açılıyor; (2) sesli komut formu üzerinden gönderilen
+    irreversible komut, onay kuyruğu panelini GERÇEK bir tarayıcıda
+    güncelliyor. Bu, önceki 3 checkpoint boyunca tekrarlanan
+    "tarayıcı-otomasyon aracı YOK" NOT_COLLECTED varsayımını BU ORTAM
+    İÇİN tersine çeviren, doğrudan gözlemlenmiş kanıttır.
+  - **Bilinçli sınırlamalar (fabrike edilmedi):** bu kanıt yalnızca BU
+    oturumun/makinenin yeteneğini kanıtlar — CI veya farklı bir ortamda
+    aynı adımın (browser indirme dahil) yeniden doğrulanması gerekir
+    (bkz. ADR-021 kapsam notu). B038 (animasyonlu sahne) henüz
+    YAPILMADI — bu yüzden onun görsel regresyon kapsamı da yok; şu an
+    yalnızca v0'ın MEVCUT statik/kart-tabanlı arayüzü test edildi.
+
 ---
 
 ## Daily Log
@@ -705,4 +734,26 @@ doğrulandı (uydurulmadı):
   BACKLOG.md B042 **Kapalı**.
 - **Sorunlar:** Yok.
 - **Sonraki adım:** T30/B039 (tarayıcı E2E hazırlığı).
+
+**Ek (aynı gün, B038 ön koşulu #2 — T30/B039):**
+- **Yapılanlar:** `apps/ops-suite/e2e/` oluşturuldu (repo'nun İLK
+  `package.json`'ı) — `@playwright/test` kuruldu, GERÇEK Chromium indirildi
+  (`npx playwright install chromium`, ~306MB, GERÇEKTEN tamamlandı),
+  `global-setup.js` gerçek bir `python -m ops_suite.server` alt-süreci
+  başlatıp durduruyor (port 8421, `scripts/ops_suite_demo.py` ile AYNI
+  PYTHONPATH deseni). `tests/smoke.spec.js` (2 senaryo) **GERÇEKTEN
+  ÇALIŞTIRILDI — 2/2 PASS**. `docs/DECISIONS.md` ADR-021 yazıldı (npm'in
+  kapsamı yalnızca test-tooling, ADR-018 YENİDEN AÇILMADI). BACKLOG.md
+  B039 **Kısmen tamamlandı** (tam görsel doğrulama B038 var olmadan
+  tamamlanamaz — ama araç artık GERÇEKTEN mevcut ve kanıtlı).
+  `docs/RUNBOOK.md`'ye "Ops Suite — Gerçek Tarayıcı E2E (B039)" bölümü
+  + 2 yeni troubleshooting satırı eklendi.
+- **Sorunlar:** Yok — her iki adım da (playwright install, test koşusu)
+  ilk denemede başarılı oldu.
+- **Dürüstlük notu:** Bu kanıt yalnızca BU oturumun/makinenin GERÇEKTEN
+  bir tarayıcı indirip çalıştırabildiğini gösterir — evrensel bir
+  "artık her ortamda tarayıcı testi mümkün" iddiası DEĞİLDİR (bkz.
+  ADR-021 kapsam notu, BACKLOG.md B039 notu).
+- **Sonraki adım:** B038'in gerçek uygulaması — GO/NO-GO kararı için
+  bkz. bu checkpoint'in final raporu.
 
