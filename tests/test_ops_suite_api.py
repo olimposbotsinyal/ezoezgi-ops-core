@@ -302,6 +302,11 @@ def test_approve_writes_audit_record_with_full_identity_fields(tmp_path):
     assert last["details"]["auth_method"] == "bearer"
     assert last["details"]["authority_source"] == "owner"
     assert last["details"]["decision_scope"] == "owner_root"
+    # B053 -- standardize edilmis alanlar da AYNI kayitta, ADDITIVE (yukaridaki
+    # eski alanlar SILINMEDI/DEGISTIRILMEDI).
+    assert last["details"]["auth_decision"] == {
+        "actor": "serkan_eryilmaz", "scope": "owner_root", "decision": "APPROVED", "reason_code": "OK",
+    }
 
 
 def test_post_voice_command_updates_assistant_endpoint(tmp_path):
@@ -565,3 +570,99 @@ def test_rotate_endpoint_owner_can_rotate_own_token(tmp_path):
     new_whoami = client.get("/api/whoami", headers=_auth(new_owner_token))
     assert new_whoami.status_code == 200
     assert new_whoami.json()["authority_source"] == "owner"
+
+
+# --- B053 (BACKLOG.md B053, PLAN.md T52): standardize auth-karar audit -----
+
+
+def _last_audit_record(tmp_path) -> dict:
+    lines = (tmp_path / "audit.log.jsonl").read_text(encoding="utf-8").splitlines()
+    return json.loads(lines[-1])
+
+
+def test_401_missing_token_is_audit_logged_with_no_known_actor(tmp_path):
+    """ONCEDEN: 401'ler HIC audit'e yazilmiyordu (gercek bir bosluk).
+    Simdi: actor bilinmedigi icin `actor: None` -- fabrike bir kimlik
+    ASLA yazilmaz."""
+    client = _client(tmp_path)
+    response = client.get("/api/whoami")
+    assert response.status_code == 401
+
+    record = _last_audit_record(tmp_path)
+    assert record["details"]["auth_decision"] == {
+        "actor": None, "scope": "authenticate", "decision": "DENIED", "reason_code": "AUTH_TOKEN_MISSING",
+    }
+
+
+def test_401_invalid_token_is_audit_logged_with_correct_reason_code(tmp_path):
+    client = _client(tmp_path)
+    client.get("/api/whoami", headers=_auth("not-a-real-token"))
+    record = _last_audit_record(tmp_path)
+    assert record["details"]["auth_decision"]["reason_code"] == "AUTH_TOKEN_INVALID"
+    # Hassas veri KONTROLU -- ham (gecersiz de olsa denenen) token DEGERI
+    # audit kaydinin hicbir yerinde GORUNMEMELIDIR.
+    assert "not-a-real-token" not in json.dumps(record)
+
+
+def test_403_insufficient_scope_is_audit_logged(tmp_path):
+    client = _client(tmp_path)
+    request_id = client.post("/api/voice/command", json={"input_tr": "Ezo, tüm dosyaları sil"}).json()["request_id"]
+    response = client.post(f"/api/approvals/{request_id}/approve", json={}, headers=_auth(DELEGATE_FULL_TOKEN))
+    assert response.status_code == 403
+
+    record = _last_audit_record(tmp_path)
+    assert record["details"]["auth_decision"] == {
+        "actor": "delegate_full", "scope": "approved", "decision": "DENIED", "reason_code": "AUTHZ_OWNER_ONLY",
+    }
+    assert record["request_id"] == request_id
+
+
+def test_403_owner_only_identity_admin_is_audit_logged(tmp_path):
+    client = _client(tmp_path)
+    response = client.post("/api/identity/delegate_low/rotate", headers=_auth(DELEGATE_FULL_TOKEN))
+    assert response.status_code == 403
+
+    record = _last_audit_record(tmp_path)
+    assert record["details"]["auth_decision"] == {
+        "actor": "delegate_full", "scope": "identity:rotate", "decision": "DENIED", "reason_code": "AUTHZ_OWNER_ONLY",
+    }
+
+
+def test_429_rate_limited_is_audit_logged(tmp_path):
+    client = _client(tmp_path, rate_limiter=RateLimiter(max_requests=1, window_seconds=60.0))
+    req1 = client.post("/api/voice/command", json={"input_tr": "Ezo, tüm dosyaları sil"}).json()["request_id"]
+    req2 = client.post("/api/voice/command", json={"input_tr": "Ezo, tüm dosyaları sil"}).json()["request_id"]
+    client.post(f"/api/approvals/{req1}/approve", json={}, headers=_auth(OWNER_TOKEN))
+
+    response = client.post(f"/api/approvals/{req2}/approve", json={}, headers=_auth(OWNER_TOKEN))
+    assert response.status_code == 429
+
+    record = _last_audit_record(tmp_path)
+    assert record["details"]["auth_decision"] == {
+        "actor": "serkan_eryilmaz", "scope": "approval_decision", "decision": "DENIED", "reason_code": "RATE_LIMITED",
+    }
+
+
+def test_rotate_success_is_audit_logged_with_target_actor_and_no_raw_token(tmp_path):
+    client = _client(tmp_path)
+    response = client.post("/api/identity/delegate_low/rotate", headers=_auth(OWNER_TOKEN))
+    new_token = response.json()["new_token"]
+
+    record = _last_audit_record(tmp_path)
+    assert record["details"]["auth_decision"] == {
+        "actor": "serkan_eryilmaz", "scope": "identity:rotate", "decision": "ROTATED", "reason_code": "OK",
+    }
+    assert record["details"]["target_actor_id"] == "delegate_low"
+    # Hassas veri KONTROLU -- yeni URETILEN token DEGERI audit kaydinda
+    # hicbir yerde GORUNMEMELIDIR (yalnizca API yanitinda, TEK SEFERLIK).
+    assert new_token not in json.dumps(record)
+
+
+def test_revoke_success_is_audit_logged_with_target_actor(tmp_path):
+    client = _client(tmp_path)
+    client.post("/api/identity/delegate_low/revoke", headers=_auth(OWNER_TOKEN))
+    record = _last_audit_record(tmp_path)
+    assert record["details"]["auth_decision"] == {
+        "actor": "serkan_eryilmaz", "scope": "identity:revoke", "decision": "REVOKED", "reason_code": "OK",
+    }
+    assert record["details"]["target_actor_id"] == "delegate_low"

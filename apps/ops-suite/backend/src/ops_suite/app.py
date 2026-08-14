@@ -35,10 +35,13 @@ from pydantic import BaseModel
 
 from ops_suite.approval_queue import AlreadyDecidedError, ApprovalQueueStore, UnknownRequestIdError
 from ops_suite.assistant_presence import AssistantPresenceTracker
+from ops_suite.auth_audit import build_auth_decision_details
 from ops_suite.events import TOPIC_AGENT_PRESENCE, TOPIC_APPROVAL_QUEUE, TOPIC_ASSISTANT_PRESENCE, TOPIC_TASK_LIFECYCLE
 from ops_suite.identity import (
     AUTH_METHOD_BEARER,
     AUTHORITY_OWNER,
+    REASON_CODE_AUTHZ_OWNER_ONLY,
+    REASON_CODE_OK,
     REASON_CODE_RATE_LIMITED,
     AuthenticationError,
     AuthorizationError,
@@ -148,6 +151,23 @@ def create_app(
     app.state.presence_store = presence_store
     app.state.rate_limiter = rate_limiter
 
+    def _log_auth_decision(
+        *, actor: str | None, scope: str, decision: str, reason_code: str,
+        request_id: str | None = None, extra: dict[str, Any] | None = None,
+    ) -> None:
+        """B053 (BACKLOG.md B053, PLAN.md T52) -- standardize edilmis
+        auth-karar audit kaydi. TUM auth-karar noktalari (basari + 401 +
+        403 + 429) bunu cagirir -- ONCEDEN yalnizca basarili onay/red
+        kararlari audit'e yaziliyordu, 401/403/429 HIC loglanmiyordu
+        (gercek bir gozlemlenebilirlik boslugu). `actor` YALNIZCA
+        `actor_id` (kamuya acik tanimlayici) tasir -- ham token DEGERI
+        BURAYA ASLA GECIRILMEMELIDIR (bkz. `auth_audit.py` modul
+        dokustringi)."""
+        audit_logger.log(
+            alias=None, task=None, status=decision, risk_level="unknown", request_id=request_id,
+            details=build_auth_decision_details(actor=actor, scope=scope, decision=decision, reason_code=reason_code, extra=extra),
+        )
+
     def _check_rate_limit(identity: Identity, *, category: str) -> None:
         """B052 -- `identity.actor_id` + `category` basina hiz sinirini
         kontrol eder. Kategoriler AYRI sayaclar kullanir (`f"{actor_id}:{category}"`)
@@ -156,6 +176,7 @@ def create_app(
         try:
             rate_limiter.check(f"{identity.actor_id}:{category}")
         except RateLimitExceededError as exc:
+            _log_auth_decision(actor=identity.actor_id, scope=category, decision="DENIED", reason_code=REASON_CODE_RATE_LIMITED)
             raise HTTPException(
                 status_code=429,
                 detail={
@@ -170,6 +191,9 @@ def create_app(
         try:
             return identity_store.authenticate(token)
         except AuthenticationError as exc:
+            # B053 -- KIMLIK henuz BILINMIYOR (auth basarisiz), bu yuzden
+            # `actor=None` -- fabrike bir kimlik ASLA loglanmaz.
+            _log_auth_decision(actor=None, scope="authenticate", decision="DENIED", reason_code=exc.reason_code)
             raise HTTPException(status_code=401, detail=str(exc)) from exc
 
     @app.get("/api/agents")
@@ -201,6 +225,10 @@ def create_app(
         approve:irreversible kapsami olsa BILE kimlik-yonetimi
         eylemlerine erisimi YOKTUR)."""
         if identity.authority_source != AUTHORITY_OWNER:
+            _log_auth_decision(
+                actor=identity.actor_id, scope=f"identity:{action}", decision="DENIED",
+                reason_code=REASON_CODE_AUTHZ_OWNER_ONLY,
+            )
             raise HTTPException(
                 status_code=403,
                 detail=f"'{identity.actor_id}' owner degil -- {action} SAHIBI-ONLY bir islemdir",
@@ -218,6 +246,10 @@ def create_app(
             new_token = identity_store.rotate_token(actor_id, revoked_by=identity.actor_id)
         except UnknownActorError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
+        _log_auth_decision(
+            actor=identity.actor_id, scope="identity:rotate", decision="ROTATED", reason_code=REASON_CODE_OK,
+            extra={"target_actor_id": actor_id},
+        )
         return {"actor_id": actor_id, "new_token": new_token}
 
     @app.post("/api/identity/{actor_id}/revoke")
@@ -230,6 +262,10 @@ def create_app(
             identity_store.revoke_actor(actor_id, revoked_by=identity.actor_id)
         except UnknownActorError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
+        _log_auth_decision(
+            actor=identity.actor_id, scope="identity:revoke", decision="REVOKED", reason_code=REASON_CODE_OK,
+            extra={"target_actor_id": actor_id},
+        )
         return {"actor_id": actor_id, "revoked": True}
 
     async def _decide_and_broadcast(request_id: str, decision: str, body: ApprovalDecisionRequest, identity: Identity) -> dict[str, Any]:
@@ -240,6 +276,10 @@ def create_app(
         try:
             decision_scope = authorize_decision(identity, decision=decision, risk_level=risk_level)
         except AuthorizationError as exc:
+            _log_auth_decision(
+                actor=identity.actor_id, scope=decision, decision="DENIED", reason_code=exc.reason_code,
+                request_id=request_id,
+            )
             raise HTTPException(status_code=403, detail=str(exc)) from exc
 
         try:
@@ -256,14 +296,17 @@ def create_app(
 
         audit_logger.log(
             alias=None, task=None, status=decision.upper(), risk_level=risk_level or "unknown", request_id=request_id,
-            details={
-                "actor_id": identity.actor_id,
-                "auth_method": AUTH_METHOD_BEARER,
-                "authority_source": identity.authority_source,
-                "decision_scope": decision_scope,
-                "note": body.note,
-                "source": "ops_suite_approval_endpoint",
-            },
+            details=build_auth_decision_details(
+                actor=identity.actor_id, scope=decision_scope, decision=decision.upper(), reason_code=REASON_CODE_OK,
+                extra={
+                    "actor_id": identity.actor_id,
+                    "auth_method": AUTH_METHOD_BEARER,
+                    "authority_source": identity.authority_source,
+                    "decision_scope": decision_scope,
+                    "note": body.note,
+                    "source": "ops_suite_approval_endpoint",
+                },
+            ),
         )
         await connection_manager.broadcast(TOPIC_APPROVAL_QUEUE, {"request_id": request_id, "decision": decision})
         return record
