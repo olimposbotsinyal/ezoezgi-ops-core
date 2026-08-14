@@ -108,3 +108,28 @@ def test_handle_voice_command_no_wake_alias_still_returns_result(tmp_path):
     outcome = bridge.handle_voice_command("bugün hava nasıl")
     assert outcome["extracted"]["detected_alias"] is None
     assert outcome["events"][0].original_tr == "bugün hava nasıl"
+
+
+# --- T37 (BACKLOG.md B045) -- presence_events (on_change kancasinin toplanmasi) --
+
+
+def test_handle_voice_command_collects_presence_events_when_tracker_provided(tmp_path):
+    tracker = HeartbeatTracker()
+    bridge = _bridge(tmp_path, heartbeat_tracker=tracker)
+    outcome = bridge.handle_voice_command("Ezo, echo ile 'merhaba' yaz")
+    assert [p.state for p in outcome["presence_events"]] == ["working", "idle"]
+    assert all(p.agent_id == "orchestrator" for p in outcome["presence_events"])
+
+
+def test_handle_voice_command_presence_events_empty_without_tracker(tmp_path):
+    bridge = _bridge(tmp_path)  # heartbeat_tracker=None (varsayilan)
+    outcome = bridge.handle_voice_command("Ezo, echo ile 'merhaba' yaz")
+    assert outcome["presence_events"] == []
+
+
+def test_handle_voice_command_presence_events_reset_between_calls(tmp_path):
+    tracker = HeartbeatTracker()
+    bridge = _bridge(tmp_path, heartbeat_tracker=tracker)
+    bridge.handle_voice_command("Ezo, echo ile 'merhaba' yaz")
+    second = bridge.handle_voice_command("Ezo, echo ile 'merhaba' yaz")
+    assert len(second["presence_events"]) == 2  # ONCEKI cagridan BIRIKMEDI

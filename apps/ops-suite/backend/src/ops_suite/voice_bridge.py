@@ -29,7 +29,7 @@ from risk_engine import DEFAULT_POLICY_PATH, RiskEngine
 from ops_suite.approval_queue import ApprovalQueueStore
 from ops_suite.assistant_presence import AssistantPresenceTracker
 from ops_suite.heartbeat import HeartbeatTracker
-from ops_suite.schemas import TaskLifecycleEvent
+from ops_suite.schemas import AgentPresence, TaskLifecycleEvent
 from ops_suite.status_resolver import KNOWN_LIVE_AGENTS
 
 DEFAULT_CONFIG_PATH = Path("config/assistant.identity.json")
@@ -68,15 +68,34 @@ class VoiceBridge:
         self._approval_queue = approval_queue or ApprovalQueueStore()
         self._assistant_presence = assistant_presence or AssistantPresenceTracker()
         self._heartbeat = heartbeat_tracker
+        self._presence_events: list[AgentPresence] = []
+        # T37 (BACKLOG.md B045) -- `working` gibi kisa omurlu ara durumlar,
+        # `heartbeat.record()`'un AYNI senkron cagri icinde hemen `idle`'a
+        # DONUSTURULMESI yuzunden `GET /api/agents` polling ile
+        # YAKALANAMIYORDU (bkz. eski PLAN.md T33 notu). Bu kanca, HER
+        # `record()` cagrisinda GUNCEL anlik goruntuyu senkron olarak
+        # `self._presence_events`'e ekler -- `handle_voice_command()` bunu
+        # `events` ile AYNI sekilde donus degerine katar, boylece cagiran
+        # taraf (app.py) HER ara-durumu AYRI bir WS mesaji olarak
+        # yayinlayabilir (fabrike edilmis bir "aninda gorunurluk" DEGIL,
+        # gercekten var olan ama once SESSIZCE kaybolan bir olayin
+        # yayinlanmasi).
+        if self._heartbeat is not None:
+            self._heartbeat.on_change = self._presence_events.append
 
     def handle_voice_command(self, input_tr: str) -> dict[str, Any]:
         """Tek bir mocked-TR-metin "ses" komutunu uctan uca isler. Donen
         sozluk: `request_id`, `tr_response`, `extracted` (bridge ciktisi),
         `result_en` (orchestrator ciktisi), `events` (`list[TaskLifecycleEvent]`
-        -- WS yayini icin sirali asama gecisleri), `approval_submission`
+        -- WS yayini icin sirali asama gecisleri), `presence_events`
+        (`list[AgentPresence]` -- T37, bu cagri sirasinda GERCEKTEN
+        degisen ajan anlik goruntuleri, sirali), `approval_submission`
         (WAITING_APPROVAL ise doldurulur, aksi halde `None`)."""
         request_id = str(uuid.uuid4())
         events: list[TaskLifecycleEvent] = []
+        self._presence_events = []
+        if self._heartbeat is not None:
+            self._heartbeat.on_change = self._presence_events.append
 
         self._assistant_presence.set_state("listening", utterance_tr=input_tr, related_request_id=request_id)
         events.append(TaskLifecycleEvent(request_id=request_id, state="received", original_tr=input_tr, timestamp=_now_iso()))
@@ -148,5 +167,6 @@ class VoiceBridge:
             "extracted": extracted,
             "result_en": result_en,
             "events": events,
+            "presence_events": self._presence_events,
             "approval_submission": approval_submission,
         }

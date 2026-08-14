@@ -1172,6 +1172,18 @@ arşivlendi).
 - Gerçek GSM/SIM çağrı akışı — modem yok, `services/gsm-gateway` boş (B040/B043).
 - Gerçek kamera/gesture girdisi — kamera donanımı yok, `services/gesture-vision` boş (B040).
 
+**Ajan/asistan durum geçişlerini gözlemleme (T37, BACKLOG.md B045):**
+
+`GET /api/agents` yalnızca SON heartbeat anlık görüntüsünü döner —
+`working` gibi kısa ömürlü ara durumlar (bir sesli komut tamamen
+senkron işlendiği için) polling ile YAKALANAMAZ. Bunun yerine `WS
+/ws/live`'a bağlanıp `agent.presence` konusunu dinleyin — her
+`heartbeat.record()` çağrısı artık AYRI, sıralı bir WS mesajı olarak
+yayınlanır (bkz. `ops_suite/heartbeat.py::on_change`,
+`voice_bridge.py::_presence_events`). Örnek: bir echo komutu artık
+tam olarak şu sırayla 7 mesaj üretir: 4× `task.lifecycle`, 2×
+`agent.presence` (`working` sonra `idle`), 1× `assistant.presence`.
+
 **Sorun giderme (Ops Suite'e özel):**
 
 | Belirti | Olası Neden | İlk Bakılacak Yer |
@@ -1184,6 +1196,7 @@ arşivlendi).
 | `POST /api/approvals/{id}/approve` → **403** | Token GEÇERLİ ama kapsam/yetki yetersiz (BEKLENEN davranış — ör. delegate `irreversible` onaylamaya çalıştı) | `docs/IDENTITY_AND_DELEGATION_POLICY.md` §4 owner-root-guard; hata mesajı hangi kapsamın eksik olduğunu söyler |
 | `npx playwright test` → `browserType.launch: Executable doesn't exist` | `npx playwright install chromium` hiç çalıştırılmamış | Yukarıdaki "Gerçek Tarayıcı E2E" bölümü |
 | `npx playwright test` → sunucu 15s içinde ayağa kalkmadı hatası | Port 8421 zaten kullanımda VEYA `.venv` kurulu değil | `apps/ops-suite/e2e/global-setup.js`, `OPS_SUITE_E2E_PORT` ile port değiştirilebilir |
+| WS testinde beklenenden FAZLA mesaj geliyor / sabit-sayılı `range(N)` okuma beklenen konuyu KAÇIRIYOR | T37 (B045) sonrası her sesli komut artık 2 ekstra `agent.presence` mesajı da yayınlıyor (working+idle) | Yukarıdaki "Ajan/asistan durum geçişlerini gözlemleme" bölümü; `tests/test_ops_suite_ws.py`'deki güncel sayılara bakın |
 
 ## Sorun Giderme (Genel)
 

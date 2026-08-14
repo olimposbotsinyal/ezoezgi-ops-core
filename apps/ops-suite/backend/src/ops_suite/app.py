@@ -34,7 +34,7 @@ from pydantic import BaseModel
 
 from ops_suite.approval_queue import AlreadyDecidedError, ApprovalQueueStore, UnknownRequestIdError
 from ops_suite.assistant_presence import AssistantPresenceTracker
-from ops_suite.events import TOPIC_APPROVAL_QUEUE, TOPIC_ASSISTANT_PRESENCE, TOPIC_TASK_LIFECYCLE
+from ops_suite.events import TOPIC_AGENT_PRESENCE, TOPIC_APPROVAL_QUEUE, TOPIC_ASSISTANT_PRESENCE, TOPIC_TASK_LIFECYCLE
 from ops_suite.identity import AUTH_METHOD_BEARER, AuthenticationError, AuthorizationError, Identity, IdentityStore, authorize_decision
 
 # apps/ops-suite/backend/src/ops_suite/app.py -> apps/ops-suite/frontend
@@ -173,6 +173,11 @@ def create_app(
 
         for event in outcome["events"]:
             await connection_manager.broadcast(TOPIC_TASK_LIFECYCLE, event.to_dict())
+        # T37 (BACKLOG.md B045) -- `working` gibi GET /api/agents polling'inin
+        # KACIRDIGI kisa omurlu ara durumlar da, tipki task.lifecycle
+        # olaylari gibi, SIRALI ayri WS mesajlari olarak yayinlanir.
+        for presence in outcome["presence_events"]:
+            await connection_manager.broadcast(TOPIC_AGENT_PRESENCE, presence.to_dict())
         await connection_manager.broadcast(TOPIC_ASSISTANT_PRESENCE, assistant_presence.current().to_dict())
         if outcome["approval_submission"] is not None:
             await connection_manager.broadcast(TOPIC_APPROVAL_QUEUE, outcome["approval_submission"])

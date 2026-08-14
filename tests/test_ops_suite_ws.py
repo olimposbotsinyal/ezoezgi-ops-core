@@ -60,7 +60,9 @@ def test_ws_receives_assistant_presence_event_after_voice_command(tmp_path):
     with client.websocket_connect("/ws/live") as websocket:
         client.post("/api/voice/command", json={"input_tr": "Ezo, echo ile 'merhaba' yaz"})
 
-        topics = [websocket.receive_json()["topic"] for _ in range(5)]
+        # 4 task.lifecycle + 2 agent.presence (T37/B045 -- working+idle
+        # heartbeat degisiklikleri artik AYRI WS mesajlari) + 1 assistant.presence.
+        topics = [websocket.receive_json()["topic"] for _ in range(7)]
         assert "assistant.presence" in topics
 
 
@@ -69,8 +71,26 @@ def test_ws_receives_approval_queue_event_for_irreversible_command(tmp_path):
     with client.websocket_connect("/ws/live") as websocket:
         client.post("/api/voice/command", json={"input_tr": "Ezo, tüm dosyaları sil"})
 
-        topics = [websocket.receive_json()["topic"] for _ in range(6)]
+        # 4 task.lifecycle + 2 agent.presence (T37/B045) + 1 assistant.presence
+        # + 1 approval.queue.
+        topics = [websocket.receive_json()["topic"] for _ in range(8)]
         assert "approval.queue" in topics
+
+
+def test_ws_receives_agent_presence_events_for_working_then_idle(tmp_path):
+    """T37 (BACKLOG.md B045) -- `working` durumu `GET /api/agents`
+    polling'i ile YAKALANAMAYACAK kadar kisa omurlu olsa da (bkz.
+    eski PLAN.md T33 notu), artik GERCEK, sirali bir WS mesaji olarak
+    GOZLEMLENEBILIR -- bu, bu gecisin deterministik kanitidir (fabrike
+    edilmemis, gercek `TestClient.websocket_connect` el sikismasi ile)."""
+    client = _client(tmp_path)
+    with client.websocket_connect("/ws/live") as websocket:
+        client.post("/api/voice/command", json={"input_tr": "Ezo, echo ile 'merhaba' yaz"})
+
+        messages = [websocket.receive_json() for _ in range(7)]
+        agent_presence_msgs = [m for m in messages if m["topic"] == "agent.presence"]
+        assert [m["payload"]["state"] for m in agent_presence_msgs] == ["working", "idle"]
+        assert all(m["payload"]["agent_id"] == "orchestrator" for m in agent_presence_msgs)
 
 
 def test_ws_event_payload_matches_lifecycle_state_sequence(tmp_path):

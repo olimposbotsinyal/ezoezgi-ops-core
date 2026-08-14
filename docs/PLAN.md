@@ -583,6 +583,80 @@
     estetik değerlendirme) KAPSAMAZ — yalnızca durum/geçiş DOĞRULUĞUNU
     (debug JSON + ekran görüntüsü) kanıtlar.
 
+## B038 Sonrası Checkpoint — Gözlemlenebilirlik + Kalıcılık (T37-T39)
+
+> T33'ün bilinçli sınırlaması (`working` durumu polling ile
+> yakalanamıyor) ve B041'in eski sınırlaması (heartbeat yalnızca
+> bellek-içi) buradan devam ediyor.
+
+- [x] **T37. Ajan/asistan durum geçişlerini async eventing ile gözlemlenebilir kılmak (BACKLOG.md B045)**
+  - Amaç: `working` gibi kısa ömürlü ara durumların `GET /api/agents`
+    polling'i ile YAKALANAMAMASI (bkz. eski T33 notu) sorununu, senkron
+    çağrı modelini BOZMADAN (backend hâlâ tek bir HTTP isteği içinde
+    uçtan uca işliyor) çözmek — bloklamayan bir olay yayma yolu ile.
+  - Teknik çıktı: `heartbeat.py::HeartbeatTracker.on_change` (yeni,
+    opsiyonel kanca — varsayılan `None`, GERİYE UYUMLU), `voice_bridge.py`
+    bunu her `handle_voice_command()` çağrısında `self._presence_events`'e
+    bağlar ve donüş değerine `presence_events` alanı olarak ekler,
+    `app.py::POST /api/voice/command` bunları `task.lifecycle` ile AYNI
+    örüntüyle (`for ... await connection_manager.broadcast(...)`) artık
+    GERÇEKTEN VAR OLAN `TOPIC_AGENT_PRESENCE` (`events.py`'de önceden
+    TANIMLI ama HİÇ KULLANILMAMIŞTI) konusuna yayınlar.
+  - Kabul kriteri: Geriye uyumluluk (mevcut TÜM testler değişmeden
+    yeşil kalmalı, yalnızca WS mesaj SAYISI değişebilir — bu, testlerde
+    açıkça güncellenmeli) + en az 1 yeni test, `working`→`idle`
+    geçişinin artık gerçek, sıralı WS mesajları olarak
+    gözlemlenebildiğini deterministik olarak kanıtlamalı.
+  - **Not (2026-08-14) — resmen kapatıldı:** Uygulandı ve GERÇEKTEN
+    test edildi. `tests/test_ops_suite_heartbeat.py`'ye 4 yeni test
+    (`on_change` varsayılan `None`/senkron ateşleme/sıralı
+    working→idle/DI-sonrası yeniden bağlama), `tests/test_ops_suite_voice_bridge.py`'ye
+    3 yeni test (`presence_events` toplama/tracker-yoksa-boş/çağrılar-arası
+    sıfırlama), `tests/test_ops_suite_ws.py`'ye 1 yeni test
+    (`test_ws_receives_agent_presence_events_for_working_then_idle` —
+    gerçek `TestClient.websocket_connect()` ile `["working", "idle"]`
+    sırasını DOĞRUDAN doğruluyor). **Geriye uyumluluk kontrolü:** 2
+    mevcut WS testi (`assistant_presence_event`/`approval_queue_event`)
+    artık 2 fazla `agent.presence` mesajı aldığı için sabit-sayılı
+    `range(N)` okumaları güncellendi (5→7, 6→8) — DAVRANIŞ
+    DEĞİŞMEDİ, yalnızca test beklentisi GERÇEK yeni mesaj sayısını
+    yansıtacak şekilde düzeltildi. Tam regresyon: **942/942 yeşil**
+    (934+8). `docs/RUNBOOK.md`'ye yeni bir "Ajan/asistan durum
+    geçişlerini gözlemleme" bölümü + 1 troubleshooting satırı eklendi.
+  - **Kapsam dışı (BİLEREK, T38'e bırakıldı):** Frontend (`scene.js`)
+    henüz bu yeni `agent.presence` WS mesajlarını TÜKETMİYOR (yalnızca
+    canlı akış paneline düşüyorlar) — sahnenin bunları kullanarak
+    GERÇEK `working` anını görsel olarak render etmesi ayrı bir iştir.
+
+- [ ] **T38. `working`→`idle` geçişi için deterministik test kapsamı (BACKLOG.md B046)**
+  - Amaç: T37'nin sağladığı gerçek WS gözlemlenebilirliğini kullanarak,
+    hem `scene.js`'in HEM DE bir Playwright testinin `working` anını
+    GERÇEKTEN (fabrike etmeden) yakalayabildiğini kanıtlamak.
+  - Kapsam (taslak, henüz uygulanmadı): `scene.js`'e `agent.presence`
+    WS mesajlarını dinleyen bir yol eklemek (`app.js::handleLiveEvent`'e
+    yeni bir `else if (topic === "agent.presence")` dalı), sahnenin
+    `working` durumunu (masaya geçiş) artık polling'e değil GERÇEK WS
+    mesajına göre güncellemesi; `apps/ops-suite/e2e/tests/scene.spec.js`'e
+    `working` durumunu GERÇEKTEN yakalayan (WS mesaj dinleyicisiyle,
+    zamanlamaya dayalı `waitForTimeout` TAHMİNİYLE DEĞİL) yeni bir
+    senaryo.
+  - Bağımlılık: T37 (tamamlandı).
+
+- [ ] **T39. Heartbeat/presence kalıcılığı — yeniden başlatmalar arası (BACKLOG.md B041)**
+  - Amaç: `HeartbeatTracker`'ın BİLEREK bellek-içi olma sınırlamasını
+    (bkz. `docs/OPS_SUITE_PRODUCT_SPEC.md` §6, BACKLOG.md B041 — ÖNCEDEN
+    AÇILMIŞ madde, bu YENİ bir BACKLOG kaydı DEĞİL) kapatmak — sunucu
+    yeniden başlatıldığında TÜM ajan durumu şu an sıfırlanıyor (yalnızca
+    onay kuyruğu JSONL sayesinde kalıcı).
+  - Kapsam (taslak, henüz uygulanmadı): muhtemelen `approval_queue.py`
+    ile AYNI JSONL append-only deseni (ADR-009/ADR-016) — son bilinen
+    `AgentPresence` anlık görüntüsünü periyodik/olay-bazlı olarak
+    diske yazıp açılışta geri okumak. Kesin tasarım kararı ayrı bir ADR
+    gerektirebilir (SQLite'a mı geçilecek yoksa JSONL mi yeterli —
+    ADR-016'nın "bu ölçekte SQLite gereksiz" gerekçesiyle tutarlı
+    kalınacaksa JSONL tercih edilir).
+  - Bağımlılık: Yok (T37/T38'den bağımsız, paralel alınabilir).
+
 ---
 
 ## Daily Log
@@ -908,4 +982,37 @@ doğrulandı (uydurulmadı):
   ADR-021 kapsam notu, BACKLOG.md B039 notu).
 - **Sonraki adım:** B038'in gerçek uygulaması — GO/NO-GO kararı için
   bkz. bu checkpoint'in final raporu.
+
+### 2026-08-14 (devam) — Commit D + v0.3.0-ops-scene-v0.2 + T37-T39 checkpoint
+
+- **Yapılanlar (commit/tag):** Önceki checkpoint'in staged B038 işi
+  (20 dosya) `Commit D: B038 Canvas2D office scene v0.2 (T31-T36) +
+  evidence + data-dir isolation fix` mesajıyla tek bir commit'e
+  (`452eff1`) alındı; `v0.3.0-ops-scene-v0.2` etiketi bu commit'e
+  eklendi. `git log -n5`: `452eff1` (Commit D) → `c712fea` (Commit C,
+  B039) → `9f16005` (Commit B, B042) → `f694aeb` (Commit A, B044) →
+  `594db33` (Ops Suite v0, T21-T27).
+- **Yapılanlar (yeni görevler):** `docs/PLAN.md`'ye T37 (kapatıldı),
+  T38 (taslak, henüz uygulanmadı), T39 (taslak, henüz uygulanmadı)
+  eklendi. `docs/BACKLOG.md`'ye B045 (T37 ile birlikte kapatıldı), B046
+  (açık) eklendi; B041 (ÖNCEDEN VAR OLAN madde — YENİDEN AÇILMADI/
+  DUPLICATE EDİLMEDİ) T39'a çapraz referanslandı.
+- **Yapılanlar (T37 uygulaması):** `heartbeat.py::HeartbeatTracker.on_change`
+  (opsiyonel, geriye uyumlu kanca) + `voice_bridge.py`'nin bunu her
+  çağrıda `presence_events`'e toplaması + `app.py`'nin bunları
+  önceden tanımlı-ama-hiç-kullanılmamış `TOPIC_AGENT_PRESENCE`
+  konusuna, `task.lifecycle` ile AYNI örüntüyle yayınlaması. 8 yeni
+  test (4 heartbeat + 3 voice_bridge + 1 WS — `["working", "idle"]`
+  sırasını gerçek bir WS el sıkışmasıyla DOĞRUDAN doğruluyor). 2 mevcut
+  WS testi, artık gerçek olan 2 fazla mesajı yansıtacak şekilde
+  güncellendi (davranış DEĞİL, test beklentisi düzeltildi).
+- **Test özeti:** Tam pytest regresyonu **942/942 yeşil** (934+8: 4
+  heartbeat + 3 voice_bridge + 1 WS testi). Playwright: **5/5 yeşil**
+  (T37 mevcut sahne/smoke testlerini BOZMADI — `scene.js` yeni
+  `agent.presence` mesajlarını henüz TÜKETMİYOR, yalnızca canlı akışa
+  düşüyorlar, bkz. T38).
+- **Sorunlar:** Yok.
+- **Sonraki adım:** T38 (frontend tüketimi + zamanlamaya dayanmayan
+  Playwright kanıtı) veya T39 (kalıcılık) — hangisinin önce alınacağı
+  henüz kararlaştırılmadı, ikisi de BAĞIMSIZ alınabilir.
 

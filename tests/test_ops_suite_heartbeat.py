@@ -92,3 +92,41 @@ def test_record_with_explicit_ts_overrides_clock():
     tracker.record("a1", declared_state="working", ts=500.0)
     snapshot = tracker.snapshot()
     assert snapshot[0].last_heartbeat_ts.startswith("1970-01-01")
+
+
+# --- T37 (BACKLOG.md B045) -- on_change kancasi -----------------------------
+
+
+def test_on_change_defaults_to_none_and_does_not_fire():
+    tracker = HeartbeatTracker()
+    assert tracker.on_change is None
+    tracker.record("a1", declared_state="working")  # exception FIRLATMAMALI
+
+
+def test_on_change_fires_synchronously_with_current_presence():
+    received = []
+    tracker = HeartbeatTracker(on_change=received.append)
+    tracker.record("a1", declared_state="working", display_name="Agent One")
+    assert len(received) == 1
+    assert received[0].agent_id == "a1"
+    assert received[0].state == "working"
+
+
+def test_on_change_fires_once_per_record_call_with_each_states_snapshot():
+    received = []
+    clock = _FakeClock()
+    tracker = HeartbeatTracker(clock=clock, on_change=received.append)
+    tracker.record("a1", declared_state="working")
+    tracker.record("a1", declared_state="idle")
+    assert [p.state for p in received] == ["working", "idle"]
+
+
+def test_on_change_can_be_reassigned_after_construction():
+    """`create_app()`/`VoiceBridge`'in DI ile verilmis bir tracker'a bile
+    SONRADAN kanca baglayabilmesi icin -- `on_change` duz bir ozelliktir,
+    yalnizca constructor parametresi DEGIL."""
+    tracker = HeartbeatTracker()
+    received = []
+    tracker.on_change = received.append
+    tracker.record("a1", declared_state="working")
+    assert len(received) == 1
