@@ -1,0 +1,103 @@
+{
+  "generated_at": "2026-08-14T02:13:19.502Z",
+  "steps": [
+    {
+      "step": "server_startup",
+      "ok": true,
+      "base_url": "http://127.0.0.1:8425"
+    },
+    {
+      "step": "b048_completed_path",
+      "ok": true,
+      "task_marker": {
+        "stage": "completed",
+        "agent_id": "orchestrator",
+        "lifecycle_state": "completed",
+        "x": 526,
+        "y": 180,
+        "target_x": 600,
+        "target_y": 190,
+        "at_rest_position": false
+      },
+      "screenshot": "reports\\ops_suite_av_2026-08-14T0213Z\\01_task_marker_completed.png"
+    },
+    {
+      "step": "b048_awaiting_approval_path_same_visual_stage",
+      "ok": true,
+      "task_marker": {
+        "stage": "completed",
+        "agent_id": "orchestrator",
+        "lifecycle_state": "awaiting_approval",
+        "x": 523,
+        "y": 201,
+        "target_x": 600,
+        "target_y": 212,
+        "at_rest_position": false
+      },
+      "screenshot": "reports\\ops_suite_av_2026-08-14T0213Z\\02_task_marker_awaiting_approval.png"
+    },
+    {
+      "step": "b050_mute_suppresses_real_cue",
+      "ok": true,
+      "sound_state": {
+        "muted": true,
+        "policy_enabled": true,
+        "last_play": {
+          "cue": "task_complete",
+          "played": false,
+          "reason": "muted"
+        }
+      },
+      "screenshot": "reports\\ops_suite_av_2026-08-14T0213Z\\03_sound_muted_suppressed.png"
+    },
+    {
+      "step": "b050_unmuted_real_cue_plays",
+      "ok": true,
+      "sound_state": {
+        "muted": false,
+        "policy_enabled": true,
+        "last_play": {
+          "cue": "task_complete",
+          "played": true,
+          "reason": null,
+          "freq": 880,
+          "duration_ms": 120
+        }
+      },
+      "screenshot": "reports\\ops_suite_av_2026-08-14T0213Z\\04_sound_unmuted_played.png"
+    },
+    {
+      "step": "b050_policy_block_real_401_triggers_cue",
+      "ok": true,
+      "sound_state": {
+        "muted": false,
+        "policy_enabled": true,
+        "last_play": {
+          "cue": "policy_block",
+          "played": true,
+          "reason": null,
+          "freq": 220,
+          "duration_ms": 260
+        }
+      },
+      "screenshot": "reports\\ops_suite_av_2026-08-14T0213Z\\05_sound_policy_block.png"
+    },
+    {
+      "step": "b050_approval_needed_real_trigger",
+      "ok": true,
+      "sound_state": {
+        "muted": false,
+        "policy_enabled": true,
+        "last_play": {
+          "cue": "approval_needed",
+          "played": true,
+          "reason": null,
+          "freq": 660,
+          "duration_ms": 180
+        }
+      },
+      "screenshot": "reports\\ops_suite_av_2026-08-14T0213Z\\06_sound_approval_needed.png"
+    }
+  ],
+  "overall_ok": true
+}

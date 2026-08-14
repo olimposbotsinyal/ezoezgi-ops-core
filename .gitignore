@@ -118,6 +118,13 @@ reports/ops_suite_scene_*/
 # olarak gerektigi durumlarda `git add -f` ile arsivlenir.
 reports/ops_suite_interactions_*/
 
+# Ops Suite coklu-adimli gorev animasyonu (B048) + ses ipuclari (B050)
+# kanit paketleri (apps/ops-suite/e2e/capture_av_evidence.js,
+# BACKLOG.md B048/B050, PLAN.md T45/T46) -- ayni gerekce: tekrar-uretilebilir.
+# Belirli bir kosunun GENUINELY bu ozelliklerin dogru calistiginin kaniti
+# olarak gerektigi durumlarda `git add -f` ile arsivlenir.
+reports/ops_suite_av_*/
+
 # NOT: reports/weekly_observability_<YYYY-WW>/ KASITLI olarak burada
 # YOK -- bu, "Post-GO weekly ritual"in kalici governance gunlugudur
 # (her hafta EKLENIR, uzerine yazilmaz), diger raporlar gibi rutin/

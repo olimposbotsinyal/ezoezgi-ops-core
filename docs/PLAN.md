@@ -829,7 +829,7 @@
 > hazırlık maddesi (T47-T49, BACKLOG.md B051-B053) yalnızca KAYDEDİLİYOR
 > — bu checkpoint'te büyük bir refactor YAPILMIYOR (kullanıcı talebi).
 
-- [ ] **T45. Çoklu-adımlı görev yaşam döngüsü animasyonu (BACKLOG.md B048)**
+- [x] **T45. Çoklu-adımlı görev yaşam döngüsü animasyonu (BACKLOG.md B048)**
   - Amaç: Sahnedeki durum-bazlı (anlık) konum geçişlerinin ÖTESİNDE, TEK
     bir görevin (`request_id`) GERÇEK yaşam döngüsünü (zaten var olan
     `task.lifecycle`/`agent.presence` WS olaylarıyla) görsel bir "görev
@@ -863,8 +863,15 @@
     "tamamlandı" aşamasına ulaşır) gerçek bir tarayıcıda, gerçek WS
     frame'leri dinlenerek (sleep/polling YOK) deterministik doğrulanmalı;
     `debugState().task_markers` test köprüsü.
+  - **Not (2026-08-14) — resmen kapatıldı:** `apps/ops-suite/e2e/tests/task_lifecycle.spec.js`
+    (2 test — "yol 1" başarılı/completed, "yol 2" awaiting_approval —
+    ikisi de gerçek WS frame yakalamasıyla, sleep YOK); kanıt:
+    `reports/ops_suite_av_2026-08-14T0213Z/01_task_marker_completed.png`,
+    `02_task_marker_awaiting_approval.png` + `evidence.json`/`evidence.md`
+    (`genel_sonuc=PASS`, ekran görüntülerinde "Tamamlanan Görevler"
+    rafında yığılmış işaretçiler GERÇEKTEN görünür).
 
-- [ ] **T46. Ses ipucu çerçevesi — mute + politika kapısı (BACKLOG.md B050)**
+- [x] **T46. Ses ipucu çerçevesi — mute + politika kapısı (BACKLOG.md B050)**
   - Amaç: CDN'siz, yerel (Web Audio API sentezlenmiş ton) bir ses ipucu
     çerçevesi; global sessize alma + politika kapısı (config ile
     açık/kapalı) + 3 ayırt edilebilir, GERÇEK koşullara bağlı ipucu.
@@ -889,6 +896,18 @@
     ortamda hoparlör donanımı yok — sesin insan kulağıyla GERÇEKTEN
     duyulduğu doğrulanamaz, yalnızca doğru koşullarda doğru parametrelerle
     GERÇEK bir Web Audio API çağrısının yapılıp YAPILMADIĞI test edilir.
+  - **Not (2026-08-14) — resmen kapatıldı:** `apps/ops-suite/e2e/tests/sound_cues.spec.js`
+    (7 test — 4 birim testi + 3 GERÇEK entegrasyon tetikleyicisi: mute
+    düğmesi bastırma/açma, onay-gerekli, politika-engeli). Süreçte
+    GERÇEK bir hata bulundu/düzeltildi: aynı dosyadaki iki test aynı
+    paylaşılan sunucuya (T44) irreversible komut gönderdiği için onay
+    kuyruğu sayısı BİRİKTİ (`toHaveCount(1)` varsayımı 2. testte
+    BOZULDU) — düzeltme: sabit sayı yerine "önce/sonra farkı" + `.last()`
+    ile bu testin KENDİ eklediği kaydı hedeflemek. Kanıt:
+    `reports/ops_suite_av_2026-08-14T0213Z/03_sound_muted_suppressed.png`
+    … `06_sound_approval_needed.png` (4 ekran görüntüsü) + `evidence.json`/
+    `evidence.md` (`genel_sonuc=PASS`). **NOT_COLLECTED:** hoparlörden
+    GERÇEKTEN duyulan ses — bu ortamda ses donanımı yok.
 
 - [ ] **T47. Token rotasyonu/iptali mekanizması — yalnızca kayıt (BACKLOG.md B051)**
   - Kapsam: TASARLANMADI/UYGULANMADI — bu checkpoint'te yalnızca
@@ -1363,3 +1382,49 @@ doğrulandı (uydurulmadı):
   tetikleyici eşleme, sessize alma kalıcılığı) eklendi.
 - **Sorunlar:** Yok.
 - **Sonraki adım:** T45 (B048) uygulaması.
+
+### 2026-08-14 (devam 5) — T45/T46 kapatıldı: coklu-adimli animasyon + ses ipuclari
+
+- **Yapılanlar (T45/B048):** `scene.js`'e gorev isaretcisi (task marker)
+  sistemi eklendi -- `applyTaskLifecycleEvent()`, `_recomputeTaskMarkerPositions()`,
+  `_evictOldTaskMarkers()`, `_drawTaskMarkers()`; `applyAgentPresenceEvent()`
+  `last_task_id` capraz-referansiyla genisletildi; `app.js`'in
+  `task.lifecycle` isleyicisi artik payload'i sahneye de iletiyor
+  (ONCEDEN atiliyordu). Backend'e HICBIR DOKUNUS YOK.
+- **Yapılanlar (T46/B050):** `apps/ops-suite/frontend/js/sound_cues.js`
+  (yeni) -- Web Audio API sentezlenmis tonlar, CDN/binary ses dosyasi
+  YOK; global mute (`localStorage`) + politika kapisi; 3 ipucu GERCEK
+  kosullara bagli (approval_needed <- yeni approval.queue kaydi,
+  task_complete <- task.lifecycle "completed", policy_block <- B044'un
+  GERCEK 401/403 reddi). `index.html`/`style.css`'e mute dugmesi.
+  `docs/DECISIONS.md`'ye ADR-023 (B048 tasarimi) + ADR-024 (B050
+  tasarimi) eklendi (ONCEDEN, planlama commitinde).
+  - **Not:** `sound_cues.js`'de `SoundCues` -> `OpsSuiteSoundCues`
+    global adi; `window.__ops_suite_sound_debug__()` yeni test koprusu
+    (`window.__ops_suite_scene_debug__()` ile AYNI desen).
+- **Bulunan/duzeltilen gercek hatalar:** (1) `sound_cues.spec.js`
+  icinde iki test AYNI paylasilan dosya-basi sunucuya (T44) irreversible
+  komut gonderince onay kuyrugu sayisi BIRIKTI, sabit `toHaveCount(1)`
+  varsayimi 2. testte bozuldu -- duzeltme: once/sonra farki + `.last()`
+  ile SADECE o testin kendi kaydini hedeflemek (AYNI sinif hata,
+  T44/T38/T39 ile TUTARLI, bu sefer TEK bir dosya icinde tekrar test
+  arasi sizinti).
+- **Test özeti:** Playwright TAM paket (4 dosya, 21 test) art arda 2 kez
+  calistirilarak **21/21 yesil** dogrulandi (6 yeni B048 + B050 testi
+  dahil: 2 `task_lifecycle.spec.js` + 7 `sound_cues.spec.js` = 9 yeni,
+  onceki 12 korunuyor). pytest tam regresyon **953/953 yesil**
+  (backend'e hicbir dokunus olmadigi icin degismedi, yine de yeniden
+  calistirilarak dogrulandi). `data/presence/`/`data/approvals/`'ta
+  sifir yeni kirlenme.
+- **Kanıt:** `reports/ops_suite_av_2026-08-14T0213Z/` (`capture_av_evidence.js`
+  ile uretildi -- 6 PNG + `evidence.json`/`evidence.md`, `genel_sonuc=PASS`,
+  `git add -f` ile arsivlendi). 2 ekran goruntusu gorsel olarak
+  incelendi, GERCEK/fabrike-edilmemis oldugu dogrulandi (01: gorev
+  isaretcisi + mute dugmesi "Ses: Acik"; 05: "Tamamlanan Gorevler"
+  rafinda 3 yigilmis isaretci + gercek bekleyen onay karti).
+- **Sorunlar:** Yok (1 gerçek hata bulundu+düzeltildi, yukarıda
+  belgelendi).
+- **Sonraki adım:** Commit 4 (evidence/docs closure) + final rapor
+  (değişen dosyalar, test özeti, GO/NO-GO). T47/T48/T49 (güvenlik
+  sertleştirme hazırlığı) yalnızca KAYITLI kalıyor, bu checkpoint'te
+  UYGULANMADI (kullanıcı talebi).

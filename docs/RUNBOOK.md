@@ -1142,9 +1142,10 @@ cd ../../..
 Sonuçlar `apps/ops-suite/e2e/test-results/results.json`'a yazılır
 (gitignored — rutin/tekrar-üretilebilir, `reports/ops_suite_demo_*/`
 ile aynı gerekçe). **Bu ortamda 2026-08-14'te GERÇEKTEN çalıştırıldı —
-12/12 PASS** (2 `smoke.spec.js` + 4 `scene.spec.js` + 6
-`interactions.spec.js`, bkz. `docs/PLAN.md` T29/T36/T40/T42/T44 Daily
-Log notları), art arda 2 kez tam paket çalıştırılarak doğrulandı. Her
+21/21 PASS** (2 `smoke.spec.js` + 4 `scene.spec.js` + 6
+`interactions.spec.js` + 2 `task_lifecycle.spec.js` + 7 `sound_cues.spec.js`,
+bkz. `docs/PLAN.md` T29/T36/T40/T42/T44/T45/T46 Daily Log notları), art
+arda 2 kez tam paket çalıştırılarak doğrulandı. Her
 kosu, projenin GERÇEK `data/` dosyalarını BOZMAMAK için izole bir gecici
 veri dizini kullanır (`OPS_SUITE_DATA_DIR`, bkz. `ops_suite/server.py`)
 — bu, ilk kosuda GERÇEKTEN kesfedilen bir hatanin duzeltmesidir (bkz.
@@ -1188,9 +1189,31 @@ yazar. **Bu ortamda GERÇEKTEN çalıştırıldı — PASS** (bkz.
 `reports/ops_suite_interactions_2026-08-14T0126Z/`, `git add -f` ile
 arşivlendi).
 
+**Ops Suite — Çoklu-Adımlı Animasyon + Ses İpuçları Kanıtı (B048/B050, PLAN.md T45/T46):**
+
+```powershell
+node apps/ops-suite/e2e/capture_av_evidence.js
+```
+
+Gerçek bir sunucu + gerçek bir (headless) Chromium ile 7 adımı çalıştırır
+(başarılı bir görevin kuyruk→atandı→çalışıyor→tamamlandı ilerleyişi,
+onay-bekleyen bir görevin AYNI "tamamlandı" görsel aşamasına ulaşması,
+mute AÇIKKEN bir ses ipucunun bastırılması, mute KAPATILINCA aynı ipucunun
+GERÇEKTEN çalınması, politika-engeli/onay-gerekli ipucularının gerçek
+tetikleyicileri), her adımda tam sayfa ekran görüntüsü + JSON durumu
+alır, `reports/ops_suite_av_<UTC>/evidence.{json,md}` + PNG'lere yazar.
+**Bu ortamda GERÇEKTEN çalıştırıldı — PASS** (bkz.
+`reports/ops_suite_av_2026-08-14T0213Z/`, `git add -f` ile arşivlendi;
+ekran görüntülerinde "Tamamlanan Görevler" rafında GERÇEKTEN yığılmış
+görev işaretçileri görülebilir).
+
 **Bilinçli olarak toplanamayan kanıt (NOT_COLLECTED, `scripts/ops_suite_demo.py`
 çıktısında da görünür):**
 
+- Ses ipuçlarının (B050) insan kulağıyla GERÇEKTEN duyulduğu — bu
+  ortamda hoparlör donanımı yok. Test edilen: doğru koşullarda doğru
+  parametrelerle GERÇEK bir Web Audio API (`OscillatorNode`) çağrısının
+  yapılıp YAPILMADIĞI (`window.__ops_suite_sound_debug__().last_play`).
 - Gerçek tarayıcı render'ı/etkileşimi — 2026-08-14'te ARTIK KISMEN
   TOPLANDI (yukarıdaki Playwright altyapısı, bkz. B039/ADR-021) —
   yalnızca B038'in (henüz yapılmamış) animasyonlu sahnesinin görsel
@@ -1242,6 +1265,7 @@ Restart-simülasyonunu GERÇEKTEN doğrulayan test:
 | Playwright testi TEK BAŞINA geçiyor ama TAM suite'te ARADA BİR başarısız oluyor (özellikle dosya sırasında SONRAKİ testler) | Sunucu SÜREÇ ömrü boyunca PAYLAŞILAN singleton'lar (`HeartbeatTracker`/`AssistantPresenceTracker`) — bir DOM değerini (ör. "speaking") senkronizasyon sinyali olarak kullanmak, ÖNCEKİ bir testten kalan durum ZATEN doğruysa erken geçebilir | `tests/scene.spec.js` "gecis 4" (T38) notu — senkronizasyon sinyali olarak DOM DEĞİL, doğrudan yakalanan WS frame/event dizisini kullanın |
 | Tam pytest koşusu sonrası `data/presence/agent_presence.jsonl` (GERÇEK proje dosyası) beklenmedik satırlarla doluyor | Bir test `presence_store` DI etmeden `create_app()` çağırıyor, varsayılan (gerçek) yola yazıyor | `tests/test_ops_suite_api.py`/`test_ops_suite_ws.py`'nin TÜM `create_app()` çağrılarına `presence_store=PresenceStore(tmp_path / "presence.jsonl")` eklenmeli (T39'da GERÇEKTEN yaşanan bir hata, bkz. `docs/PLAN.md` T39 notu) |
 | Bir sprite SVG'si ağ isteğinde 200 + doğru `image/svg+xml` dönüyor ama sahnede hiç görünmüyor (`debugState().sprites` hep `"error"`) | SVG dosyasının `<!-- -->` yorumu geçersiz bir `--` dizisi içeriyor — bu XML spesifikasyonuna aykırı, Chromium `Image.onload` yerine sessizce `onerror` tetikliyor | Yorumlarda `--` yerine `:`/`;`/tek tire kullanın (T40'ta GERÇEKTEN yaşanan bir hata, bkz. `docs/PLAN.md` T40 notu); `apps/ops-suite/frontend/assets/sprites/*.svg`'yi bir regex ile (`<!--(.*?)-->` içinde `--` var mı) tarayarak doğrulayın |
+| Aynı Playwright spec dosyası içindeki bir testte `.approval-item`'in sabit sayısı (`toHaveCount(1)`) beklenmedik şekilde 2+'ye çıkıyor | Aynı dosyadaki ÖNCEKİ bir test de irreversible bir komut gönderip onay kuyruğuna kayıt bıraktı — dosya-başına sunucu (T44) tüm dosya boyunca PAYLAŞILIR, testler ARASI sızıntı değil ama AYNI dosya İÇİNDEKİ testler arası birikme GERÇEKTİR | Sabit sayı yerine "önce/sonra farkı" (`before + 1`) + `.last()` ile SADECE o testin kendi eklediği kaydı hedefleyin (T46'da GERÇEKTEN yaşanan bir hata, bkz. `docs/PLAN.md` T46 notu, `tests/sound_cues.spec.js`) |
 
 ## Line Ending Policy
 

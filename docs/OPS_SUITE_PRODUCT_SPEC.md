@@ -97,7 +97,7 @@ apps/ops-suite/
 - Heartbeat/presence durumu yalnızca BELLEK-İÇİ tutulur, sunucu yeniden
   başlatıldığında sıfırlanır — B041.
 
-## 7. Ofis sahnesi (B038 — PLAN.md T31-T44)
+## 7. Ofis sahnesi (B038 — PLAN.md T31-T46)
 
 **Kapsam (uygulandı):** saf Canvas2D (üçüncü taraf kütüphane YOK, ADR-020),
 3 bilinen-canlı ajan için sabit masa konumu + paylaşılan/yayılmış bir
@@ -116,12 +116,24 @@ tıklamak, GERÇEK durumunu (state/last_task_id/last_heartbeat_ts/detail)
 gösteren bir detay paneli açar; ajanların KENDİ bir "yetki kapsamı"
 OLMADIĞI panelde açıkça belirtilir (fabrike edilmez); bekleyen bir
 onayla eşleşen `last_task_id` varsa panelde bağlantı/vurgu olur.
+**T45/B048 (2026-08-14):** her görev (`request_id`) artık sahnede bir
+"görev işaretçisi" ile canlandırılıyor — kuyrukta → atandı → çalışıyor →
+tamamlandı, tamamen zaten var olan `task.lifecycle`/`agent.presence` WS
+olaylarıyla sürülüyor (backend'e dokunulmadı). "Tamamlandı" görevin
+BAŞARILI olduğu anlamına GELMEZ — yalnızca ajanın işlemeyi bitirdiği
+anlamına gelir (bkz. `docs/DECISIONS.md` ADR-023). **T46/B050
+(2026-08-14):** yerel (CDN'siz, Web Audio API sentezlenmiş ton) bir ses
+ipucu çerçevesi eklendi — global sessize alma (kalıcı) + bir politika
+kapısı + 3 ayırt edilebilir ipucu (onay-gerekli/görev-tamamlandı/
+politika-engeli — sonuncusu B044'ün gerçek 401/403 auth reddine
+bağlandı, bkz. ADR-024).
 
-**Kapsam dışı (v1'e, bkz. BACKLOG.md B048/B050):** çoklu-adımlı görev
-animasyonları (ör. "belge taşınıyor" gibi ara adımlar, B048 — TASARLANMADI),
-ses efektleri (B050 — TASARLANMADI). Sprite varlıkları (B047) ve tıklama
-etkileşimi (B049) artık YUKARIDAKİ "Kapsam (uygulandı)" bölümünde —
-bu listeden çıkarıldı.
+**Kapsam dışı artık YOK (B038'in bilinen tüm v0+ tamamlama parçaları
+uygulandı):** sprite varlıkları (B047), tıklama etkileşimi (B049),
+çoklu-adımlı görev animasyonu (B048) ve ses ipuçları (B050) hepsi
+YUKARIDAKİ "Kapsam (uygulandı)" bölümünde. Geriye kalan tek gerçek
+sınırlama, sesin insan kulağıyla duyulduğunun doğrulanamaması
+(NOT_COLLECTED — bu ortamda hoparlör donanımı yok, bkz. `docs/RUNBOOK.md`).
 
 **Mimari sınırlama (T37/T38 ile ÇÖZÜLDÜ):** backend bir sesli komutu
 BAŞTAN SONA senkron işler, bu yüzden bir ajanın `working` (masada aktif
