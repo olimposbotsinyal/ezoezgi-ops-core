@@ -22,6 +22,8 @@ data/approvals/*
 !data/approvals/.gitkeep
 data/presence/*
 !data/presence/.gitkeep
+data/identity/*
+!data/identity/.gitkeep
 
 .claude/
 # Runtime incident watch evidence

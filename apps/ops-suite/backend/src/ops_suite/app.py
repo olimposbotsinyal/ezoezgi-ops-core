@@ -36,7 +36,16 @@ from pydantic import BaseModel
 from ops_suite.approval_queue import AlreadyDecidedError, ApprovalQueueStore, UnknownRequestIdError
 from ops_suite.assistant_presence import AssistantPresenceTracker
 from ops_suite.events import TOPIC_AGENT_PRESENCE, TOPIC_APPROVAL_QUEUE, TOPIC_ASSISTANT_PRESENCE, TOPIC_TASK_LIFECYCLE
-from ops_suite.identity import AUTH_METHOD_BEARER, AuthenticationError, AuthorizationError, Identity, IdentityStore, authorize_decision
+from ops_suite.identity import (
+    AUTH_METHOD_BEARER,
+    AUTHORITY_OWNER,
+    AuthenticationError,
+    AuthorizationError,
+    Identity,
+    IdentityStore,
+    UnknownActorError,
+    authorize_decision,
+)
 from ops_suite.presence_store import PresenceStore
 
 # apps/ops-suite/backend/src/ops_suite/app.py -> apps/ops-suite/frontend
@@ -157,6 +166,42 @@ def create_app(
         EDILMEDI (sahibi icin anlamsiz, delegate icin de UI'da simdilik
         gosterilmiyor); yalnizca kim olarak KIMLIK DOGRULANDIGI donuyor."""
         return {"actor_id": identity.actor_id, "display_name": identity.display_name, "authority_source": identity.authority_source}
+
+    def _require_owner(identity: Identity, *, action: str) -> None:
+        """B051 -- rotate/revoke KESINLIKLE sahibi-only bir islemdir,
+        `authorize_decision()`'in owner-root-guard'iyla AYNI ruhta ama
+        onay/red kararlarindan BAGIMSIZ bir kontrol (bir delegate'in
+        approve:irreversible kapsami olsa BILE kimlik-yonetimi
+        eylemlerine erisimi YOKTUR)."""
+        if identity.authority_source != AUTHORITY_OWNER:
+            raise HTTPException(
+                status_code=403,
+                detail=f"'{identity.actor_id}' owner degil -- {action} SAHIBI-ONLY bir islemdir",
+            )
+
+    @app.post("/api/identity/{actor_id}/rotate")
+    def rotate_identity_token(actor_id: str, identity: Identity = Depends(_get_current_identity)) -> dict[str, Any]:
+        """B051 (BACKLOG.md B051, PLAN.md T50) -- `actor_id`'nin GUNCEL
+        token'ini iptal edip YENISINI uretir. Yeni token DEGERI YALNIZCA
+        bu yanitta, TEK SEFERLIK gorunur -- hicbir yerde duz metin olarak
+        KALICI hale getirilmez (bkz. `identity.py::IdentityStore.rotate_token`)."""
+        _require_owner(identity, action="rotate")
+        try:
+            new_token = identity_store.rotate_token(actor_id, revoked_by=identity.actor_id)
+        except UnknownActorError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        return {"actor_id": actor_id, "new_token": new_token}
+
+    @app.post("/api/identity/{actor_id}/revoke")
+    def revoke_identity_token(actor_id: str, identity: Identity = Depends(_get_current_identity)) -> dict[str, Any]:
+        """B051 -- `actor_id`'nin GUNCEL token'ini KALICI olarak iptal
+        eder, YENI bir token URETMEZ (acil erisim-kesme senaryosu)."""
+        _require_owner(identity, action="revoke")
+        try:
+            identity_store.revoke_actor(actor_id, revoked_by=identity.actor_id)
+        except UnknownActorError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        return {"actor_id": actor_id, "revoked": True}
 
     async def _decide_and_broadcast(request_id: str, decision: str, body: ApprovalDecisionRequest, identity: Identity) -> dict[str, Any]:
         pending_entry = approval_queue.get_pending_entry(request_id)

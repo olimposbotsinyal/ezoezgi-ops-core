@@ -11,8 +11,9 @@ owner+delegate kimlikleriyle GERCEK bearer-token akisini uctan uca
 kanitlamasi icin) -- bkz. BACKLOG.md B044.
 
 `OPS_SUITE_DATA_DIR` (opsiyonel) -- verilirse `data/approvals/`/`data/audit/`/
-`data/presence/` YERINE `{OPS_SUITE_DATA_DIR}/approvals|audit|presence/`
-kullanilir. GERCEK bir uvicorn sureci baslatan ama izole olmayan
+`data/presence/`/`data/identity/` YERINE
+`{OPS_SUITE_DATA_DIR}/approvals|audit|presence|identity/` kullanilir.
+GERCEK bir uvicorn sureci baslatan ama izole olmayan
 tuketiciler (ornegin `apps/ops-suite/e2e/`'nin Playwright testleri)
 BUNU KULLANMALIDIR -- aksi halde her test kosusu, projenin GERCEK
 `data/approvals/approval_queue.jsonl`/`data/presence/agent_presence.jsonl`
@@ -32,7 +33,7 @@ from ops_suite.app import create_app
 from ops_suite.approval_queue import ApprovalQueueStore
 from ops_suite.assistant_presence import AssistantPresenceTracker
 from ops_suite.heartbeat import HeartbeatTracker
-from ops_suite.identity import DEFAULT_IDENTITY_CONFIG_PATH, IdentityStore
+from ops_suite.identity import DEFAULT_IDENTITY_CONFIG_PATH, IdentityStore, TokenRevocationStore
 from ops_suite.presence_store import PresenceStore
 from ops_suite.voice_bridge import VoiceBridge
 
@@ -40,7 +41,6 @@ DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8420
 
 _identity_config_path = os.environ.get("OPS_SUITE_IDENTITY_CONFIG_PATH", str(DEFAULT_IDENTITY_CONFIG_PATH))
-_identity_store = IdentityStore.from_config_path(_identity_config_path)
 
 _data_dir_override = os.environ.get("OPS_SUITE_DATA_DIR")
 if _data_dir_override:
@@ -48,6 +48,14 @@ if _data_dir_override:
     _approval_queue_path = _data_dir / "approvals" / "approval_queue.jsonl"
     _audit_log_path = _data_dir / "audit" / "audit.log.jsonl"
     _presence_log_path = _data_dir / "presence" / "agent_presence.jsonl"
+    # B051 (BACKLOG.md B051, PLAN.md T50) -- izole kosularin (Playwright/
+    # scripts/ops_suite_demo.py) GERCEK `data/identity/token_revocations.jsonl`
+    # dosyasina yazmasini ONLER -- T35/T39/T44'te GERCEKTEN yasanan veri-
+    # kirlenmesi hata sinifinin AYNISI, bu sefer BASTAN engellendi.
+    _token_revocation_path = _data_dir / "identity" / "token_revocations.jsonl"
+    _identity_store = IdentityStore.from_config_path(
+        _identity_config_path, revocation_store=TokenRevocationStore(_token_revocation_path),
+    )
     _heartbeat_tracker = HeartbeatTracker()
     _assistant_presence = AssistantPresenceTracker()
     _approval_queue = ApprovalQueueStore(_approval_queue_path)
@@ -63,6 +71,7 @@ if _data_dir_override:
         voice_bridge=_voice_bridge, audit_logger=_audit_logger, presence_store=_presence_store,
     )
 else:
+    _identity_store = IdentityStore.from_config_path(_identity_config_path)
     app = create_app(identity_store=_identity_store)
 
 

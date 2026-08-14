@@ -394,3 +394,82 @@ def test_agent_presence_seed_does_not_override_existing_di_tracker_state(tmp_pat
     client = TestClient(app)
     agents = {a["agent_id"]: a for a in client.get("/api/agents").json()}
     assert agents["orchestrator"]["state"] == "blocked"  # disktaki "working" DEGIL
+
+
+# --- B051 (BACKLOG.md B051, PLAN.md T50): token rotasyonu/iptali -----------
+
+
+def test_rotate_endpoint_owner_can_rotate_delegate_old_token_rejected_new_works(tmp_path):
+    client = _client(tmp_path)
+    response = client.post("/api/identity/delegate_low/rotate", headers=_auth(OWNER_TOKEN))
+    assert response.status_code == 200
+    body = response.json()
+    assert body["actor_id"] == "delegate_low"
+    new_token = body["new_token"]
+    assert new_token and new_token != DELEGATE_LOW_TOKEN
+
+    # Eski token GERCEKTEN reddedilir (B051 kabul kriteri).
+    old_response = client.get("/api/whoami", headers=_auth(DELEGATE_LOW_TOKEN))
+    assert old_response.status_code == 401
+
+    # Yeni token CALISIR ve AYNI kimlige esler.
+    new_response = client.get("/api/whoami", headers=_auth(new_token))
+    assert new_response.status_code == 200
+    assert new_response.json()["actor_id"] == "delegate_low"
+
+
+def test_rotate_endpoint_delegate_cannot_rotate_returns_403(tmp_path):
+    client = _client(tmp_path)
+    response = client.post("/api/identity/delegate_low/rotate", headers=_auth(DELEGATE_FULL_TOKEN))
+    assert response.status_code == 403
+    # Hedef token ETKILENMEMIS olmali -- reddedilen bir istek yan etki YARATMAZ.
+    assert client.get("/api/whoami", headers=_auth(DELEGATE_LOW_TOKEN)).status_code == 200
+
+
+def test_rotate_endpoint_without_auth_returns_401(tmp_path):
+    client = _client(tmp_path)
+    response = client.post("/api/identity/delegate_low/rotate")
+    assert response.status_code == 401
+
+
+def test_rotate_endpoint_unknown_actor_returns_404(tmp_path):
+    client = _client(tmp_path)
+    response = client.post("/api/identity/does-not-exist/rotate", headers=_auth(OWNER_TOKEN))
+    assert response.status_code == 404
+
+
+def test_revoke_endpoint_owner_can_revoke_delegate_token(tmp_path):
+    client = _client(tmp_path)
+    response = client.post("/api/identity/delegate_low/revoke", headers=_auth(OWNER_TOKEN))
+    assert response.status_code == 200
+    assert response.json() == {"actor_id": "delegate_low", "revoked": True}
+
+    assert client.get("/api/whoami", headers=_auth(DELEGATE_LOW_TOKEN)).status_code == 401
+
+
+def test_revoke_endpoint_delegate_cannot_revoke_returns_403(tmp_path):
+    client = _client(tmp_path)
+    response = client.post("/api/identity/delegate_low/revoke", headers=_auth(DELEGATE_FULL_TOKEN))
+    assert response.status_code == 403
+    assert client.get("/api/whoami", headers=_auth(DELEGATE_LOW_TOKEN)).status_code == 200
+
+
+def test_revoke_endpoint_unknown_actor_returns_404(tmp_path):
+    client = _client(tmp_path)
+    response = client.post("/api/identity/does-not-exist/revoke", headers=_auth(OWNER_TOKEN))
+    assert response.status_code == 404
+
+
+def test_rotate_endpoint_owner_can_rotate_own_token(tmp_path):
+    """Sahibi KENDI token'ini da rotate edebilir -- ONCEKI istek zaten
+    ESKI token ile kimlik dogrulanmis oldugu icin BASARIYLA TAMAMLANIR,
+    yalnizca SONRAKI istekler yeni token'i gerektirir."""
+    client = _client(tmp_path)
+    response = client.post("/api/identity/serkan_eryilmaz/rotate", headers=_auth(OWNER_TOKEN))
+    assert response.status_code == 200
+    new_owner_token = response.json()["new_token"]
+
+    assert client.get("/api/whoami", headers=_auth(OWNER_TOKEN)).status_code == 401
+    new_whoami = client.get("/api/whoami", headers=_auth(new_owner_token))
+    assert new_whoami.status_code == 200
+    assert new_whoami.json()["authority_source"] == "owner"
